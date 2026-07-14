@@ -6,6 +6,7 @@ import { ConfigModule } from './config/config.module';
 import { DatabaseConfig } from './config/database.config';
 import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './modules/users/users.module';
+import { AuthModule } from './modules/auth/auth.module';
 
 @Module({
   imports: [
@@ -15,6 +16,7 @@ import { UsersModule } from './modules/users/users.module';
     }),
     RedisModule,
     UsersModule,
+    AuthModule,
   ],
   controllers: [AppController],
   providers: [AppService],
