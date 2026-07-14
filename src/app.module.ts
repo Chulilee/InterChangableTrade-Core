@@ -7,6 +7,7 @@ import { DatabaseConfig } from './config/database.config';
 import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
+import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 
 @Module({
   imports: [
@@ -17,6 +18,7 @@ import { AuthModule } from './modules/auth/auth.module';
     RedisModule,
     UsersModule,
     AuthModule,
+    MarketplaceModule,
   ],
   controllers: [AppController],
   providers: [AppService],
