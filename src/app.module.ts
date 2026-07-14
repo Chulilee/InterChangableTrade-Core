@@ -5,6 +5,7 @@ import { AppService } from './app.service';
 import { ConfigModule } from './config/config.module';
 import { DatabaseConfig } from './config/database.config';
 import { RedisModule } from './redis/redis.module';
+import { UsersModule } from './modules/users/users.module';
 
 @Module({
   imports: [
@@ -13,6 +14,7 @@ import { RedisModule } from './redis/redis.module';
       useClass: DatabaseConfig,
     }),
     RedisModule,
+    UsersModule,
   ],
   controllers: [AppController],
   providers: [AppService],
