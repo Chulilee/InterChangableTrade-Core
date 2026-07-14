@@ -8,6 +8,7 @@ import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
+import { AssetsModule } from './modules/assets/assets.module';
 
 @Module({
   imports: [
@@ -19,6 +20,7 @@ import { MarketplaceModule } from './modules/marketplace/marketplace.module';
     UsersModule,
     AuthModule,
     MarketplaceModule,
+    AssetsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
