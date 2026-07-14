@@ -2,6 +2,10 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
+import {
+  AllExceptionsFilter,
+  TransformInterceptor,
+} from '@app/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {
@@ -22,6 +26,10 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // Consistent success envelope and error shape across all endpoints.
+  app.useGlobalInterceptors(new TransformInterceptor());
+  app.useGlobalFilters(new AllExceptionsFilter());
 
   // CORS is enabled so the frontend can reach the API during development.
   app.enableCors();
