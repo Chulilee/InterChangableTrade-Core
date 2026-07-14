@@ -9,6 +9,7 @@ import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { AssetsModule } from './modules/assets/assets.module';
+import { TransactionsModule } from './modules/transactions/transactions.module';
 
 @Module({
   imports: [
@@ -21,6 +22,7 @@ import { AssetsModule } from './modules/assets/assets.module';
     AuthModule,
     MarketplaceModule,
     AssetsModule,
+    TransactionsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

@@ -1,6 +1,6 @@
 import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { IsNull, Repository } from 'typeorm';
 import { PaginatedResultDto } from '@app/common';
 import { Asset } from './entities/asset.entity';
 import { IndexAssetDto } from './dto/index-asset.dto';
@@ -20,7 +20,7 @@ export class AssetsService {
   async upsert(dto: IndexAssetDto): Promise<Asset> {
     const issuer = dto.issuer ?? null;
     const existing = await this.assetsRepository.findOne({
-      where: { code: dto.code, issuer },
+      where: { code: dto.code, issuer: issuer ?? IsNull() },
     });
 
     const asset =
