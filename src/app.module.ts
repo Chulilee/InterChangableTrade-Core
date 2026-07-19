@@ -10,6 +10,8 @@ import { AuthModule } from './modules/auth/auth.module';
 import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { AssetsModule } from './modules/assets/assets.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
+import { StellarModule } from './modules/stellar/stellar.module';
+import { TradingEngineModule } from './modules/trading-engine/trading-engine.module';
 
 @Module({
   imports: [
@@ -23,6 +25,8 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
     MarketplaceModule,
     AssetsModule,
     TransactionsModule,
+    StellarModule,
+    TradingEngineModule,
   ],
   controllers: [AppController],
   providers: [AppService],
