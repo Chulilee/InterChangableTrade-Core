@@ -12,6 +12,7 @@ import { AssetsModule } from './modules/assets/assets.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { StellarModule } from './modules/stellar/stellar.module';
 import { TradingEngineModule } from './modules/trading-engine/trading-engine.module';
+import { WalletModule } from './modules/wallet/wallet.module';
 
 @Module({
   imports: [
@@ -27,6 +28,7 @@ import { TradingEngineModule } from './modules/trading-engine/trading-engine.mod
     TransactionsModule,
     StellarModule,
     TradingEngineModule,
+    WalletModule,
   ],
   controllers: [AppController],
   providers: [AppService],
