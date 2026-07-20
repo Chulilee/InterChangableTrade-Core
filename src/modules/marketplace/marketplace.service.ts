@@ -48,7 +48,7 @@ export class MarketplaceService {
     }
 
     const [data, total] = await qb.getManyAndCount();
-    return new PaginatedResultDto(data, total, query.page, query.limit);
+    return new PaginatedResultDto(data, total, query.page ?? 1, query.limit ?? 20);
   }
 
   async findOne(id: string): Promise<Listing> {

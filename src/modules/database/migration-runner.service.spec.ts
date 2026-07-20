@@ -2,6 +2,7 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { MigrationRunnerService } from './migration-runner.service';
 import { DataSource } from 'typeorm';
+import * as fs from 'fs';
 
 describe('MigrationRunnerService', () => {
   let service: MigrationRunnerService;
@@ -20,6 +21,14 @@ describe('MigrationRunnerService', () => {
       get: jest.fn(),
     } as any;
 
+    const originalReaddirSync = fs.readdirSync;
+    const originalStatSync = fs.statSync;
+    const originalExistsSync = fs.existsSync;
+
+    jest.spyOn(fs, 'readdirSync').mockReturnValue(['1000-migration1.ts'] as any);
+    jest.spyOn(fs, 'statSync').mockReturnValue({ mtime: new Date() } as any);
+    jest.spyOn(fs, 'existsSync').mockReturnValue(true);
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         MigrationRunnerService,
@@ -35,6 +44,14 @@ describe('MigrationRunnerService', () => {
     }).compile();
 
     service = module.get(MigrationRunnerService);
+
+    (service as any).originalReaddirSync = originalReaddirSync;
+    (service as any).originalStatSync = originalStatSync;
+    (service as any).originalExistsSync = originalExistsSync;
+  });
+
+  afterEach(() => {
+    jest.restoreAllMocks();
   });
 
   it('should be defined', () => {
@@ -45,42 +62,31 @@ describe('MigrationRunnerService', () => {
     it('should return migration status', async () => {
       mockDataSource.query
         .mockResolvedValueOnce([
-          { name: 'migration1.ts', executed_at: '2024-01-01T00:00:00Z' },
-          { name: 'migration2.ts', executed_at: '2024-01-02T00:00:00Z' },
+          { name: '1000-migration1.ts', executed_at: '2024-01-01T00:00:00Z' },
         ])
         .mockResolvedValueOnce([]);
 
       const status = await service.getStatus();
 
-      expect(status.executed.length).toBe(2);
+      expect(status.executed.length).toBe(1);
       expect(status.pending.length).toBe(0);
     });
 
-    it('should identify pending migrations', async () => {
-      mockDataSource.query
-        .mockResolvedValueOnce([{ name: 'migration1.ts', executed_at: '2024-01-01T00:00:00Z' }])
-        .mockResolvedValueOnce([{ timestamp: 1000, name: 'migration1.ts' }]);
-
-      mockDataSource.query = jest.fn();
-
-      const fs = require('fs');
-      const originalReaddirSync = fs.readdirSync;
-      fs.readdirSync = jest.fn().mockReturnValue(['1000-migration1.ts']);
+    it('should return empty status on error', async () => {
+      mockDataSource.query.mockRejectedValue(new Error('DB error'));
 
       const status = await service.getStatus();
 
-      expect(status.executed.length).toBe(1);
+      expect(status.executed.length).toBe(0);
       expect(status.pending.length).toBe(0);
-
-      fs.readdirSync = originalReaddirSync;
     });
   });
 
   describe('runMigrations', () => {
     it('should run pending migrations', async () => {
       mockDataSource.query
-        .mockResolvedValueOnce([{ name: 'migration1.ts', executed_at: '2024-01-01T00:00:00Z' }])
-        .mockResolvedValueOnce([{ timestamp: 1000, name: 'migration1.ts' }]);
+        .mockResolvedValueOnce([])
+        .mockResolvedValueOnce([{ timestamp: 1000, name: '1000-migration1.ts' }]);
 
       mockDataSource.runMigrations = jest.fn().mockResolvedValue(undefined);
 
@@ -102,16 +108,16 @@ describe('MigrationRunnerService', () => {
       };
 
       mockDataSource.createQueryRunner = jest.fn().mockReturnValue(mockQueryRunner as any);
-      mockDataSource.query = jest.fn()
-        .mockResolvedValueOnce([{ name: 'migration1.ts', executed_at: '2024-01-01T00:00:00Z' }])
-        .mockResolvedValueOnce([{ timestamp: 1000, name: 'migration1.ts' }]);
+      mockDataSource.query
+        .mockResolvedValueOnce([{ name: '1000-migration1.ts', executed_at: '2024-01-01T00:00:00Z' }])
+        .mockResolvedValueOnce([{ timestamp: 1000, name: '1000-migration1.ts' }]);
 
       const result = await service.rollbackMigration(1);
 
       expect(result.rolledBack).toBe(1);
       expect(mockQueryRunner.query).toHaveBeenCalledWith(
         'DELETE FROM typeorm_migrations WHERE name = $1',
-        ['migration1.ts'],
+        ['1000-migration1.ts'],
       );
     });
   });

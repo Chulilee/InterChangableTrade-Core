@@ -108,7 +108,17 @@ describe('AuditTrailService', () => {
         { id: 2, action: 'updated' },
       ];
 
-      mockDataSource.manager.query = jest.fn().mockResolvedValue(mockAuditTrails);
+      const mockQueryBuilder = {
+        select: jest.fn().mockReturnThis(),
+        from: jest.fn().mockReturnThis(),
+        where: jest.fn().mockReturnThis(),
+        andWhere: jest.fn().mockReturnThis(),
+        orderBy: jest.fn().mockReturnThis(),
+        limit: jest.fn().mockReturnThis(),
+        getRawMany: jest.fn().mockResolvedValue(mockAuditTrails),
+      };
+
+      mockDataSource.manager.createQueryBuilder = jest.fn().mockReturnValue(mockQueryBuilder);
 
       const result = await service.findAuditTrail('users', '123', 10);
 

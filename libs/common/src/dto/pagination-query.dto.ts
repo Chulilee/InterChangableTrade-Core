@@ -31,6 +31,10 @@ export class PaginationQueryDto {
   @IsOptional()
   @IsEnum(SortDirection)
   sortDirection?: SortDirection = SortDirection.DESC;
+
+  get skip(): number {
+    return ((this.page ?? 1) - 1) * (this.limit ?? 20);
+  }
 }
 
 export class PaginatedResultDto<T> {
