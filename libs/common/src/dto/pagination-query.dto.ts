@@ -1,27 +1,64 @@
-import { ApiPropertyOptional } from '@nestjs/swagger';
+import { IsOptional, IsString, IsInt, Min, Max, IsEnum } from 'class-validator';
 import { Type } from 'class-transformer';
-import { IsInt, IsOptional, Max, Min } from 'class-validator';
 
-/**
- * Reusable pagination query for list endpoints. `page` is 1-based.
- */
+export enum SortDirection {
+  ASC = 'ASC',
+  DESC = 'DESC',
+}
+
 export class PaginationQueryDto {
-  @ApiPropertyOptional({ default: 1, minimum: 1 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
-  page = 1;
+  page?: number = 1;
 
-  @ApiPropertyOptional({ default: 20, minimum: 1, maximum: 100 })
   @IsOptional()
   @Type(() => Number)
   @IsInt()
   @Min(1)
   @Max(100)
-  limit = 20;
+  limit?: number = 20;
 
-  get skip(): number {
-    return (this.page - 1) * this.limit;
+  @IsOptional()
+  @IsString()
+  search?: string;
+
+  @IsOptional()
+  @IsString()
+  sortBy?: string;
+
+  @IsOptional()
+  @IsEnum(SortDirection)
+  sortDirection?: SortDirection = SortDirection.DESC;
+}
+
+export class PaginatedResultDto<T> {
+  data: T[];
+  meta: {
+    total: number;
+    page: number;
+    limit: number;
+    totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
+  };
+
+  constructor(data: T[], total: number, page: number, limit: number) {
+    this.data = data;
+    this.meta = {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit) || 1,
+      hasNextPage: page < (Math.ceil(total / limit) || 1),
+      hasPreviousPage: page > 1,
+    };
   }
+}
+
+export class BulkOperationResult {
+  success: boolean;
+  affectedCount: number;
+  errors: Array<{ index: number; error: string }>;
 }

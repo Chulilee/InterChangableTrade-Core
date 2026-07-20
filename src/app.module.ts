@@ -4,6 +4,7 @@ import { AppController } from './app.controller';
 import { AppService } from './app.service';
 import { ConfigModule } from './config/config.module';
 import { DatabaseConfig } from './config/database.config';
+import { DatabaseModule } from './modules/database/database.module';
 import { RedisModule } from './redis/redis.module';
 import { UsersModule } from './modules/users/users.module';
 import { AuthModule } from './modules/auth/auth.module';
@@ -20,6 +21,7 @@ import { WalletModule } from './modules/wallet/wallet.module';
     TypeOrmModule.forRootAsync({
       useClass: DatabaseConfig,
     }),
+    DatabaseModule,
     RedisModule,
     UsersModule,
     AuthModule,
