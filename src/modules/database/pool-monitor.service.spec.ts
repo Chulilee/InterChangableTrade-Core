@@ -78,18 +78,19 @@ describe('PoolMonitorService', () => {
 
   describe('getRecommendations', () => {
     it('should recommend increasing pool size when utilization is high', () => {
-      const metrics = {
-        total: 10,
-        idle: 1,
-        active: 9,
-        waiting: 0,
-        utilizationPercent: 90,
-        timestamp: new Date(),
-      };
+      Object.defineProperty(mockDataSource.driver.options, 'extra', {
+        value: {
+          totalCount: 10,
+          idleCount: 1,
+          waitingCount: 0,
+        },
+        writable: true,
+        configurable: true,
+      });
 
       const recommendations = service.getRecommendations();
 
-      expect(recommendations.some((r: string) => r.includes('pool utilization') || r.includes('connection pool'))).toBe(true);
+      expect(recommendations.some((r: string) => r.includes('Pool utilization'))).toBe(true);
     });
 
     it('should recommend optimizing queries when connections are waiting', () => {
@@ -100,6 +101,7 @@ describe('PoolMonitorService', () => {
           waitingCount: 3,
         },
         writable: true,
+        configurable: true,
       });
 
       const recommendations = service.getRecommendations();
