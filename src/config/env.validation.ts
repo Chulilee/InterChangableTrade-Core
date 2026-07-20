@@ -29,4 +29,18 @@ export const envValidationSchema = Joi.object({
   STELLAR_HORIZON_URL: Joi.string().uri().required(),
   SOROBAN_RPC_URL: Joi.string().uri().required(),
   STELLAR_NETWORK_PASSPHRASE: Joi.string().required(),
+
+  // Soroban smart-contract module. All optional with sensible defaults so the
+  // module boots in read-only mode without extra configuration.
+  SOROBAN_ALLOW_HTTP: Joi.boolean().default(false),
+  SOROBAN_SOURCE_SECRET: Joi.string()
+    .pattern(/^S[A-Z2-7]{55}$/)
+    .optional(),
+  SOROBAN_TX_TIMEOUT_SECS: Joi.number().default(30),
+  SOROBAN_POLL_INTERVAL_MS: Joi.number().default(1000),
+  SOROBAN_POLL_TIMEOUT_MS: Joi.number().default(30000),
+  SOROBAN_STATE_CACHE_TTL_SECS: Joi.number().default(30),
+  SOROBAN_EVENT_POLL_INTERVAL_MS: Joi.number().default(500),
+  SOROBAN_EVENT_RETENTION_SECS: Joi.number().default(86400),
+  SOROBAN_EVENT_PAGE_LIMIT: Joi.number().default(100),
 });
