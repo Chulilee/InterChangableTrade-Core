@@ -45,8 +45,9 @@ export class DatabaseService {
     }
 
     try {
-      await this.dataSource.query('SELECT pg_is_in_recovery()');
-      checks.replication = !!(await this.dataSource.query('SELECT pg_is_in_recovery()'));
+      const replicationResult = await this.dataSource.query('SELECT pg_is_in_recovery()');
+      const isInRecovery = replicationResult?.[0]?.pg_is_in_recovery;
+      checks.replication = !isInRecovery;
     } catch (error) {
       this.logger.warn('Replication check failed', error);
     }
