@@ -12,7 +12,11 @@ describe('DatabaseService', () => {
       query: jest.fn(),
       driver: {
         options: {
-          extra: {},
+          extra: {
+            totalCount: 10,
+            idleCount: 5,
+            waitingCount: 0,
+          },
         },
       } as any,
     } as any;
@@ -28,6 +32,7 @@ describe('DatabaseService', () => {
     }).compile();
 
     service = module.get(DatabaseService);
+    jest.clearAllMocks();
   });
 
   it('should be defined', () => {
