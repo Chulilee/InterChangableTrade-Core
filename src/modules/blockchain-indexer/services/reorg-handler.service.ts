@@ -1,5 +1,6 @@
 import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
-import { DataSource, MoreThanOrEqual } from 'typeorm';
+import { ConfigService } from '@nestjs/config';
+import { DataSource, LessThanOrEqual, MoreThan, MoreThanOrEqual } from 'typeorm';
 import { BlockchainEvent } from '../entities/blockchain-event.entity';
 import { IndexingStateService } from './indexing-state.service';
 import { StellarEventSourceService } from './stellar-event-source.service';
@@ -13,10 +14,11 @@ export class ReorgHandlerService {
     private readonly dataSource: DataSource,
     private readonly stateService: IndexingStateService,
     private readonly eventSource: StellarEventSourceService,
-    configService: any,
+    private readonly configService: ConfigService,
   ) {
     this.maxBackfillLedgers =
-      (configService?.get?.('blockchainIndexer.maxBackfillLedgers') ?? 1000);
+      this.configService.get<number>('blockchainIndexer.maxBackfillLedgers') ??
+      1000;
   }
 
   async detectAndHandle(): Promise<boolean> {
@@ -55,7 +57,10 @@ export class ReorgHandlerService {
     try {
       await this.dataSource
         .getRepository(BlockchainEvent)
-        .update({ ledger: MoreThanOrEqual(fromLedger), invalidated: false }, { invalidated: true });
+        .update(
+          { ledger: MoreThanOrEqual(fromLedger), invalidated: false },
+          { invalidated: true },
+        );
       this.logger.log(`Invalidated events from ledger ${fromLedger}`);
     } catch (error) {
       this.logger.error(
@@ -73,7 +78,7 @@ export class ReorgHandlerService {
       );
       this.logger.log(`Fetched ${transactions.length} transactions for backfill`);
       for (const tx of transactions) {
-        await this.eventSource.emitTransactionFound(tx);
+        await this.eventSource.getOperationsForTransaction(tx.hash);
       }
     } catch (error) {
       this.logger.error(
