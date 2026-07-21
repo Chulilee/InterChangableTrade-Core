@@ -4,9 +4,9 @@ import {
   ExceptionFilter,
   HttpException,
   HttpStatus,
-  Logger,
 } from '@nestjs/common';
 import { Request, Response } from 'express';
+import { ErrorHandlerService } from 'src/modules/error-handler/error-handler.service';
 
 /**
  * Normalizes error responses into the same envelope style used for success
@@ -14,35 +14,24 @@ import { Request, Response } from 'express';
  */
 @Catch()
 export class AllExceptionsFilter implements ExceptionFilter {
-  private readonly logger = new Logger(AllExceptionsFilter.name);
+  constructor(private readonly errorHandlerService: ErrorHandlerService) {}
 
   catch(exception: unknown, host: ArgumentsHost): void {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
     const request = ctx.getRequest<Request>();
 
-    const status =
-      exception instanceof HttpException
-        ? exception.getStatus()
-        : HttpStatus.INTERNAL_SERVER_ERROR;
+    const appError = this.errorHandlerService.handle(exception);
 
-    const message =
-      exception instanceof HttpException
-        ? exception.getResponse()
-        : 'Internal server error';
+    const isProduction = process.env.NODE_ENV === 'production';
 
-    if (status === HttpStatus.INTERNAL_SERVER_ERROR) {
-      this.logger.error(
-        `Unhandled exception on ${request.method} ${request.url}`,
-        exception instanceof Error ? exception.stack : String(exception),
-      );
-    }
-
-    response.status(status).json({
+    response.status(appError.getStatus()).json({
       success: false,
-      statusCode: status,
+      statusCode: appError.getStatus(),
       path: request.url,
-      error: typeof message === 'string' ? { message } : message,
+      error: isProduction
+        ? { message: 'An unexpected error occurred.' }
+        : appError.toDetail(),
       timestamp: new Date().toISOString(),
     });
   }

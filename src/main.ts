@@ -2,11 +2,9 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
-import {
-  AllExceptionsFilter,
-  TransformInterceptor,
-} from '@app/common';
+import { AllExceptionsFilter, TransformInterceptor } from '@app/common';
 import { AppModule } from './app.module';
+import { ErrorHandlerService } from './modules/error-handler/error-handler.service';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -29,7 +27,8 @@ async function bootstrap() {
 
   // Consistent success envelope and error shape across all endpoints.
   app.useGlobalInterceptors(new TransformInterceptor());
-  app.useGlobalFilters(new AllExceptionsFilter());
+  const errorHandler = app.get(ErrorHandlerService);
+  app.useGlobalFilters(new AllExceptionsFilter(errorHandler));
 
   // CORS is enabled so the frontend can reach the API during development.
   app.enableCors();
