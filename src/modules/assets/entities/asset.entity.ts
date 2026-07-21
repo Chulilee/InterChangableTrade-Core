@@ -1,5 +1,10 @@
-import { Column, Entity, Index, Unique } from 'typeorm';
+import { Column, Entity, Index, Unique, ManyToOne } from 'typeorm';
 import { BaseEntity } from '@app/common';
+
+export enum AssetStatus {
+  ACTIVE = 'active',
+  DEPRECATED = 'deprecated',
+}
 
 /**
  * An indexed Stellar asset. Native XLM is represented with `issuer = null`.
@@ -12,6 +17,27 @@ export class Asset extends BaseEntity {
   @Index()
   @Column()
   code: string;
+
+  @Column({ nullable: true })
+  name?: string;
+
+  @Column({ nullable: true })
+  description?: string;
+
+  @Column({ nullable: true })
+  imageUrl?: string;
+
+  @Column({ type: 'enum', enum: AssetStatus, default: AssetStatus.ACTIVE })
+  status: AssetStatus;
+
+  @Column({ default: true })
+  isTradeable: boolean;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  deprecationDate?: Date;
+
+  @ManyToOne(() => Asset, { nullable: true })
+  migratedTo?: Asset;
 
   @Column({ type: 'varchar', nullable: true })
   issuer?: string | null;

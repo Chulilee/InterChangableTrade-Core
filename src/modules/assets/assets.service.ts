@@ -13,10 +13,6 @@ export class AssetsService {
     private readonly assetsRepository: Repository<Asset>,
   ) {}
 
-  /**
-   * Idempotently records an asset. Re-indexing the same (code, issuer) updates
-   * the existing row rather than creating duplicates.
-   */
   async upsert(dto: IndexAssetDto): Promise<Asset> {
     const issuer = dto.issuer ?? null;
     const existing = await this.assetsRepository.findOne({
@@ -24,13 +20,28 @@ export class AssetsService {
     });
 
     const asset =
-      existing ??
-      this.assetsRepository.create({ code: dto.code, issuer });
+      existing ?? this.assetsRepository.create({ code: dto.code, issuer });
 
     asset.isNative = issuer === null;
     asset.domain = dto.domain ?? asset.domain;
     if (dto.isVerified !== undefined) {
       asset.isVerified = dto.isVerified;
+    }
+    asset.name = dto.name ?? asset.name;
+    asset.description = dto.description ?? asset.description;
+    asset.imageUrl = dto.imageUrl ?? asset.imageUrl;
+    asset.status = dto.status ?? asset.status;
+    if (dto.isTradeable !== undefined) {
+      asset.isTradeable = dto.isTradeable;
+    }
+    asset.deprecationDate = dto.deprecationDate ?? asset.deprecationDate;
+    if (dto.migratedTo) {
+      const migratedToAsset = await this.assetsRepository.findOne({
+        where: { id: dto.migratedTo },
+      });
+      if (migratedToAsset) {
+        asset.migratedTo = migratedToAsset;
+      }
     }
     asset.lastIndexedAt = new Date();
 
@@ -46,6 +57,20 @@ export class AssetsService {
 
     if (query.code) {
       qb.andWhere('asset.code = :code', { code: query.code });
+    }
+    if (query.issuer) {
+      qb.andWhere('asset.issuer = :issuer', { issuer: query.issuer });
+    }
+    if (query.name) {
+      qb.andWhere('asset.name ILIKE :name', { name: `%${query.name}%` });
+    }
+    if (query.status) {
+      qb.andWhere('asset.status = :status', { status: query.status });
+    }
+    if (query.isTradeable !== undefined) {
+      qb.andWhere('asset.isTradeable = :isTradeable', {
+        isTradeable: query.isTradeable,
+      });
     }
 
     const [data, total] = await qb.getManyAndCount();
