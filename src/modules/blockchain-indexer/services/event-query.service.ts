@@ -1,6 +1,6 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { IsNull, LessThanOrEqual, MoreThan, Repository, Not } from 'typeorm';
+import { Repository } from 'typeorm';
 import { BlockchainEvent } from '../entities/blockchain-event.entity';
 import { BlockchainEventType } from '../enums/blockchain-event-type.enum';
 
@@ -93,8 +93,7 @@ export class EventQueryService {
     }
 
     const total = await qb.getCount();
-    qb
-      .orderBy('e.ledger', 'DESC')
+    qb.orderBy('e.ledger', 'DESC')
       .addOrderBy('e.createdAt', 'DESC')
       .offset(filters.skip)
       .limit(filters.limit);

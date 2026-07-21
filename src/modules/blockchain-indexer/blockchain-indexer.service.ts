@@ -1,10 +1,15 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { IndexingStateService } from './indexing-state.service';
-import { ReorgHandlerService } from './reorg-handler.service';
-import { EventIndexerService } from './event-indexer.service';
-import { StellarEventSourceService } from './stellar-event-source.service';
-import { EventQueryService } from './event-query.service';
-import { EventStreamService } from './event-stream.service';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
+import { IndexingStateService } from './services/indexing-state.service';
+import { ReorgHandlerService } from './services/reorg-handler.service';
+import { EventIndexerService } from './services/event-indexer.service';
+import { StellarEventSourceService } from './services/stellar-event-source.service';
+import { EventQueryService } from './services/event-query.service';
+import { EventStreamService } from './services/event-stream.service';
 
 @Injectable()
 export class BlockchainIndexerService implements OnModuleInit, OnModuleDestroy {

@@ -1,6 +1,6 @@
 import { Inject, Injectable, Logger } from '@nestjs/common';
 import type Redis from 'ioredis';
-import { REDIS_CLIENT } from '../../redis/redis.module';
+import { REDIS_CLIENT } from '../../../redis/redis.module';
 import { BlockchainEvent } from '../entities/blockchain-event.entity';
 
 @Injectable()

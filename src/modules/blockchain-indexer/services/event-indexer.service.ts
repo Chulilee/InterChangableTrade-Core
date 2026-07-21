@@ -1,36 +1,18 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
-import { BlockchainEvent, BlockchainEventType } from '../entities/blockchain-event.entity';
+import {
+  BlockchainEvent,
+  BlockchainEventType,
+} from '../entities/blockchain-event.entity';
 import { IndexingStateService } from './indexing-state.service';
-import { StellarEventSourceService } from './stellar-event-source.service';
+import {
+  StellarEventSourceService,
+  RawOperation,
+  RawTransaction,
+} from './stellar-event-source.service';
 import { EventQueryService } from './event-query.service';
 import { EventStreamService } from './event-stream.service';
-
-interface RawOperation {
-  transaction_hash: string;
-  application_index: number;
-  type: string;
-  asset_code?: string;
-  asset_issuer?: string;
-  from?: string;
-  to?: string;
-  amount?: string;
-  path?: Array<{ asset_code?: string; asset_issuer?: string }>;
-  price?: string;
-  offer_id?: number;
-}
-
-interface RawTransaction {
-  hash: string;
-  ledger: number;
-  created_at: string;
-  source_account: string;
-  fee_charged: string;
-  successful: boolean;
-  transaction_type: string;
-  paging_token: string;
-}
 
 const TRADE_RELEVANT_OPERATIONS = new Set([
   BlockchainEventType.PAYMENT,
@@ -136,7 +118,8 @@ export class EventIndexerService {
     tx: RawTransaction,
     operations: RawOperation[],
   ): Omit<BlockchainEvent, 'id' | 'createdAt' | 'updatedAt'>[] {
-    const results: Omit<BlockchainEvent, 'id' | 'createdAt' | 'updatedAt'>[] = [];
+    const results: Omit<BlockchainEvent, 'id' | 'createdAt' | 'updatedAt'>[] =
+      [];
 
     for (const op of operations) {
       if (!TRADE_RELEVANT_OPERATIONS.has(op.type as BlockchainEventType)) {

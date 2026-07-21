@@ -1,4 +1,8 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { IndexerState } from '../entities/indexer-state.entity';
@@ -19,12 +23,13 @@ export class IndexingStateService {
 
   async set(key: string, value: string): Promise<void> {
     try {
-      await this.stateRepo.upsert(
-        { key, value, updatedAt: new Date() },
-        ['key'],
-      );
+      await this.stateRepo.upsert({ key, value, updatedAt: new Date() }, [
+        'key',
+      ]);
     } catch (error) {
-      this.logger.error(`Failed to persist state ${key}: ${(error as Error).message}`);
+      this.logger.error(
+        `Failed to persist state ${key}: ${(error as Error).message}`,
+      );
       throw new ServiceUnavailableException('Unable to persist indexing state');
     }
   }

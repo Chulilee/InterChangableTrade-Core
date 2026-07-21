@@ -4,13 +4,17 @@ import {
   Param,
   Query,
   Post,
-  Body,
   UseGuards,
   HttpStatus,
   HttpCode,
   Res,
 } from '@nestjs/common';
-import { ApiTags, ApiOperation, ApiResponse, ApiBearerAuth } from '@nestjs/swagger';
+import {
+  ApiTags,
+  ApiOperation,
+  ApiResponse,
+  ApiBearerAuth,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { BlockchainIndexerService } from './blockchain-indexer.service';
 import { EventQueryService } from './services/event-query.service';
@@ -38,6 +42,9 @@ export class BlockchainIndexerController {
   async getEvents(@Query() queryDto: QueryEventsDto) {
     const result = await this.queryService.findEvents({
       ...queryDto,
+      skip: queryDto.skip,
+      startTime: queryDto.startTime ? new Date(queryDto.startTime) : undefined,
+      endTime: queryDto.endTime ? new Date(queryDto.endTime) : undefined,
       excludeInvalidated: true,
     });
     return new PaginatedResultDto<BlockchainEvent>(

@@ -1,6 +1,10 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { DataSource, LessThanOrEqual, MoreThan, MoreThanOrEqual } from 'typeorm';
+import { DataSource, MoreThanOrEqual } from 'typeorm';
 import { BlockchainEvent } from '../entities/blockchain-event.entity';
 import { IndexingStateService } from './indexing-state.service';
 import { StellarEventSourceService } from './stellar-event-source.service';
@@ -69,14 +73,19 @@ export class ReorgHandlerService {
     }
   }
 
-  private async backfillGap(fromLedger: number, toLedger: number): Promise<void> {
+  private async backfillGap(
+    fromLedger: number,
+    toLedger: number,
+  ): Promise<void> {
     this.logger.log(`Backfilling ledgers ${fromLedger} through ${toLedger}`);
     try {
       const transactions = await this.eventSource.getTransactionsByLedgerRange(
         fromLedger,
         toLedger,
       );
-      this.logger.log(`Fetched ${transactions.length} transactions for backfill`);
+      this.logger.log(
+        `Fetched ${transactions.length} transactions for backfill`,
+      );
       for (const tx of transactions) {
         await this.eventSource.getOperationsForTransaction(tx.hash);
       }
