@@ -1,4 +1,4 @@
-import { Controller, Post, Body, Get, Put, Param } from '@nestjs/common';
+import { Controller, Post, Body, Get, Put, Param, Query } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { NotificationsService } from './notifications.service';
 import { NotificationEvents } from './events/notification.events';
@@ -8,6 +8,7 @@ import { TestNotificationDto } from './dto/test-notification.dto';
 import { UpdateNotificationPreferenceDto } from './dto/update-notification-preference.dto';
 import { CreateNotificationTemplateDto } from './dto/create-notification-template.dto';
 import { SendFromTemplateDto } from './dto/send-from-template.dto';
+import { SearchNotificationsDto } from './dto/search-notifications.dto';
 
 @Controller('notifications')
 export class NotificationsController {
@@ -15,6 +16,11 @@ export class NotificationsController {
     private readonly notificationsService: NotificationsService,
     private readonly eventEmitter: EventEmitter2,
   ) {}
+
+  @Get('history')
+  searchHistory(@Query() searchDto: SearchNotificationsDto) {
+    return this.notificationsService.search(searchDto);
+  }
 
   @Post('test')
   testNotification(@Body() testNotificationDto: TestNotificationDto) {

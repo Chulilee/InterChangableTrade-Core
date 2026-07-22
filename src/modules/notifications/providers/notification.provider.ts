@@ -1,4 +1,4 @@
-import { Notification } from './notification.class';
+import { Notification } from '../notification.class';
 
 export interface NotificationProvider {
   send(notification: Notification): Promise<void>;

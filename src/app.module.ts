@@ -14,6 +14,7 @@ import { StellarModule } from './modules/stellar/stellar.module';
 import { WalletModule } from './modules/wallet/wallet.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { TradingEngineModule } from './modules/trading-engine/trading-engine.module';
 
 @Module({
   imports: [
