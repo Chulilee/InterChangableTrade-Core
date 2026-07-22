@@ -13,6 +13,9 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
 import { StellarModule } from './modules/stellar/stellar.module';
 import { TradingEngineModule } from './modules/trading-engine/trading-engine.module';
 import { WalletModule } from './modules/wallet/wallet.module';
+import { ErrorHandlerModule } from './modules/error-handler/error-handler.module';
+import { ResilienceModule } from './modules/resilience/resilience.module';
+import { QueueModule } from './modules/queue/queue.module';
 import { TradingModule } from './modules/trading/trading.module';
 import { BlockchainIndexerModule } from './modules/blockchain-indexer/blockchain-indexer.module';
 
@@ -31,6 +34,9 @@ import { BlockchainIndexerModule } from './modules/blockchain-indexer/blockchain
     StellarModule,
     TradingEngineModule,
     WalletModule,
+    ErrorHandlerModule,
+    ResilienceModule,
+    QueueModule,
     TradingModule,
     BlockchainIndexerModule,
   ],
