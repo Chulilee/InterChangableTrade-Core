@@ -28,9 +28,7 @@ export class MarketplaceService {
     return this.listingsRepository.save(listing);
   }
 
-  async findAll(
-    query: QueryListingDto,
-  ): Promise<PaginatedResultDto<Listing>> {
+  async findAll(query: QueryListingDto): Promise<PaginatedResultDto<Listing>> {
     const qb = this.listingsRepository
       .createQueryBuilder('listing')
       .leftJoinAndSelect('listing.seller', 'seller')

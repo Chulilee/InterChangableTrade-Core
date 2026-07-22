@@ -21,7 +21,6 @@ import { MultisigConfigDto } from './dto/multisig-config.dto';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
-const AUTH_TAG_LENGTH = 16;
 
 /**
  * Wallet Management Service
@@ -89,7 +88,9 @@ export class WalletService {
     const encryptedSecretKey = this.encrypt(keypair.secret());
 
     // If this is the first wallet for the user, auto-set it as primary
-    const existingCount = await this.walletRepository.count({ where: { userId } });
+    const existingCount = await this.walletRepository.count({
+      where: { userId },
+    });
     const isPrimary = dto.isPrimary ?? existingCount === 0;
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -155,7 +156,11 @@ export class WalletService {
   }
 
   /** Updates mutable wallet fields (label, status, isPrimary). */
-  async update(id: string, userId: string, dto: UpdateWalletDto): Promise<Wallet> {
+  async update(
+    id: string,
+    userId: string,
+    dto: UpdateWalletDto,
+  ): Promise<Wallet> {
     const wallet = await this.findOne(id, userId);
 
     const queryRunner = this.dataSource.createQueryRunner();
@@ -187,7 +192,9 @@ export class WalletService {
   async remove(id: string, userId: string): Promise<void> {
     const wallet = await this.findOne(id, userId);
     if (wallet.isPrimary) {
-      throw new BadRequestException('Cannot remove the primary wallet. Assign another wallet as primary first.');
+      throw new BadRequestException(
+        'Cannot remove the primary wallet. Assign another wallet as primary first.',
+      );
     }
     wallet.status = WalletStatus.INACTIVE;
     await this.walletRepository.save(wallet);
@@ -204,14 +211,18 @@ export class WalletService {
     const wallet = await this.findOne(id, userId);
 
     try {
-      const accountSummary = await this.stellarService.getAccount(wallet.publicKey);
+      const accountSummary = await this.stellarService.getAccount(
+        wallet.publicKey,
+      );
       const xlmBalance = accountSummary.balances.find(
         (b) => b.assetType === 'native',
       );
       wallet.cachedBalance = xlmBalance?.balance ?? '0';
       wallet.balanceSyncedAt = new Date();
       await this.walletRepository.save(wallet);
-      this.logger.log(`Balance synced for wallet ${id}: ${wallet.cachedBalance} XLM`);
+      this.logger.log(
+        `Balance synced for wallet ${id}: ${wallet.cachedBalance} XLM`,
+      );
     } catch (error) {
       this.logger.warn(
         `Balance sync failed for wallet ${id}: ${(error as Error).message}`,
@@ -246,7 +257,9 @@ export class WalletService {
       throw new ForbiddenException('You do not own this wallet');
     }
     if (wallet.status !== WalletStatus.ACTIVE) {
-      throw new BadRequestException(`Wallet is ${wallet.status} and cannot sign transactions`);
+      throw new BadRequestException(
+        `Wallet is ${wallet.status} and cannot sign transactions`,
+      );
     }
 
     const secretKey = this.decrypt(wallet.encryptedSecretKey);
@@ -254,7 +267,8 @@ export class WalletService {
 
     const transaction = TransactionBuilder.fromXDR(
       dto.unsignedXdr,
-      this.configService.get<string>('stellar.networkPassphrase') ?? 'Test SDF Network ; September 2015',
+      this.configService.get<string>('stellar.networkPassphrase') ??
+        'Test SDF Network ; September 2015',
     );
 
     transaction.sign(keypair);
@@ -270,7 +284,10 @@ export class WalletService {
    * Returns the public key for a wallet — safe to expose for recovery flows
    * (e.g. re-deriving trust lines or verifying ownership).
    */
-  async getPublicKey(id: string, userId: string): Promise<{ publicKey: string }> {
+  async getPublicKey(
+    id: string,
+    userId: string,
+  ): Promise<{ publicKey: string }> {
     const wallet = await this.findOne(id, userId);
     return { publicKey: wallet.publicKey };
   }
@@ -286,7 +303,9 @@ export class WalletService {
     const wallet = await this.findOne(id, userId);
 
     if (dto.cosigners.includes(wallet.publicKey)) {
-      throw new ConflictException('Wallet public key cannot be listed as a co-signer of itself');
+      throw new ConflictException(
+        'Wallet public key cannot be listed as a co-signer of itself',
+      );
     }
 
     wallet.multisigThreshold = dto.threshold;

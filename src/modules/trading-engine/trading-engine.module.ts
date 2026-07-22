@@ -10,7 +10,7 @@ import { StellarModule } from '../stellar/stellar.module';
 @Module({
   imports: [
     TypeOrmModule.forFeature([Order, Trade, AuditTrail]),
-    StellarModule
+    StellarModule,
   ],
   controllers: [TradingEngineController],
   providers: [TradingEngineService],

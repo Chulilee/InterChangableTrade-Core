@@ -1,7 +1,6 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigService } from '@nestjs/config';
 import { StellarRateLimiterService } from './stellar-rate-limiter.service';
-import { HttpException, HttpStatus } from '@nestjs/common';
 
 describe('StellarRateLimiterService', () => {
   let service: StellarRateLimiterService;

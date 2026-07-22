@@ -2,7 +2,11 @@ import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
-import { NotFoundException, ForbiddenException, BadRequestException } from '@nestjs/common';
+import {
+  NotFoundException,
+  ForbiddenException,
+  BadRequestException,
+} from '@nestjs/common';
 import { WalletService } from './wallet.service';
 import { Wallet, WalletStatus } from './entities/wallet.entity';
 import { StellarService } from '../stellar/stellar.service';
@@ -84,7 +88,9 @@ describe('WalletService', () => {
 
   describe('create', () => {
     it('should create a wallet and return it', async () => {
-      const result = await service.create(MOCK_USER_ID, { label: 'Test Wallet' });
+      const result = await service.create(MOCK_USER_ID, {
+        label: 'Test Wallet',
+      });
       expect(result).toBeDefined();
       expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
     });
@@ -110,31 +116,33 @@ describe('WalletService', () => {
 
     it('should throw NotFoundException if wallet does not exist', async () => {
       mockWalletRepository.findOne.mockResolvedValueOnce(null);
-      await expect(service.findOne('non-existent', MOCK_USER_ID)).rejects.toThrow(
-        NotFoundException,
-      );
+      await expect(
+        service.findOne('non-existent', MOCK_USER_ID),
+      ).rejects.toThrow(NotFoundException);
     });
 
     it('should throw ForbiddenException if user does not own the wallet', async () => {
-      await expect(service.findOne(MOCK_WALLET_ID, 'other-user')).rejects.toThrow(
-        ForbiddenException,
-      );
+      await expect(
+        service.findOne(MOCK_WALLET_ID, 'other-user'),
+      ).rejects.toThrow(ForbiddenException);
     });
   });
 
   describe('syncBalance', () => {
     it('should update cachedBalance from Stellar network', async () => {
-      const wallet = await service.syncBalance(MOCK_WALLET_ID, MOCK_USER_ID);
-      expect(mockStellarService.getAccount).toHaveBeenCalledWith(mockWallet.publicKey);
+      await service.syncBalance(MOCK_WALLET_ID, MOCK_USER_ID);
+      expect(mockStellarService.getAccount).toHaveBeenCalledWith(
+        mockWallet.publicKey,
+      );
       expect(mockWalletRepository.save).toHaveBeenCalled();
     });
   });
 
   describe('remove', () => {
     it('should throw BadRequestException when removing primary wallet', async () => {
-      await expect(service.remove(MOCK_WALLET_ID, MOCK_USER_ID)).rejects.toThrow(
-        BadRequestException,
-      );
+      await expect(
+        service.remove(MOCK_WALLET_ID, MOCK_USER_ID),
+      ).rejects.toThrow(BadRequestException);
     });
 
     it('should deactivate a non-primary wallet', async () => {

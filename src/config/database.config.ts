@@ -1,9 +1,6 @@
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import {
-  TypeOrmModuleOptions,
-  TypeOrmOptionsFactory,
-} from '@nestjs/typeorm';
+import { TypeOrmModuleOptions, TypeOrmOptionsFactory } from '@nestjs/typeorm';
 
 /**
  * Builds TypeORM connection options from validated configuration. Entities are

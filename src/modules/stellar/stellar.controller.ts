@@ -19,7 +19,9 @@ export class StellarController {
   }
 
   @Get('accounts/:accountId')
-  @ApiOperation({ summary: 'Fetch an account summary and balances from Horizon' })
+  @ApiOperation({
+    summary: 'Fetch an account summary and balances from Horizon',
+  })
   getAccount(@Param('accountId') accountId: string) {
     return this.stellarService.getAccount(accountId);
   }

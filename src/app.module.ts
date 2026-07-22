@@ -11,8 +11,10 @@ import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { AssetsModule } from './modules/assets/assets.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { StellarModule } from './modules/stellar/stellar.module';
-import { TradingEngineModule } from './modules/trading-engine/trading-engine.module';
 import { WalletModule } from './modules/wallet/wallet.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
+import { TradingEngineModule } from './modules/trading-engine/trading-engine.module';
 import { ErrorHandlerModule } from './modules/error-handler/error-handler.module';
 import { ResilienceModule } from './modules/resilience/resilience.module';
 import { QueueModule } from './modules/queue/queue.module';
@@ -21,6 +23,7 @@ import { BlockchainIndexerModule } from './modules/blockchain-indexer/blockchain
 
 @Module({
   imports: [
+    EventEmitterModule.forRoot(),
     ConfigModule,
     TypeOrmModule.forRootAsync({
       useClass: DatabaseConfig,
@@ -34,6 +37,7 @@ import { BlockchainIndexerModule } from './modules/blockchain-indexer/blockchain
     StellarModule,
     TradingEngineModule,
     WalletModule,
+    NotificationsModule,
     ErrorHandlerModule,
     ResilienceModule,
     QueueModule,

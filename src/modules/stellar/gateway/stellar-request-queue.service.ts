@@ -1,4 +1,8 @@
-import { Injectable, Logger, ServiceUnavailableException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 
 interface QueuedRequest<T> {
@@ -27,19 +31,28 @@ export class StellarRequestQueueService {
 
   constructor(private readonly configService: ConfigService) {
     this.config = {
-      maxQueueSize: this.configService.get<number>('stellar.maxQueueSize') ?? 100,
-      maxConcurrentRequests: this.configService.get<number>('stellar.maxConcurrentRequests') ?? 5,
-      processingIntervalMs: this.configService.get<number>('stellar.processingIntervalMs') ?? 50,
+      maxQueueSize:
+        this.configService.get<number>('stellar.maxQueueSize') ?? 100,
+      maxConcurrentRequests:
+        this.configService.get<number>('stellar.maxConcurrentRequests') ?? 5,
+      processingIntervalMs:
+        this.configService.get<number>('stellar.processingIntervalMs') ?? 50,
     };
 
-    this.logger.log(`Stellar request queue initialized: max=${this.config.maxQueueSize}, concurrent=${this.config.maxConcurrentRequests}`);
+    this.logger.log(
+      `Stellar request queue initialized: max=${this.config.maxQueueSize}, concurrent=${this.config.maxConcurrentRequests}`,
+    );
     this.startProcessing();
   }
 
   enqueue<T>(clientId: string, execute: () => Promise<T>): Promise<T> {
     if (this.queue.length >= this.config.maxQueueSize) {
-      this.logger.error(`Queue overflow: ${this.queue.length}/${this.config.maxQueueSize} requests`);
-      throw new ServiceUnavailableException('Stellar request queue is full. Please try again later.');
+      this.logger.error(
+        `Queue overflow: ${this.queue.length}/${this.config.maxQueueSize} requests`,
+      );
+      throw new ServiceUnavailableException(
+        'Stellar request queue is full. Please try again later.',
+      );
     }
 
     return new Promise<T>((resolve, reject) => {
@@ -53,7 +66,9 @@ export class StellarRequestQueueService {
       };
 
       this.queue.push(request);
-      this.logger.debug(`Queued request ${request.id} for client ${clientId}, queue size: ${this.queue.length}`);
+      this.logger.debug(
+        `Queued request ${request.id} for client ${clientId}, queue size: ${this.queue.length}`,
+      );
     });
   }
 
@@ -68,12 +83,17 @@ export class StellarRequestQueueService {
     this.isProcessing = true;
 
     try {
-      while (this.queue.length > 0 && this.activeRequests < this.config.maxConcurrentRequests) {
+      while (
+        this.queue.length > 0 &&
+        this.activeRequests < this.config.maxConcurrentRequests
+      ) {
         const request = this.queue.shift();
         if (!request) break;
 
         this.activeRequests++;
-        this.logger.debug(`Processing request ${request.id}, active: ${this.activeRequests}, queue remaining: ${this.queue.length}`);
+        this.logger.debug(
+          `Processing request ${request.id}, active: ${this.activeRequests}, queue remaining: ${this.queue.length}`,
+        );
 
         this.executeRequest(request).finally(() => {
           this.activeRequests--;
@@ -86,15 +106,21 @@ export class StellarRequestQueueService {
 
   private async executeRequest<T>(request: QueuedRequest<T>): Promise<void> {
     const waitTime = Date.now() - request.addedAt.getTime();
-    this.logger.debug(`Executing request ${request.id} after ${waitTime}ms wait`);
+    this.logger.debug(
+      `Executing request ${request.id} after ${waitTime}ms wait`,
+    );
 
     try {
       const result = await request.execute();
       request.resolve(result);
-      this.logger.debug(`Request ${request.id} completed successfully in ${Date.now() - request.addedAt.getTime()}ms`);
+      this.logger.debug(
+        `Request ${request.id} completed successfully in ${Date.now() - request.addedAt.getTime()}ms`,
+      );
     } catch (error) {
       request.reject(error as Error);
-      this.logger.error(`Request ${request.id} failed: ${(error as Error).message}`);
+      this.logger.error(
+        `Request ${request.id} failed: ${(error as Error).message}`,
+      );
     }
   }
 
@@ -114,8 +140,10 @@ export class StellarRequestQueueService {
 
   clearQueue(): number {
     const clearedCount = this.queue.length;
-    this.queue.forEach(request => {
-      request.reject(new ServiceUnavailableException('Queue cleared by administrator'));
+    this.queue.forEach((request) => {
+      request.reject(
+        new ServiceUnavailableException('Queue cleared by administrator'),
+      );
     });
     this.queue = [];
     this.logger.log(`Queue cleared, ${clearedCount} requests rejected`);
