@@ -21,12 +21,17 @@ export class StellarRateLimiterService {
 
   constructor(private readonly configService: ConfigService) {
     this.config = {
-      requestsPerMinute: this.configService.get<number>('stellar.rateLimitPerMinute') ?? 60,
-      burstLimit: this.configService.get<number>('stellar.rateBurstLimit') ?? 10,
-      enabled: this.configService.get<boolean>('stellar.rateLimitEnabled') ?? true,
+      requestsPerMinute:
+        this.configService.get<number>('stellar.rateLimitPerMinute') ?? 60,
+      burstLimit:
+        this.configService.get<number>('stellar.rateBurstLimit') ?? 10,
+      enabled:
+        this.configService.get<boolean>('stellar.rateLimitEnabled') ?? true,
     };
 
-    this.logger.log(`Stellar rate limiter initialized: ${this.config.requestsPerMinute} req/min, burst: ${this.config.burstLimit}`);
+    this.logger.log(
+      `Stellar rate limiter initialized: ${this.config.requestsPerMinute} req/min, burst: ${this.config.burstLimit}`,
+    );
     this.startCleanupInterval();
   }
 
@@ -37,9 +42,9 @@ export class StellarRateLimiterService {
 
     const now = Date.now();
     const windowMs = 60000; // 1 minute window
-    
+
     let clientLimit = this.clientLimits.get(clientId);
-    
+
     if (!clientLimit || now - clientLimit.windowStart > windowMs) {
       clientLimit = {
         requests: 0,
@@ -49,13 +54,18 @@ export class StellarRateLimiterService {
 
     if (clientLimit.requests >= this.config.requestsPerMinute) {
       this.logger.warn(`Rate limit exceeded for client ${clientId}`);
-      throw new HttpException('Stellar API rate limit exceeded. Please try again later.', HttpStatus.TOO_MANY_REQUESTS);
+      throw new HttpException(
+        'Stellar API rate limit exceeded. Please try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
 
     clientLimit.requests++;
     this.clientLimits.set(clientId, clientLimit);
-    
-    this.logger.debug(`Client ${clientId} used ${clientLimit.requests}/${this.config.requestsPerMinute} requests`);
+
+    this.logger.debug(
+      `Client ${clientId} used ${clientLimit.requests}/${this.config.requestsPerMinute} requests`,
+    );
   }
 
   checkBurstLimit(concurrentRequests: number): void {
@@ -64,8 +74,13 @@ export class StellarRateLimiterService {
     }
 
     if (concurrentRequests >= this.config.burstLimit) {
-      this.logger.warn(`Burst limit exceeded: ${concurrentRequests}/${this.config.burstLimit} concurrent requests`);
-      throw new HttpException('Too many concurrent Stellar requests. Please try again later.', HttpStatus.TOO_MANY_REQUESTS);
+      this.logger.warn(
+        `Burst limit exceeded: ${concurrentRequests}/${this.config.burstLimit} concurrent requests`,
+      );
+      throw new HttpException(
+        'Too many concurrent Stellar requests. Please try again later.',
+        HttpStatus.TOO_MANY_REQUESTS,
+      );
     }
   }
 
@@ -88,7 +103,9 @@ export class StellarRateLimiterService {
     }
 
     if (cleanedCount > 0) {
-      this.logger.debug(`Cleaned up ${cleanedCount} expired rate limit windows`);
+      this.logger.debug(
+        `Cleaned up ${cleanedCount} expired rate limit windows`,
+      );
     }
   }
 

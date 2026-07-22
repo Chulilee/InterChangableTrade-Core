@@ -29,7 +29,11 @@ export class Transaction extends BaseEntity {
   @Column({ type: 'uuid', nullable: true })
   userId?: string | null;
 
-  @Column({ type: 'enum', enum: TransactionType, default: TransactionType.OTHER })
+  @Column({
+    type: 'enum',
+    enum: TransactionType,
+    default: TransactionType.OTHER,
+  })
   type: TransactionType;
 
   @Index()

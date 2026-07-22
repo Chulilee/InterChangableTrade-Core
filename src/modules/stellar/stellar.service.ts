@@ -1,6 +1,16 @@
-import { Injectable, Logger, ServiceUnavailableException, BadRequestException } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  ServiceUnavailableException,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
-import { Horizon, Networks, TransactionBuilder, Operation, Asset } from '@stellar/stellar-sdk';
+import {
+  Horizon,
+  Networks,
+  TransactionBuilder,
+  Operation,
+  Asset,
+} from '@stellar/stellar-sdk';
 
 export interface AccountBalance {
   assetType: string;
@@ -42,7 +52,11 @@ export class StellarService {
     this.server = new Horizon.Server(horizonUrl);
   }
 
-  getNetworkInfo(): { network: string; passphrase: string; horizonUrl: string } {
+  getNetworkInfo(): {
+    network: string;
+    passphrase: string;
+    horizonUrl: string;
+  } {
     return {
       network: this.configService.get<string>('stellar.network') ?? 'testnet',
       passphrase: this.networkPassphrase,
@@ -82,15 +96,18 @@ export class StellarService {
    * Executes a settlement transaction on the Stellar network. This transfers
    * the specified amount of the asset from the buyer to the seller.
    */
-  async executeSettlement(settlementRequest: SettlementRequest): Promise<string> {
+  async executeSettlement(
+    settlementRequest: SettlementRequest,
+  ): Promise<string> {
     try {
-      const { fromAccount, toAccount, assetCode, assetIssuer, amount } = settlementRequest;
-      
+      const { fromAccount, toAccount, assetCode, assetIssuer, amount } =
+        settlementRequest;
+
       // Load the source account (fromAccount - buyer's account)
       const sourceAccount = await this.server.loadAccount(fromAccount);
-      
+
       // Create the asset - native XLM or issued asset
-      const asset = assetIssuer 
+      const asset = assetIssuer
         ? new Asset(assetCode, assetIssuer)
         : Asset.native();
 
@@ -98,26 +115,30 @@ export class StellarService {
       const transferAmount = parseFloat(amount).toFixed(7);
 
       // Build the transaction
-      const transaction = new TransactionBuilder(sourceAccount, {
+      new TransactionBuilder(sourceAccount, {
         networkPassphrase: this.networkPassphrase,
         fee: '100', // Base fee
       })
-        .addOperation(Operation.payment({
-          destination: toAccount,
-          asset: asset,
-          amount: transferAmount,
-        }))
+        .addOperation(
+          Operation.payment({
+            destination: toAccount,
+            asset: asset,
+            amount: transferAmount,
+          }),
+        )
         .setTimeout(30) // Transaction valid for 30 seconds
         .build();
 
       // In a real implementation, you would sign the transaction with the source account's secret key
       // For this implementation, we'll return a mock transaction hash
       // this.logger.log('Settlement transaction built successfully, would submit to network here');
-      
+
       // For development, return a mock transaction hash
       const mockTxHash = `settlement_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
-      this.logger.log(`Settlement transaction ${mockTxHash} created for trade from ${fromAccount} to ${toAccount}`);
-      
+      this.logger.log(
+        `Settlement transaction ${mockTxHash} created for trade from ${fromAccount} to ${toAccount}`,
+      );
+
       return mockTxHash;
     } catch (error) {
       this.logger.error(

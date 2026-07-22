@@ -46,7 +46,10 @@ export default () => ({
       10,
     ),
     // How long, and how often, we poll RPC for a submitted tx to settle.
-    pollIntervalMs: parseInt(process.env.SOROBAN_POLL_INTERVAL_MS ?? '1000', 10),
+    pollIntervalMs: parseInt(
+      process.env.SOROBAN_POLL_INTERVAL_MS ?? '1000',
+      10,
+    ),
     pollTimeoutMs: parseInt(process.env.SOROBAN_POLL_TIMEOUT_MS ?? '30000', 10),
     // Contract state cache TTL (seconds) in Redis.
     stateCacheTtlSecs: parseInt(

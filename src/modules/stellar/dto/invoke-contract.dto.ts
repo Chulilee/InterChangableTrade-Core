@@ -1,10 +1,5 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsArray,
-  IsOptional,
-  IsString,
-  Matches,
-} from 'class-validator';
+import { IsArray, IsOptional, IsString, Matches } from 'class-validator';
 
 /**
  * Request to invoke a read-only Soroban contract method. Arguments are passed

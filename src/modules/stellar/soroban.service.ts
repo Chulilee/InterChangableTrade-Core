@@ -19,8 +19,9 @@ export class SorobanService {
 
   constructor(private readonly configService: ConfigService) {
     this.rpcUrl = this.configService.get<string>('stellar.sorobanRpcUrl')!;
-    this.passphrase =
-      this.configService.get<string>('stellar.networkPassphrase')!;
+    this.passphrase = this.configService.get<string>(
+      'stellar.networkPassphrase',
+    )!;
   }
 
   getNetworkInfo(): SorobanNetworkInfo {

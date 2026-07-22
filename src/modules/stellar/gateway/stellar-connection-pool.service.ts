@@ -29,10 +29,15 @@ export class StellarConnectionPoolService {
   constructor(private readonly configService: ConfigService) {
     this.horizonUrl = this.configService.get<string>('stellar.horizonUrl')!;
     this.config = {
-      minConnections: this.configService.get<number>('stellar.poolMinConnections') ?? 2,
-      maxConnections: this.configService.get<number>('stellar.poolMaxConnections') ?? 10,
-      idleTimeoutMs: this.configService.get<number>('stellar.poolIdleTimeoutMs') ?? 30000,
-      connectionTtlMs: this.configService.get<number>('stellar.poolConnectionTtlMs') ?? 3600000,
+      minConnections:
+        this.configService.get<number>('stellar.poolMinConnections') ?? 2,
+      maxConnections:
+        this.configService.get<number>('stellar.poolMaxConnections') ?? 10,
+      idleTimeoutMs:
+        this.configService.get<number>('stellar.poolIdleTimeoutMs') ?? 30000,
+      connectionTtlMs:
+        this.configService.get<number>('stellar.poolConnectionTtlMs') ??
+        3600000,
     };
 
     this.initializePool();
@@ -40,11 +45,15 @@ export class StellarConnectionPoolService {
   }
 
   private initializePool(): void {
-    this.logger.log(`Initializing Stellar connection pool with min=${this.config.minConnections}, max=${this.config.maxConnections}`);
+    this.logger.log(
+      `Initializing Stellar connection pool with min=${this.config.minConnections}, max=${this.config.maxConnections}`,
+    );
     for (let i = 0; i < this.config.minConnections; i++) {
       this.createConnection();
     }
-    this.logger.log(`Connection pool initialized with ${this.connections.size} connections`);
+    this.logger.log(
+      `Connection pool initialized with ${this.connections.size} connections`,
+    );
   }
 
   private createConnection(): PooledConnection {
@@ -58,18 +67,24 @@ export class StellarConnectionPoolService {
       id,
     };
     this.connections.set(id, connection);
-    this.logger.debug(`Created new connection ${id}, total connections: ${this.connections.size}`);
+    this.logger.debug(
+      `Created new connection ${id}, total connections: ${this.connections.size}`,
+    );
     return connection;
   }
 
   async acquireConnection(): Promise<PooledConnection> {
-    const availableConnection = Array.from(this.connections.values()).find(conn => !conn.inUse);
-    
+    const availableConnection = Array.from(this.connections.values()).find(
+      (conn) => !conn.inUse,
+    );
+
     if (availableConnection) {
       availableConnection.inUse = true;
       availableConnection.lastUsed = new Date();
       availableConnection.usageCount++;
-      this.logger.debug(`Acquired existing connection ${availableConnection.id}`);
+      this.logger.debug(
+        `Acquired existing connection ${availableConnection.id}`,
+      );
       return availableConnection;
     }
 
@@ -77,14 +92,18 @@ export class StellarConnectionPoolService {
       const newConnection = this.createConnection();
       newConnection.inUse = true;
       newConnection.usageCount++;
-      this.logger.debug(`Acquired new connection ${newConnection.id}, pool size: ${this.connections.size}`);
+      this.logger.debug(
+        `Acquired new connection ${newConnection.id}, pool size: ${this.connections.size}`,
+      );
       return newConnection;
     }
 
     this.logger.warn('Pool exhausted, waiting for available connection...');
     return new Promise((resolve) => {
       const checkInterval = setInterval(() => {
-        const conn = Array.from(this.connections.values()).find(c => !c.inUse);
+        const conn = Array.from(this.connections.values()).find(
+          (c) => !c.inUse,
+        );
         if (conn) {
           clearInterval(checkInterval);
           conn.inUse = true;
@@ -117,11 +136,17 @@ export class StellarConnectionPoolService {
     let removedCount = 0;
 
     for (const [id, connection] of this.connections.entries()) {
-      if (!connection.inUse && this.connections.size > this.config.minConnections) {
+      if (
+        !connection.inUse &&
+        this.connections.size > this.config.minConnections
+      ) {
         const idleTime = now.getTime() - connection.lastUsed.getTime();
         const age = now.getTime() - connection.created.getTime();
-        
-        if (idleTime > this.config.idleTimeoutMs || age > this.config.connectionTtlMs) {
+
+        if (
+          idleTime > this.config.idleTimeoutMs ||
+          age > this.config.connectionTtlMs
+        ) {
           this.connections.delete(id);
           removedCount++;
           this.logger.debug(`Removed idle/expired connection ${id}`);
@@ -130,13 +155,20 @@ export class StellarConnectionPoolService {
     }
 
     if (removedCount > 0) {
-      this.logger.log(`Cleaned up ${removedCount} connections, current pool size: ${this.connections.size}`);
+      this.logger.log(
+        `Cleaned up ${removedCount} connections, current pool size: ${this.connections.size}`,
+      );
     }
   }
 
-  getPoolStats(): { total: number; active: number; idle: number; config: ConnectionPoolConfig } {
+  getPoolStats(): {
+    total: number;
+    active: number;
+    idle: number;
+    config: ConnectionPoolConfig;
+  } {
     const connections = Array.from(this.connections.values());
-    const active = connections.filter(c => c.inUse).length;
+    const active = connections.filter((c) => c.inUse).length;
     return {
       total: connections.length,
       active,

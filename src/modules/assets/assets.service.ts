@@ -24,8 +24,7 @@ export class AssetsService {
     });
 
     const asset =
-      existing ??
-      this.assetsRepository.create({ code: dto.code, issuer });
+      existing ?? this.assetsRepository.create({ code: dto.code, issuer });
 
     asset.isNative = issuer === null;
     asset.domain = dto.domain ?? asset.domain;

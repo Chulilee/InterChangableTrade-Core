@@ -9,7 +9,10 @@ import {
 import { WalletStatus } from '../entities/wallet.entity';
 
 export class UpdateWalletDto {
-  @ApiPropertyOptional({ description: 'Human-readable label for the wallet', maxLength: 100 })
+  @ApiPropertyOptional({
+    description: 'Human-readable label for the wallet',
+    maxLength: 100,
+  })
   @IsOptional()
   @IsString()
   @MaxLength(100)
@@ -20,7 +23,9 @@ export class UpdateWalletDto {
   @IsEnum(WalletStatus)
   status?: WalletStatus;
 
-  @ApiPropertyOptional({ description: 'Set as the primary wallet for this user' })
+  @ApiPropertyOptional({
+    description: 'Set as the primary wallet for this user',
+  })
   @IsOptional()
   @IsBoolean()
   isPrimary?: boolean;

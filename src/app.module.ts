@@ -11,11 +11,13 @@ import { MarketplaceModule } from './modules/marketplace/marketplace.module';
 import { AssetsModule } from './modules/assets/assets.module';
 import { TransactionsModule } from './modules/transactions/transactions.module';
 import { StellarModule } from './modules/stellar/stellar.module';
-import { TradingEngineModule } from './modules/trading-engine/trading-engine.module';
 import { WalletModule } from './modules/wallet/wallet.module';
+import { NotificationsModule } from './modules/notifications/notifications.module';
+import { EventEmitterModule } from '@nestjs/event-emitter';
 
 @Module({
   imports: [
+    EventEmitterModule.forRoot(),
     ConfigModule,
     TypeOrmModule.forRootAsync({
       useClass: DatabaseConfig,
@@ -29,6 +31,7 @@ import { WalletModule } from './modules/wallet/wallet.module';
     StellarModule,
     TradingEngineModule,
     WalletModule,
+    NotificationsModule,
   ],
   controllers: [AppController],
   providers: [AppService],

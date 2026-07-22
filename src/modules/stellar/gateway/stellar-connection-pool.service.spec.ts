@@ -25,7 +25,9 @@ describe('StellarConnectionPoolService', () => {
       ],
     }).compile();
 
-    service = module.get<StellarConnectionPoolService>(StellarConnectionPoolService);
+    service = module.get<StellarConnectionPoolService>(
+      StellarConnectionPoolService,
+    );
   });
 
   it('should be defined', () => {
@@ -43,9 +45,9 @@ describe('StellarConnectionPoolService', () => {
     const connection = await service.acquireConnection();
     expect(connection).toBeDefined();
     expect(connection.inUse).toBe(true);
-    
+
     service.releaseConnection(connection.id);
-    
+
     const stats = service.getPoolStats();
     expect(stats.idle).toBeGreaterThan(0);
   });

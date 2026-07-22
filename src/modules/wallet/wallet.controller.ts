@@ -30,13 +30,17 @@ export class WalletController {
   constructor(private readonly walletService: WalletService) {}
 
   @Post()
-  @ApiOperation({ summary: 'Create a new Stellar wallet for the authenticated user' })
+  @ApiOperation({
+    summary: 'Create a new Stellar wallet for the authenticated user',
+  })
   create(@CurrentUser('id') userId: string, @Body() dto: CreateWalletDto) {
     return this.walletService.create(userId, dto);
   }
 
   @Get()
-  @ApiOperation({ summary: 'List all wallets for the authenticated user (paginated)' })
+  @ApiOperation({
+    summary: 'List all wallets for the authenticated user (paginated)',
+  })
   findAll(
     @CurrentUser('id') userId: string,
     @Query() query: PaginationQueryDto,
@@ -74,7 +78,9 @@ export class WalletController {
   }
 
   @Post(':id/sync-balance')
-  @ApiOperation({ summary: 'Synchronise wallet balance from the Stellar network' })
+  @ApiOperation({
+    summary: 'Synchronise wallet balance from the Stellar network',
+  })
   syncBalance(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') userId: string,
@@ -83,7 +89,9 @@ export class WalletController {
   }
 
   @Post(':id/sign-transaction')
-  @ApiOperation({ summary: 'Sign an XDR transaction envelope with this wallet' })
+  @ApiOperation({
+    summary: 'Sign an XDR transaction envelope with this wallet',
+  })
   signTransaction(
     @Param('id', ParseUUIDPipe) id: string,
     @CurrentUser('id') userId: string,

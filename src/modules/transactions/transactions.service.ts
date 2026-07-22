@@ -2,10 +2,7 @@ import { Injectable, NotFoundException } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
 import { PaginatedResultDto } from '@app/common';
-import {
-  Transaction,
-  TransactionStatus,
-} from './entities/transaction.entity';
+import { Transaction, TransactionStatus } from './entities/transaction.entity';
 import { RecordTransactionDto } from './dto/record-transaction.dto';
 import { QueryTransactionDto } from './dto/query-transaction.dto';
 

@@ -2,10 +2,7 @@ import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
-import {
-  AllExceptionsFilter,
-  TransformInterceptor,
-} from '@app/common';
+import { AllExceptionsFilter, TransformInterceptor } from '@app/common';
 import { AppModule } from './app.module';
 
 async function bootstrap() {

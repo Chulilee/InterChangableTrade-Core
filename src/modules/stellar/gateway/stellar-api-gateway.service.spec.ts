@@ -7,9 +7,6 @@ import { StellarApiGatewayService } from './stellar-api-gateway.service';
 
 describe('StellarApiGatewayService', () => {
   let service: StellarApiGatewayService;
-  let connectionPool: StellarConnectionPoolService;
-  let rateLimiter: StellarRateLimiterService;
-  let requestQueue: StellarRequestQueueService;
 
   beforeEach(async () => {
     const module: TestingModule = await Test.createTestingModule({
@@ -24,7 +21,8 @@ describe('StellarApiGatewayService', () => {
             get: jest.fn((key: string) => {
               const config: Record<string, any> = {
                 'stellar.horizonUrl': 'https://horizon-testnet.stellar.org',
-                'stellar.networkPassphrase': 'Test SDF Network ; September 2015',
+                'stellar.networkPassphrase':
+                  'Test SDF Network ; September 2015',
                 'stellar.network': 'testnet',
                 'stellar.poolMinConnections': 2,
                 'stellar.poolMaxConnections': 10,
@@ -41,9 +39,6 @@ describe('StellarApiGatewayService', () => {
     }).compile();
 
     service = module.get<StellarApiGatewayService>(StellarApiGatewayService);
-    connectionPool = module.get<StellarConnectionPoolService>(StellarConnectionPoolService);
-    rateLimiter = module.get<StellarRateLimiterService>(StellarRateLimiterService);
-    requestQueue = module.get<StellarRequestQueueService>(StellarRequestQueueService);
   });
 
   it('should be defined', () => {
