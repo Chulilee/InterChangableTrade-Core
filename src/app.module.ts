@@ -13,6 +13,7 @@ import { TransactionsModule } from './modules/transactions/transactions.module';
 import { StellarModule } from './modules/stellar/stellar.module';
 import { TradingEngineModule } from './modules/trading-engine/trading-engine.module';
 import { WalletModule } from './modules/wallet/wallet.module';
+import { TradingModule } from './modules/trading/trading.module';
 import { BlockchainIndexerModule } from './modules/blockchain-indexer/blockchain-indexer.module';
 
 @Module({
@@ -30,6 +31,7 @@ import { BlockchainIndexerModule } from './modules/blockchain-indexer/blockchain
     StellarModule,
     TradingEngineModule,
     WalletModule,
+    TradingModule,
     BlockchainIndexerModule,
   ],
   controllers: [AppController],
