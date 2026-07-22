@@ -1,16 +1,17 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import {
   IsBoolean,
+  IsDateString,
+  IsEnum,
   IsOptional,
   IsString,
+  IsUrl,
+  IsUUID,
   Length,
   Matches,
 } from 'class-validator';
+import { AssetStatus } from '../entities/asset.entity';
 
-/**
- * Payload used to register/upsert an asset in the index. Normally populated by
- * the indexing job, but also exposed for manual seeding and admin correction.
- */
 export class IndexAssetDto {
   @ApiProperty({ example: 'USDC' })
   @IsString()
@@ -27,6 +28,41 @@ export class IndexAssetDto {
     message: 'issuer must be a valid Stellar public key',
   })
   issuer?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  name?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsString()
+  description?: string;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUrl()
+  imageUrl?: string;
+
+  @ApiPropertyOptional({ enum: AssetStatus })
+  @IsOptional()
+  @IsEnum(AssetStatus)
+  status?: AssetStatus;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsBoolean()
+  isTradeable?: boolean;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsDateString()
+  deprecationDate?: Date;
+
+  @ApiPropertyOptional()
+  @IsOptional()
+  @IsUUID()
+  migratedTo?: string;
 
   @ApiPropertyOptional()
   @IsOptional()

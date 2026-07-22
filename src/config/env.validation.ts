@@ -43,4 +43,10 @@ export const envValidationSchema = Joi.object({
   SOROBAN_EVENT_POLL_INTERVAL_MS: Joi.number().default(500),
   SOROBAN_EVENT_RETENTION_SECS: Joi.number().default(86400),
   SOROBAN_EVENT_PAGE_LIMIT: Joi.number().default(100),
+
+  BLOCKCHAIN_INDEXER_ENABLED: Joi.boolean().default(true),
+  BLOCKCHAIN_INDEXER_POLL_INTERVAL_MS: Joi.number().default(2000),
+  BLOCKCHAIN_INDEXER_MAX_BACKFILL_LEDGERS: Joi.number().default(1000),
+  BLOCKCHAIN_INDEXER_STREAM_TTL_SECS: Joi.number().default(300),
+  BLOCKCHAIN_INDEXER_INCLUDE_FAILED: Joi.boolean().default(true),
 });

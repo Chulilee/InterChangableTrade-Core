@@ -15,6 +15,11 @@ import { WalletModule } from './modules/wallet/wallet.module';
 import { NotificationsModule } from './modules/notifications/notifications.module';
 import { EventEmitterModule } from '@nestjs/event-emitter';
 import { TradingEngineModule } from './modules/trading-engine/trading-engine.module';
+import { ErrorHandlerModule } from './modules/error-handler/error-handler.module';
+import { ResilienceModule } from './modules/resilience/resilience.module';
+import { QueueModule } from './modules/queue/queue.module';
+import { TradingModule } from './modules/trading/trading.module';
+import { BlockchainIndexerModule } from './modules/blockchain-indexer/blockchain-indexer.module';
 
 @Module({
   imports: [
@@ -33,6 +38,11 @@ import { TradingEngineModule } from './modules/trading-engine/trading-engine.mod
     TradingEngineModule,
     WalletModule,
     NotificationsModule,
+    ErrorHandlerModule,
+    ResilienceModule,
+    QueueModule,
+    TradingModule,
+    BlockchainIndexerModule,
   ],
   controllers: [AppController],
   providers: [AppService],
