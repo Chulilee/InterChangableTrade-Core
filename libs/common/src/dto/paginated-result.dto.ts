@@ -14,6 +14,8 @@ export class PaginatedResultDto<T> {
     page: number;
     limit: number;
     totalPages: number;
+    hasNextPage: boolean;
+    hasPreviousPage: boolean;
   };
 
   constructor(data: T[], total: number, page: number, limit: number) {
@@ -22,7 +24,9 @@ export class PaginatedResultDto<T> {
       total,
       page,
       limit,
-      totalPages: Math.ceil(total / limit) || 0,
+      totalPages: Math.ceil(total / limit) || 1,
+      hasNextPage: page < (Math.ceil(total / limit) || 1),
+      hasPreviousPage: page > 1,
     };
   }
 }
