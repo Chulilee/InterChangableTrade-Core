@@ -77,4 +77,46 @@ export class UsersService {
       throw new NotFoundException(`User ${id} not found`);
     }
   }
+
+  /**
+   * Finds a user by email address. Returns null if not found.
+   */
+  async findByEmail(email: string): Promise<User | null> {
+    return this.usersRepository.findOne({ where: { email } });
+  }
+
+  /**
+   * Finds a user by Stellar public key. Returns null if not found.
+   */
+  async findByStellarPublicKey(publicKey: string): Promise<User | null> {
+    return this.usersRepository.findOne({ where: { stellarPublicKey: publicKey } });
+  }
+
+  /**
+   * Creates a new user account from a verified Stellar wallet key.
+   * Used in wallet-based authentication flow.
+   */
+  async createFromStellarKey(publicKey: string): Promise<User> {
+    const existing = await this.findByStellarPublicKey(publicKey);
+    if (existing) {
+      throw new ConflictException(
+        'A user with this Stellar public key already exists',
+      );
+    }
+
+    const user = this.usersRepository.create({
+      email: `${publicKey.substring(0, 8).toLowerCase()}@stellar.local`,
+      passwordHash: '', // Stellar-only accounts have no password
+      stellarPublicKey: publicKey,
+      displayName: `User ${publicKey.substring(0, 8)}`,
+    });
+    return this.usersRepository.save(user);
+  }
+
+  /**
+   * Updates a user's password hash directly (used by password reset flow).
+   */
+  async updatePassword(id: string, passwordHash: string): Promise<void> {
+    await this.usersRepository.update(id, { passwordHash });
+  }
 }

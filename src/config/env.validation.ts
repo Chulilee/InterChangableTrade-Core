@@ -24,6 +24,7 @@ export const envValidationSchema = Joi.object({
 
   JWT_SECRET: Joi.string().min(16).required(),
   JWT_EXPIRES_IN: Joi.string().default('3600s'),
+  JWT_REFRESH_EXPIRES_IN: Joi.number().default(2592000), // 30 days in seconds
 
   STELLAR_NETWORK: Joi.string().valid('testnet', 'public').default('testnet'),
   STELLAR_HORIZON_URL: Joi.string().uri().required(),

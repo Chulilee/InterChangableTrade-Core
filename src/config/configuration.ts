@@ -25,6 +25,7 @@ export default () => ({
   jwt: {
     secret: process.env.JWT_SECRET,
     expiresIn: process.env.JWT_EXPIRES_IN ?? '3600s',
+    refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '2592000', // 30 days in seconds
   },
 
   stellar: {
