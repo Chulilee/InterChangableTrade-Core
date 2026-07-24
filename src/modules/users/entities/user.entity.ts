@@ -4,6 +4,7 @@ import { BaseEntity } from '@app/common';
 export enum UserRole {
   USER = 'user',
   ADMIN = 'admin',
+  ANALYST = 'analyst',
 }
 
 /**

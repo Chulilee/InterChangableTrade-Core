@@ -20,6 +20,7 @@ import { ResilienceModule } from './modules/resilience/resilience.module';
 import { QueueModule } from './modules/queue/queue.module';
 import { TradingModule } from './modules/trading/trading.module';
 import { BlockchainIndexerModule } from './modules/blockchain-indexer/blockchain-indexer.module';
+import { AnalyticsModule } from './modules/analytics/analytics.module';
 
 @Module({
   imports: [
@@ -43,6 +44,7 @@ import { BlockchainIndexerModule } from './modules/blockchain-indexer/blockchain
     QueueModule,
     TradingModule,
     BlockchainIndexerModule,
+    AnalyticsModule,
   ],
   controllers: [AppController],
   providers: [AppService],
