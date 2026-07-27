@@ -21,6 +21,7 @@ import { QueueModule } from './modules/queue/queue.module';
 import { TradingModule } from './modules/trading/trading.module';
 import { BlockchainIndexerModule } from './modules/blockchain-indexer/blockchain-indexer.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
+import { DisputeResolutionModule } from './modules/dispute-resolution/dispute-resolution.module';
 
 @Module({
   imports: [
@@ -45,6 +46,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
     TradingModule,
     BlockchainIndexerModule,
     AnalyticsModule,
+    DisputeResolutionModule,
   ],
   controllers: [AppController],
   providers: [AppService],
