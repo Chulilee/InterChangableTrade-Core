@@ -31,3 +31,6 @@ coverage/
 # OS / temp
 tmp/
 temp/
+
+# Uploaded dispute evidence (runtime artifacts)
+uploads/
