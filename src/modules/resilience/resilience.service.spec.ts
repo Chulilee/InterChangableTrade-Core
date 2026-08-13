@@ -1,28 +1,21 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ResilienceService } from './resilience.service';
 import { ApiError } from '../error-handler/errors';
-import { RedisModule } from '../../redis/redis.module';
-import { ConfigModule } from '@nestjs/config';
-import { Redis } from 'ioredis';
 import { CircuitOpenError } from 'polly-ts-core';
 
 describe('ResilienceService', () => {
   let service: ResilienceService;
 
   beforeEach(async () => {
+    // ResilienceService injects REDIS_CLIENT but does not use it (the circuit
+    // breaker keeps state in-memory via MemoryStateStore), so a bare stub keeps
+    // this suite hermetic — no live Redis or environment file required.
     const module: TestingModule = await Test.createTestingModule({
-      imports: [
-        RedisModule,
-        ConfigModule.forRoot({
-          isGlobal: true,
-          envFilePath: '.env.test',
-        }),
-      ],
       providers: [
         ResilienceService,
         {
           provide: 'REDIS_CLIENT',
-          useValue: new Redis(),
+          useValue: {},
         },
       ],
     }).compile();
