@@ -1,0 +1,76 @@
+name: Bug report
+description: Report something that is broken or not working as expected.
+title: "[Bug]: "
+labels: ["bug"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to file a bug report. Please do **not**
+        include private keys, secrets, or mainnet credentials. For security
+        vulnerabilities, follow [SECURITY.md](../blob/main/SECURITY.md) instead
+        of opening a public issue.
+  - type: textarea
+    id: what-happened
+    attributes:
+      label: What happened?
+      description: A clear and concise description of the bug.
+      placeholder: When I call POST /api/... the service returns 500 instead of ...
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Steps to reproduce
+      description: How can a maintainer reproduce this?
+      placeholder: |
+        1. Start the app with `npm run start:dev`
+        2. Call `...`
+        3. Observe `...`
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behaviour
+      description: What did you expect to happen instead?
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Affected area
+      description: Which part of the system does this affect?
+      options:
+        - Auth / authorization
+        - Marketplace / trading engine
+        - Stellar integration (Horizon / API gateway)
+        - Soroban contracts (invocation / state / events)
+        - Blockchain indexer
+        - Wallet
+        - Notifications
+        - Dispute resolution
+        - Analytics
+        - Other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: environment
+    attributes:
+      label: Environment
+      description: Node version, OS, network (testnet/other), and commit SHA if known.
+      placeholder: |
+        - Node: 20.x
+        - OS: Ubuntu 22.04
+        - Network: Stellar testnet
+        - Commit: abc1234
+    validations:
+      required: false
+  - type: textarea
+    id: logs
+    attributes:
+      label: Relevant logs
+      description: Paste any relevant log output. This will be rendered as code, so no need for backticks.
+      render: shell
+    validations:
+      required: false

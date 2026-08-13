@@ -1,0 +1,118 @@
+# Full CI pipeline: type-check, build, lint, and hermetic unit tests.
+#
+# This complements build-check.yml (which only type-checks and builds). It is
+# provided disabled-by-default (manual dispatch only) so you can confirm it is
+# green locally before making it a required check. To enable it on every push
+# and pull request, uncomment the `push`/`pull_request` triggers below.
+#
+# Verify locally first — these are the exact steps this workflow runs:
+#
+#     npm ci
+#     npx tsc --noEmit
+#     npm run build
+#     npx eslint "{src,libs,test}/**/*.ts" --max-warnings=0
+#     npm test -- --testPathIgnorePatterns="\.integration\.spec\.ts$" --ci
+#
+# Note on tests: the unit suite mocks its dependencies and needs no network.
+# The integration/e2e tests (auth.integration.spec.ts and test/*.e2e-spec.ts)
+# boot the full app and require PostgreSQL + Redis, so they run in a separate
+# job with service containers rather than in the fast unit-test job.
+
+name: CI
+
+on:
+  workflow_dispatch:
+  # Uncomment to run on every push and pull request to main once verified green:
+  # push:
+  #   branches: [ main ]
+  # pull_request:
+  #   branches: [ main ]
+
+jobs:
+  quality:
+    name: Type-check, build, lint, unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: TypeScript check
+        run: npx tsc --noEmit
+
+      - name: Build
+        run: npm run build
+
+      # Check-only lint (no --fix) so the pipeline gates instead of mutating.
+      - name: Lint
+        run: npx eslint "{src,libs,test}/**/*.ts" --max-warnings=0
+
+      # Hermetic unit tests only; integration/e2e run in the job below.
+      - name: Unit tests
+        run: npm test -- --testPathIgnorePatterns="\.integration\.spec\.ts$" --ci
+
+  integration:
+    name: Integration & e2e tests
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: interchangabletrade_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      redis:
+        image: redis:7
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      NODE_ENV: test
+      DB_HOST: localhost
+      DB_PORT: 5432
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      DB_NAME: interchangabletrade_test
+      DB_SYNCHRONIZE: 'true'
+      REDIS_HOST: localhost
+      REDIS_PORT: 6379
+      JWT_SECRET: test-jwt-secret-at-least-16-chars
+      STELLAR_NETWORK: testnet
+      STELLAR_HORIZON_URL: https://horizon-testnet.stellar.org
+      SOROBAN_RPC_URL: https://soroban-testnet.stellar.org
+      STELLAR_NETWORK_PASSPHRASE: 'Test SDF Network ; September 2015'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Use Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Integration tests
+        run: npm test -- --testPathPattern="\.integration\.spec\.ts$" --ci --runInBand
+
+      - name: End-to-end tests
+        run: npm run test:e2e

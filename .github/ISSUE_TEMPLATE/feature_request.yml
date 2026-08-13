@@ -1,0 +1,57 @@
+name: Feature request
+description: Suggest a new capability or an improvement to an existing one.
+title: "[Feature]: "
+labels: ["enhancement"]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement to InterChangableTrade-Core!
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem / motivation
+      description: What problem does this solve, or what is the use case?
+      placeholder: As an integrator, I want ... so that ...
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed solution
+      description: Describe the capability or change you would like to see.
+    validations:
+      required: true
+  - type: dropdown
+    id: area
+    attributes:
+      label: Related area
+      description: Which part of the system would this touch?
+      options:
+        - Auth / authorization
+        - Marketplace / trading engine
+        - Stellar integration (Horizon / API gateway)
+        - Soroban contracts (invocation / state / events)
+        - Blockchain indexer
+        - Wallet
+        - Notifications
+        - Dispute resolution
+        - Analytics
+        - Cross-cutting / infrastructure
+        - Other / not sure
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Any alternative solutions or workarounds you have considered.
+    validations:
+      required: false
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I am willing to help implement this feature.
+          required: false
