@@ -8,6 +8,7 @@ import {
   ExponentialBackoffWithJitter,
   MemoryStateStore,
   RetryEventArgs,
+  CircuitOpenError,
 } from 'polly-ts-core';
 import { Redis } from 'ioredis';
 import { ApiError } from '../error-handler/errors';
@@ -37,6 +38,8 @@ export class ResilienceService {
     });
 
     const fallbackPolicy: IPolicy = new FallbackPolicy<any>({
+      shouldHandle: (err: Error) =>
+        !(err instanceof ApiError) && !(err instanceof CircuitOpenError),
       fallback: (err: Error) => {
         this.logger.warn(
           `Fallback triggered due to: ${err.message}. Service is temporarily unavailable.`,
@@ -50,8 +53,8 @@ export class ResilienceService {
 
     this.resilientPipeline = pipeline(
       fallbackPolicy,
-      retryPolicy,
       circuitBreakerPolicy,
+      retryPolicy,
     );
   }
 
