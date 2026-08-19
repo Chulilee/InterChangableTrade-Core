@@ -140,7 +140,7 @@ export class WalletService {
       take: query.limit,
       order: { createdAt: 'DESC' },
     });
-    return new PaginatedResultDto(data, total, query.page, query.limit);
+    return new PaginatedResultDto(data, total, query.page ?? 1, query.limit ?? 20);
   }
 
   /** Fetches a wallet by ID, verifying ownership. */

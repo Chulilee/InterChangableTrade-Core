@@ -14,6 +14,15 @@ export default () => ({
     name: process.env.DB_NAME,
     synchronize: process.env.DB_SYNCHRONIZE === 'true',
     logging: process.env.DB_LOGGING === 'true',
+    poolMax: parseInt(process.env.DB_POOL_MAX ?? '20', 10),
+    poolMin: parseInt(process.env.DB_POOL_MIN ?? '5', 10),
+    ssl: process.env.DB_SSL === 'true',
+    migrationsDir: process.env.DB_MIGRATIONS_DIR ?? 'src/migrations',
+    backupEnabled: process.env.DB_BACKUP_ENABLED === 'true',
+    backupIntervalMin: parseInt(process.env.DB_BACKUP_INTERVAL_MIN ?? '60', 10),
+    backupRetentionDays: parseInt(process.env.DB_BACKUP_RETENTION_DAYS ?? '7', 10),
+    shardingEnabled: process.env.DB_SHARDING_ENABLED === 'true',
+    shardCount: parseInt(process.env.DB_SHARD_COUNT ?? '1', 10),
   },
 
   redis: {

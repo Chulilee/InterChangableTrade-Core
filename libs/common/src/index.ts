@@ -4,7 +4,7 @@
  */
 export * from './entities/base.entity';
 export * from './dto/pagination-query.dto';
-export * from './dto/paginated-result.dto';
+export { PaginatedResultDto } from './dto/paginated-result.dto';
 export * from './interceptors/transform.interceptor';
 export * from './filters/http-exception.filter';
 export * from './decorators/api-paginated-response.decorator';
