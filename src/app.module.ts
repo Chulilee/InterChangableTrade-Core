@@ -23,6 +23,7 @@ import { BlockchainIndexerModule } from './modules/blockchain-indexer/blockchain
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { DisputeResolutionModule } from './modules/dispute-resolution/dispute-resolution.module';
 import { AuditModule } from './modules/audit/audit.module';
+import { EscrowModule } from './modules/escrow/escrow.module';
 
 @Module({
   imports: [
@@ -49,6 +50,7 @@ import { AuditModule } from './modules/audit/audit.module';
     AnalyticsModule,
     DisputeResolutionModule,
     AuditModule,
+    EscrowModule,
   ],
   controllers: [AppController],
   providers: [AppService],
