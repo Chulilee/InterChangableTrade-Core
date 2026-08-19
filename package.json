@@ -28,8 +28,10 @@
     "@nestjs/jwt": "^10.2.0",
     "@nestjs/passport": "^10.0.3",
     "@nestjs/platform-express": "^10.4.4",
+    "@nestjs/platform-socket.io": "^10.4.22",
     "@nestjs/swagger": "^7.4.2",
     "@nestjs/typeorm": "^10.0.2",
+    "@nestjs/websockets": "^10.4.22",
     "@stellar/stellar-sdk": "^12.3.0",
     "bcryptjs": "^2.4.3",
     "bull": "^4.16.5",
@@ -48,6 +50,7 @@
     "polly-ts-telemetry": "^0.1.2",
     "reflect-metadata": "^0.2.2",
     "rxjs": "^7.8.1",
+    "socket.io": "^4.8.3",
     "typeorm": "^0.3.20"
   },
   "devDependencies": {

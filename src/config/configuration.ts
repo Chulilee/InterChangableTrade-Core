@@ -71,4 +71,13 @@ export default () => ({
     // Cap on events pulled per poll cycle.
     eventPageLimit: parseInt(process.env.SOROBAN_EVENT_PAGE_LIMIT ?? '100', 10),
   },
+
+  notifications: {
+    emailFrom: process.env.NOTIFICATION_EMAIL_FROM ?? 'noreply@interchangeabletrade.com',
+    twilio: {
+      accountSid: process.env.TWILIO_ACCOUNT_SID,
+      authToken: process.env.TWILIO_AUTH_TOKEN,
+      phoneNumber: process.env.TWILIO_PHONE_NUMBER,
+    },
+  },
 });

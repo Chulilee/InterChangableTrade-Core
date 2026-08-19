@@ -50,4 +50,10 @@ export const envValidationSchema = Joi.object({
   BLOCKCHAIN_INDEXER_MAX_BACKFILL_LEDGERS: Joi.number().default(1000),
   BLOCKCHAIN_INDEXER_STREAM_TTL_SECS: Joi.number().default(300),
   BLOCKCHAIN_INDEXER_INCLUDE_FAILED: Joi.boolean().default(true),
+
+  // Notification services (Twilio SMS)
+  TWILIO_ACCOUNT_SID: Joi.string().optional(),
+  TWILIO_AUTH_TOKEN: Joi.string().optional(),
+  TWILIO_PHONE_NUMBER: Joi.string().optional(),
+  NOTIFICATION_EMAIL_FROM: Joi.string().email().optional(),
 });
