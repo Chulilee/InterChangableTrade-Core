@@ -22,6 +22,7 @@ import { TradingModule } from './modules/trading/trading.module';
 import { BlockchainIndexerModule } from './modules/blockchain-indexer/blockchain-indexer.module';
 import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { DisputeResolutionModule } from './modules/dispute-resolution/dispute-resolution.module';
+import { AuditModule } from './modules/audit/audit.module';
 
 @Module({
   imports: [
@@ -47,6 +48,7 @@ import { DisputeResolutionModule } from './modules/dispute-resolution/dispute-re
     BlockchainIndexerModule,
     AnalyticsModule,
     DisputeResolutionModule,
+    AuditModule,
   ],
   controllers: [AppController],
   providers: [AppService],
