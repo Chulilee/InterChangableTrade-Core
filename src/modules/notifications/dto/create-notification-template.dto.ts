@@ -1,4 +1,5 @@
-import { IsNotEmpty, IsString } from 'class-validator';
+import { IsEnum, IsNotEmpty, IsOptional, IsString } from 'class-validator';
+import { Channel } from '../enums/channel.enum';
 
 export class CreateNotificationTemplateDto {
   @IsString()
@@ -7,5 +8,17 @@ export class CreateNotificationTemplateDto {
 
   @IsString()
   @IsNotEmpty()
-  template: string;
+  subject: string;
+
+  @IsString()
+  @IsNotEmpty()
+  bodyTemplate: string;
+
+  @IsString()
+  @IsOptional()
+  htmlTemplate?: string;
+
+  @IsEnum(Channel)
+  @IsOptional()
+  channel?: Channel;
 }

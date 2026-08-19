@@ -5,6 +5,7 @@ import {
   PrimaryGeneratedColumn,
   UpdateDateColumn,
 } from 'typeorm';
+import { Channel } from '../enums/channel.enum';
 
 @Entity('notification_templates')
 export class NotificationTemplate {
@@ -15,7 +16,20 @@ export class NotificationTemplate {
   name: string;
 
   @Column('text')
-  template: string;
+  subject: string;
+
+  @Column('text')
+  bodyTemplate: string;
+
+  @Column('text', { nullable: true })
+  htmlTemplate: string | null;
+
+  @Column({
+    type: 'enum',
+    enum: Channel,
+    default: Channel.EMAIL,
+  })
+  channel: Channel;
 
   @CreateDateColumn()
   createdAt: Date;

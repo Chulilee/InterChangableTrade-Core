@@ -15,6 +15,7 @@ export class NotificationStrategy {
     private readonly smsProvider: SmsNotificationProvider,
   ) {
     this.providers.set(Channel.WEB_SOCKET, this.webSocketProvider);
+    this.providers.set(Channel.IN_APP, this.webSocketProvider);
     this.providers.set(Channel.EMAIL, this.emailProvider);
     this.providers.set(Channel.SMS, this.smsProvider);
   }
