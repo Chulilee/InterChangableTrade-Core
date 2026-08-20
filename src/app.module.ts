@@ -24,6 +24,7 @@ import { AnalyticsModule } from './modules/analytics/analytics.module';
 import { DisputeResolutionModule } from './modules/dispute-resolution/dispute-resolution.module';
 import { AuditModule } from './modules/audit/audit.module';
 import { EscrowModule } from './modules/escrow/escrow.module';
+import { RateLimitingModule } from './modules/rate-limiting/rate-limiting.module';
 
 @Module({
   imports: [
@@ -51,6 +52,7 @@ import { EscrowModule } from './modules/escrow/escrow.module';
     DisputeResolutionModule,
     AuditModule,
     EscrowModule,
+    RateLimitingModule,
   ],
   controllers: [AppController],
   providers: [AppService],

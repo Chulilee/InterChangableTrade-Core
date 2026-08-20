@@ -72,6 +72,11 @@ export default () => ({
     eventPageLimit: parseInt(process.env.SOROBAN_EVENT_PAGE_LIMIT ?? '100', 10),
   },
 
+  rateLimit: {
+    strategy: process.env.RATE_LIMIT_STRATEGY ?? 'sliding_window',
+    defaultWindowSize: parseInt(process.env.RATE_LIMIT_DEFAULT_WINDOW ?? '60', 10),
+  },
+
   notifications: {
     emailFrom: process.env.NOTIFICATION_EMAIL_FROM ?? 'noreply@interchangeabletrade.com',
     twilio: {
