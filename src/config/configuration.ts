@@ -14,6 +14,14 @@ export default () => ({
     name: process.env.DB_NAME,
     synchronize: process.env.DB_SYNCHRONIZE === 'true',
     logging: process.env.DB_LOGGING === 'true',
+
+    // Connection pooling.
+    poolMax: parseInt(process.env.DB_POOL_MAX ?? '20', 10),
+    poolMin: parseInt(process.env.DB_POOL_MIN ?? '2', 10),
+    poolIdleTimeoutMs: parseInt(process.env.DB_POOL_IDLE_TIMEOUT_MS ?? '30000', 10),
+
+    // Run versioned migrations automatically on startup (non-production).
+    migrationsRun: process.env.DB_MIGRATIONS_RUN === 'true',
   },
 
   redis: {

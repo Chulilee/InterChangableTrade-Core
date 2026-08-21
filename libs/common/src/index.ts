@@ -8,3 +8,5 @@ export * from './dto/paginated-result.dto';
 export * from './interceptors/transform.interceptor';
 export * from './filters/http-exception.filter';
 export * from './decorators/api-paginated-response.decorator';
+export * from './database/base.repository';
+export * from './database/transaction.helper';
