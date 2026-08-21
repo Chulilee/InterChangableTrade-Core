@@ -5,6 +5,7 @@ import helmet from 'helmet';
 import { AllExceptionsFilter, TransformInterceptor } from '@app/common';
 import { AppModule } from './app.module';
 import { ErrorHandlerService } from './modules/error-handler/error-handler.service';
+import { RateLimitGuard } from './modules/rate-limiting/guards/rate-limit.guard';
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
@@ -24,6 +25,11 @@ async function bootstrap() {
       transform: true,
     }),
   );
+
+  // Global rate limiting guard — protects all routes except those
+  // decorated with @BypassRateLimit().
+  const rateLimitGuard = app.get(RateLimitGuard);
+  app.useGlobalGuards(rateLimitGuard);
 
   // Consistent success envelope and error shape across all endpoints.
   app.useGlobalInterceptors(new TransformInterceptor());

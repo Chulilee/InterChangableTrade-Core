@@ -25,6 +25,7 @@ import { DisputeResolutionModule } from './modules/dispute-resolution/dispute-re
 import { AuditModule } from './modules/audit/audit.module';
 import { EscrowModule } from './modules/escrow/escrow.module';
 import { ComplianceModule } from './modules/compliance/compliance.module';
+import { RateLimitingModule } from './modules/rate-limiting/rate-limiting.module';
 
 @Module({
   imports: [
@@ -53,6 +54,7 @@ import { ComplianceModule } from './modules/compliance/compliance.module';
     AuditModule,
     EscrowModule,
     ComplianceModule,
+    RateLimitingModule,
   ],
   controllers: [AppController],
   providers: [AppService],
