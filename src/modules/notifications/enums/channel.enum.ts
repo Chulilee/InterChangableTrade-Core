@@ -3,4 +3,6 @@ export enum Channel {
   IN_APP = 'in_app',
   EMAIL = 'email',
   SMS = 'sms',
+  TELEGRAM = 'telegram',
+  DISCORD = 'discord',
 }
