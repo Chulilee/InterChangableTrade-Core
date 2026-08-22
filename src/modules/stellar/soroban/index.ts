@@ -8,3 +8,12 @@ export * from './contract-state.service';
 export * from './contract-event-indexer.service';
 export * from './soroban-contract.controller';
 export * from './dto/soroban-contract.dto';
+// New abstraction layer exports
+export * from './contract-registry.service';
+export * from './soroban-contract.base';
+export * from './multisig-transaction.builder';
+export * from './contract-upgrade.manager';
+export * from './gas-optimizer.service';
+export * from './event-decoder.service';
+// Example contract implementations
+export * from './contracts/swap-pool.contract';

@@ -14,6 +14,14 @@ import { ContractDeploymentService } from './soroban/contract-deployment.service
 import { ContractStateService } from './soroban/contract-state.service';
 import { ContractEventIndexerService } from './soroban/contract-event-indexer.service';
 import { SorobanContractController } from './soroban/soroban-contract.controller';
+// New abstraction layer services
+import { ContractRegistryService } from './soroban/contract-registry.service';
+import { MultisigTransactionBuilder } from './soroban/multisig-transaction.builder';
+import { ContractUpgradeManager } from './soroban/contract-upgrade.manager';
+import { GasOptimizationEngine } from './soroban/gas-optimizer.service';
+import { ContractEventDecoder } from './soroban/event-decoder.service';
+// Example contract implementations
+import { SwapPoolContract } from './soroban/contracts/swap-pool.contract';
 
 @Module({
   controllers: [
@@ -28,26 +36,42 @@ import { SorobanContractController } from './soroban/soroban-contract.controller
     StellarRateLimiterService,
     StellarRequestQueueService,
     StellarApiGatewayService,
-    // Soroban smart-contract integration module.
+    // Base Soroban services
     SorobanClientService,
     ContractAbiService,
     ContractInvocationService,
     ContractDeploymentService,
     ContractStateService,
     ContractEventIndexerService,
+    // New Soroban abstraction layer services
+    ContractRegistryService,
+    MultisigTransactionBuilder,
+    ContractUpgradeManager,
+    GasOptimizationEngine,
+    ContractEventDecoder,
+    // Example contract implementations
+    SwapPoolContract,
   ],
   exports: [
     StellarService,
     SorobanService,
     StellarApiGatewayService,
     StellarConnectionPoolService,
-    // Soroban services, for consumers that invoke contracts directly.
+    // Base Soroban services
     SorobanClientService,
     ContractAbiService,
     ContractInvocationService,
     ContractDeploymentService,
     ContractStateService,
     ContractEventIndexerService,
+    // Export abstraction layer services for external use
+    ContractRegistryService,
+    MultisigTransactionBuilder,
+    ContractUpgradeManager,
+    GasOptimizationEngine,
+    ContractEventDecoder,
+    // Export contract implementations
+    SwapPoolContract,
   ],
 })
 export class StellarModule {}
