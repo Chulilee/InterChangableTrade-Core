@@ -1,4 +1,4 @@
-import { Injectable, Logger, NotFoundException } from '@nestjs/common';
+import { Injectable, Logger, NotFoundException, OnModuleInit, Inject } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Notification as NotificationEntity } from './entities/notification.entity';
@@ -12,10 +12,15 @@ import { DeliveryStatus } from './enums/delivery-status.enum';
 import { NotificationType } from './enums/notification-type.enum';
 import { PaginationQueryDto, PaginatedResultDto } from '@app/common';
 import { SearchNotificationsDto } from './dto/search-notifications.dto';
+import { Redis } from 'ioredis';
+import { REDIS_CLIENT } from '../../redis/redis.module';
+import { BlockchainEvent, BlockchainEventType } from '../blockchain-indexer/entities/blockchain-event.entity';
 
 @Injectable()
-export class NotificationsService {
+export class NotificationsService implements OnModuleInit {
   private readonly logger = new Logger(NotificationsService.name);
+  private readonly eventChannel = 'blockchain:events:stream';
+  private subscriber: Redis;
 
   /** Maximum retry attempts per notification delivery (requirement: 3) */
   private static readonly MAX_RETRIES = 3;
@@ -31,7 +36,72 @@ export class NotificationsService {
     private readonly templateRepository: Repository<NotificationTemplate>,
     private readonly strategy: NotificationStrategy,
     private readonly gateway: NotificationGateway,
-  ) {}
+    @Inject(REDIS_CLIENT) private readonly redis: Redis,
+  ) {
+    this.subscriber = this.redis.duplicate();
+  }
+
+  async onModuleInit() {
+    this.logger.log('📧 Notifications service initialized');
+  }
+
+  /**
+   * Send a notification to a specific user, respecting their preferences
+   */
+  async sendNotificationToUser(
+    userId: string, 
+    notification: { title: string; message: string; data?: any }, 
+    metadata: any
+  ): Promise<void> {
+    // Get all user's enabled notification preferences
+    const userPreferences = await this.preferenceRepository.find({
+      where: { userId, isEnabled: true }
+    });
+
+    if (!userPreferences || userPreferences.length === 0) {
+      this.logger.debug(`User ${userId} has no enabled notification preferences, skipping.`);
+      return;
+    }
+
+    // Map severity to notification type
+    const notificationType = this.mapSeverityToNotificationType(metadata.severity);
+    
+    // Get enabled channels that subscribe to this notification type
+    const channels = this.getChannelsForNotification(userPreferences, notificationType, metadata.priority);
+    
+    for (const channel of channels) {
+      await this.send(new Notification(channel, userId, notification.message, {
+        title: notification.title,
+        type: notificationType,
+        templateData: notification.data,
+      }));
+    }
+  }
+
+  private getChannelsForNotification(preferences: NotificationPreference[], type: NotificationType, priority: string): Channel[] {
+    const channels: Channel[] = [];
+    
+    for (const pref of preferences) {
+      // Critical priority sends regardless of subscription (important for safety)
+      if (priority === 'critical' || pref.subscribedTypes.includes(type)) {
+        channels.push(pref.channel);
+      }
+    }
+    
+    return channels;
+  }
+
+  private mapSeverityToNotificationType(severity: string): NotificationType {
+    switch (severity) {
+      case 'critical': 
+      case 'high': 
+        return NotificationType.PORTFOLIO_ALERT;
+      case 'medium': 
+        return NotificationType.PRICE_ALERT;
+      default: 
+        return NotificationType.SYSTEM_NOTICE;
+    }
+  }
 
   // ─── Core send ────────────────────────────────────────────────────────
 
