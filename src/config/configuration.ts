@@ -72,6 +72,56 @@ export default () => ({
     eventPageLimit: parseInt(process.env.SOROBAN_EVENT_PAGE_LIMIT ?? '100', 10),
   },
 
+  blockchainIndexer: {
+    enabled: process.env.BLOCKCHAIN_INDEXER_ENABLED === 'true',
+    pollIntervalMs: parseInt(
+      process.env.BLOCKCHAIN_INDEXER_POLL_INTERVAL_MS ?? '2000',
+      10,
+    ),
+    maxBackfillLedgers: parseInt(
+      process.env.BLOCKCHAIN_INDEXER_MAX_BACKFILL_LEDGERS ?? '1000',
+      10,
+    ),
+    includeFailed: process.env.BLOCKCHAIN_INDEXER_INCLUDE_FAILED === 'true',
+    pageLimit: parseInt(process.env.BLOCKCHAIN_INDEXER_PAGE_LIMIT ?? '200', 10),
+    streamTtlSecs: parseInt(
+      process.env.BLOCKCHAIN_INDEXER_STREAM_TTL_SECS ?? '300',
+      10,
+    ),
+    // Real-time WebSocket streaming settings
+    wsReconnectBaseDelayMs: parseInt(
+      process.env.BLOCKCHAIN_INDEXER_WS_RECONNECT_BASE_MS ?? '1000',
+      10,
+    ),
+    wsReconnectMaxDelayMs: parseInt(
+      process.env.BLOCKCHAIN_INDEXER_WS_RECONNECT_MAX_MS ?? '30000',
+      10,
+    ),
+    // In-memory event buffer
+    eventBufferSize: parseInt(
+      process.env.BLOCKCHAIN_INDEXER_BUFFER_SIZE ?? '10000',
+      10,
+    ),
+    eventBufferTtlMs: parseInt(
+      process.env.BLOCKCHAIN_INDEXER_BUFFER_TTL_MS ?? '60000',
+      10,
+    ),
+    // Batched persistence
+    batchFlushIntervalMs: parseInt(
+      process.env.BLOCKCHAIN_INDEXER_BATCH_FLUSH_MS ?? '1000',
+      10,
+    ),
+    batchMaxSize: parseInt(
+      process.env.BLOCKCHAIN_INDEXER_BATCH_MAX_SIZE ?? '1000',
+      10,
+    ),
+    // Retention policy
+    retentionDays: parseInt(
+      process.env.BLOCKCHAIN_INDEXER_RETENTION_DAYS ?? '90',
+      10,
+    ),
+  },
+
   rateLimit: {
     strategy: process.env.RATE_LIMIT_STRATEGY ?? 'sliding_window',
     defaultWindowSize: parseInt(process.env.RATE_LIMIT_DEFAULT_WINDOW ?? '60', 10),
