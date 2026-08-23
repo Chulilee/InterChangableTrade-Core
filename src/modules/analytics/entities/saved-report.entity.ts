@@ -74,6 +74,12 @@ export class SavedReport extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   scheduleCron?: string;
 
+  @Column({ type: 'timestamptz', nullable: true })
+  nextRunAt?: Date;
+
+  @Column({ type: 'timestamptz', nullable: true })
+  lastRunAt?: Date;
+
   @Column({ type: 'boolean', default: false })
   isDeleted: boolean;
 }
