@@ -27,6 +27,7 @@ import { EscrowModule } from './modules/escrow/escrow.module';
 import { ComplianceModule } from './modules/compliance/compliance.module';
 import { RateLimitingModule } from './modules/rate-limiting/rate-limiting.module';
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
+import { WebhookModule } from './modules/webhooks/webhook.module';
 
 @Module({
   imports: [
@@ -57,6 +58,7 @@ import { PortfolioModule } from './modules/portfolio/portfolio.module';
     ComplianceModule,
     RateLimitingModule,
     PortfolioModule,
+    WebhookModule,
   ],
   controllers: [AppController],
   providers: [AppService],
