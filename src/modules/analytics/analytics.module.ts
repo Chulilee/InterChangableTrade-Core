@@ -8,6 +8,13 @@ import { MetricsCollectorService } from './services/metrics-collector.service';
 import { ReportGeneratorService } from './services/report-generator.service';
 import { UserSegmentationService } from './services/user-segmentation.service';
 import { MetricsQueryService } from './services/metrics-query.service';
+import { MarketAnalyticsService } from './services/market-analytics.service';
+import { TraderPerformanceService } from './services/trader-performance.service';
+import { PoolAnalyticsService } from './services/pool-analytics.service';
+import { FinancialReportingService } from './services/financial-reporting.service';
+import { AnomalyDetectionService } from './services/anomaly-detection.service';
+import { ScheduledReportService } from './services/scheduled-report.service';
+import { DataPipelineService } from './services/data-pipeline.service';
 import { Trade } from '../trading-engine/entities/trade.entity';
 import { User } from '../users/entities/user.entity';
 import { Transaction } from '../transactions/entities/transaction.entity';
@@ -29,10 +36,24 @@ import { Transaction } from '../transactions/entities/transaction.entity';
     ReportGeneratorService,
     UserSegmentationService,
     MetricsQueryService,
+    MarketAnalyticsService,
+    TraderPerformanceService,
+    PoolAnalyticsService,
+    FinancialReportingService,
+    AnomalyDetectionService,
+    ScheduledReportService,
+    DataPipelineService,
   ],
   exports: [
     MetricsCollectorService,
     MetricsQueryService,
+    MarketAnalyticsService,
+    TraderPerformanceService,
+    PoolAnalyticsService,
+    FinancialReportingService,
+    AnomalyDetectionService,
+    ScheduledReportService,
+    DataPipelineService,
   ],
 })
 export class AnalyticsModule {}
