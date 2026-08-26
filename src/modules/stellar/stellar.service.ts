@@ -25,6 +25,25 @@ export interface AccountSummary {
   balances: AccountBalance[];
 }
 
+export interface AccountSignerEntry {
+  key: string;
+  weight: number;
+  type: string;
+}
+
+export interface AccountSignersSummary {
+  accountId: string;
+  masterWeight: number;
+  thresholds: { low: number; med: number; high: number };
+  signers: AccountSignerEntry[];
+}
+
+export interface SubmitTransactionResult {
+  hash: string;
+  successful: boolean;
+  ledger?: number;
+}
+
 export interface SettlementRequest {
   fromAccount: string;
   toAccount: string;
@@ -88,6 +107,76 @@ export class StellarService {
       );
       throw new ServiceUnavailableException(
         'Unable to reach the Stellar network or account not found',
+      );
+    }
+  }
+
+  /**
+   * Surfaces an account's signer set and operation thresholds from the
+   * **classic** Horizon endpoint. Unlike {@link getAccount}, this keeps the
+   * `signers`/`thresholds` fields the signing pipeline needs to work out who may
+   * sign and how much weight is required.
+   */
+  async getAccountSigners(accountId: string): Promise<AccountSignersSummary> {
+    try {
+      const account = await this.server.loadAccount(accountId);
+      const signers: AccountSignerEntry[] = account.signers.map((s) => ({
+        key: s.key,
+        weight: s.weight,
+        type: s.type,
+      }));
+      const master = signers.find((s) => s.key === account.accountId());
+      return {
+        accountId: account.accountId(),
+        masterWeight: master?.weight ?? 0,
+        thresholds: {
+          low: account.thresholds.low_threshold,
+          med: account.thresholds.med_threshold,
+          high: account.thresholds.high_threshold,
+        },
+        signers,
+      };
+    } catch (error) {
+      this.logger.warn(
+        `Failed to load signers for ${accountId}: ${(error as Error).message}`,
+      );
+      throw new ServiceUnavailableException(
+        'Unable to reach the Stellar network or account not found',
+      );
+    }
+  }
+
+  /**
+   * Submits a fully-signed transaction envelope to the network. Rebuilds a
+   * `Transaction` from the XDR (the SDK's `submitTransaction` requires the
+   * object, not a raw string) and returns the canonical hash and result.
+   */
+  async submitTransaction(signedXdr: string): Promise<SubmitTransactionResult> {
+    try {
+      const transaction = TransactionBuilder.fromXDR(
+        signedXdr,
+        this.networkPassphrase,
+      );
+      const response = await this.server.submitTransaction(transaction);
+      return {
+        hash: response.hash,
+        successful: response.successful,
+        ledger: response.ledger,
+      };
+    } catch (error) {
+      // Horizon returns transaction/operation result codes on rejection; surface
+      // them so callers can record a meaningful failure reason.
+      const resultCodes = (
+        error as {
+          response?: { data?: { extras?: { result_codes?: unknown } } };
+        }
+      )?.response?.data?.extras?.result_codes;
+      const detail = resultCodes
+        ? JSON.stringify(resultCodes)
+        : (error as Error).message;
+      this.logger.error(`Failed to submit transaction: ${detail}`);
+      throw new ServiceUnavailableException(
+        `Stellar submission failed: ${detail}`,
       );
     }
   }

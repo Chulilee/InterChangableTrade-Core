@@ -89,7 +89,9 @@ export class UsersService {
    * Finds a user by Stellar public key. Returns null if not found.
    */
   async findByStellarPublicKey(publicKey: string): Promise<User | null> {
-    return this.usersRepository.findOne({ where: { stellarPublicKey: publicKey } });
+    return this.usersRepository.findOne({
+      where: { stellarPublicKey: publicKey },
+    });
   }
 
   /**
