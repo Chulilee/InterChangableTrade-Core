@@ -163,9 +163,7 @@ export class NotificationListener {
       // Broadcast: we emit to all enabled users. In a real system this
       // would iterate over all active user IDs. For now we emit a single
       // IN_APP event that the gateway broadcasts.
-      this.logger.log(
-        `Broadcasting system notice: ${payload.title}`,
-      );
+      this.logger.log(`Broadcasting system notice: ${payload.title}`);
     }
   }
 }

@@ -95,9 +95,18 @@ describe('NotificationsService', () => {
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         NotificationsService,
-        { provide: getRepositoryToken(Notification), useValue: notificationRepo },
-        { provide: getRepositoryToken(NotificationPreference), useValue: preferenceRepo },
-        { provide: getRepositoryToken(NotificationTemplate), useValue: templateRepo },
+        {
+          provide: getRepositoryToken(Notification),
+          useValue: notificationRepo,
+        },
+        {
+          provide: getRepositoryToken(NotificationPreference),
+          useValue: preferenceRepo,
+        },
+        {
+          provide: getRepositoryToken(NotificationTemplate),
+          useValue: templateRepo,
+        },
         { provide: NotificationStrategy, useValue: strategy },
         { provide: NotificationGateway, useValue: gateway },
       ],
@@ -198,14 +207,23 @@ describe('NotificationsService', () => {
       preferenceRepo.find.mockResolvedValue([]);
       notificationRepo.create.mockImplementation((e: any) => ({ ...e }));
       notificationRepo.save.mockImplementation(async (e: any) => {
-        if (Array.isArray(e)) return e.map((item: any, i: number) => ({ ...baseNotification, ...item, id: `batch-${i}` }));
+        if (Array.isArray(e))
+          return e.map((item: any, i: number) => ({
+            ...baseNotification,
+            ...item,
+            id: `batch-${i}`,
+          }));
         return { ...baseNotification, ...e, id: e.id ?? baseNotification.id };
       });
 
-      const result = await service.sendBatch(Channel.IN_APP, NotificationType.ORDER_UPDATE, [
-        { recipient: 'user-1', message: 'msg1', title: 't1' },
-        { recipient: 'user-2', message: 'msg2', title: 't2' },
-      ]);
+      const result = await service.sendBatch(
+        Channel.IN_APP,
+        NotificationType.ORDER_UPDATE,
+        [
+          { recipient: 'user-1', message: 'msg1', title: 't1' },
+          { recipient: 'user-2', message: 'msg2', title: 't2' },
+        ],
+      );
 
       expect(result.batchId).toBeDefined();
       expect(result.sent).toBeGreaterThanOrEqual(0);
@@ -219,14 +237,23 @@ describe('NotificationsService', () => {
 
       notificationRepo.create.mockImplementation((e: any) => ({ ...e }));
       notificationRepo.save.mockImplementation(async (e: any) => {
-        if (Array.isArray(e)) return e.map((item: any, i: number) => ({ ...baseNotification, ...item, id: `batch-${i}` }));
+        if (Array.isArray(e))
+          return e.map((item: any, i: number) => ({
+            ...baseNotification,
+            ...item,
+            id: `batch-${i}`,
+          }));
         return { ...baseNotification, ...e, id: e.id ?? baseNotification.id };
       });
 
-      const result = await service.sendBatch(Channel.IN_APP, NotificationType.ORDER_UPDATE, [
-        { recipient: 'user-1', message: 'msg1' },
-        { recipient: 'user-2', message: 'msg2' },
-      ]);
+      const result = await service.sendBatch(
+        Channel.IN_APP,
+        NotificationType.ORDER_UPDATE,
+        [
+          { recipient: 'user-1', message: 'msg1' },
+          { recipient: 'user-2', message: 'msg2' },
+        ],
+      );
 
       expect(result.skipped).toBeGreaterThanOrEqual(0);
     });
@@ -299,10 +326,9 @@ describe('NotificationsService', () => {
         type: NotificationType.PRICE_ALERT,
       } as any);
 
-      expect(mockQb.andWhere).toHaveBeenCalledWith(
-        'n.type = :type',
-        { type: NotificationType.PRICE_ALERT },
-      );
+      expect(mockQb.andWhere).toHaveBeenCalledWith('n.type = :type', {
+        type: NotificationType.PRICE_ALERT,
+      });
     });
 
     it('should apply date range filter', async () => {
@@ -328,10 +354,9 @@ describe('NotificationsService', () => {
         'n.createdAt >= :startDate',
         { startDate: '2025-01-01' },
       );
-      expect(mockQb.andWhere).toHaveBeenCalledWith(
-        'n.createdAt <= :endDate',
-        { endDate: '2025-12-31' },
-      );
+      expect(mockQb.andWhere).toHaveBeenCalledWith('n.createdAt <= :endDate', {
+        endDate: '2025-12-31',
+      });
     });
   });
 
@@ -344,7 +369,9 @@ describe('NotificationsService', () => {
       const result = await service.getUserPreferences('user-1');
 
       expect(result).toHaveLength(1);
-      expect(preferenceRepo.find).toHaveBeenCalledWith({ where: { userId: 'user-1' } });
+      expect(preferenceRepo.find).toHaveBeenCalledWith({
+        where: { userId: 'user-1' },
+      });
     });
   });
 
@@ -426,12 +453,7 @@ describe('NotificationsService', () => {
       templateRepo.findOne.mockResolvedValue(null);
 
       await expect(
-        service.sendFromTemplate(
-          'nonexistent',
-          Channel.EMAIL,
-          'user-1',
-          {},
-        ),
+        service.sendFromTemplate('nonexistent', Channel.EMAIL, 'user-1', {}),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -479,9 +501,11 @@ describe('NotificationsService', () => {
       const mockQb: any = {
         where: jest.fn().mockReturnThis(),
         andWhere: jest.fn().mockReturnThis(),
-        getMany: jest.fn().mockResolvedValue([
-          { ...baseNotification, deliveryStatus: DeliveryStatus.SCHEDULED },
-        ]),
+        getMany: jest
+          .fn()
+          .mockResolvedValue([
+            { ...baseNotification, deliveryStatus: DeliveryStatus.SCHEDULED },
+          ]),
       };
       notificationRepo.createQueryBuilder.mockReturnValue(mockQb);
 
@@ -509,7 +533,11 @@ describe('NotificationsService', () => {
 
   describe('emit()', () => {
     it('should delegate to send()', async () => {
-      const notif = new NotificationClass(Channel.IN_APP, 'user-1', 'emit test');
+      const notif = new NotificationClass(
+        Channel.IN_APP,
+        'user-1',
+        'emit test',
+      );
       const result = await service.emit(notif);
 
       expect(result).toBeDefined();

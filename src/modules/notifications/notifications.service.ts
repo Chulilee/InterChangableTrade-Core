@@ -1,4 +1,10 @@
-import { Injectable, Logger, NotFoundException, OnModuleInit, Inject } from '@nestjs/common';
+import {
+  Injectable,
+  Logger,
+  NotFoundException,
+  OnModuleInit,
+  Inject,
+} from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, In } from 'typeorm';
 import { Notification as NotificationEntity } from './entities/notification.entity';
@@ -14,7 +20,10 @@ import { PaginationQueryDto, PaginatedResultDto } from '@app/common';
 import { SearchNotificationsDto } from './dto/search-notifications.dto';
 import { Redis } from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.module';
-import { BlockchainEvent, BlockchainEventType } from '../blockchain-indexer/entities/blockchain-event.entity';
+import {
+  BlockchainEvent,
+  BlockchainEventType,
+} from '../blockchain-indexer/entities/blockchain-event.entity';
 
 @Injectable()
 export class NotificationsService implements OnModuleInit {
@@ -49,56 +58,70 @@ export class NotificationsService implements OnModuleInit {
    * Send a notification to a specific user, respecting their preferences
    */
   async sendNotificationToUser(
-    userId: string, 
-    notification: { title: string; message: string; data?: any }, 
-    metadata: any
+    userId: string,
+    notification: { title: string; message: string; data?: any },
+    metadata: any,
   ): Promise<void> {
     // Get all user's enabled notification preferences
     const userPreferences = await this.preferenceRepository.find({
-      where: { userId, isEnabled: true }
+      where: { userId, isEnabled: true },
     });
 
     if (!userPreferences || userPreferences.length === 0) {
-      this.logger.debug(`User ${userId} has no enabled notification preferences, skipping.`);
+      this.logger.debug(
+        `User ${userId} has no enabled notification preferences, skipping.`,
+      );
       return;
     }
 
     // Map severity to notification type
-    const notificationType = this.mapSeverityToNotificationType(metadata.severity);
-    
+    const notificationType = this.mapSeverityToNotificationType(
+      metadata.severity,
+    );
+
     // Get enabled channels that subscribe to this notification type
-    const channels = this.getChannelsForNotification(userPreferences, notificationType, metadata.priority);
-    
+    const channels = this.getChannelsForNotification(
+      userPreferences,
+      notificationType,
+      metadata.priority,
+    );
+
     for (const channel of channels) {
-      await this.send(new Notification(channel, userId, notification.message, {
-        title: notification.title,
-        type: notificationType,
-        templateData: notification.data,
-      }));
+      await this.send(
+        new Notification(channel, userId, notification.message, {
+          title: notification.title,
+          type: notificationType,
+          templateData: notification.data,
+        }),
+      );
     }
   }
 
-  private getChannelsForNotification(preferences: NotificationPreference[], type: NotificationType, priority: string): Channel[] {
+  private getChannelsForNotification(
+    preferences: NotificationPreference[],
+    type: NotificationType,
+    priority: string,
+  ): Channel[] {
     const channels: Channel[] = [];
-    
+
     for (const pref of preferences) {
       // Critical priority sends regardless of subscription (important for safety)
       if (priority === 'critical' || pref.subscribedTypes.includes(type)) {
         channels.push(pref.channel);
       }
     }
-    
+
     return channels;
   }
 
   private mapSeverityToNotificationType(severity: string): NotificationType {
     switch (severity) {
-      case 'critical': 
-      case 'high': 
+      case 'critical':
+      case 'high':
         return NotificationType.PORTFOLIO_ALERT;
-      case 'medium': 
+      case 'medium':
         return NotificationType.PRICE_ALERT;
-      default: 
+      default:
         return NotificationType.SYSTEM_NOTICE;
     }
   }
@@ -174,7 +197,11 @@ export class NotificationsService implements OnModuleInit {
   ): Promise<void> {
     const provider = this.strategy.getProvider(entity.channel);
 
-    for (let attempt = 1; attempt <= NotificationsService.MAX_RETRIES; attempt++) {
+    for (
+      let attempt = 1;
+      attempt <= NotificationsService.MAX_RETRIES;
+      attempt++
+    ) {
       try {
         await provider.send(notification);
         entity.deliveryStatus = DeliveryStatus.SENT;
@@ -226,18 +253,14 @@ export class NotificationsService implements OnModuleInit {
     const preferences = await this.preferenceRepository.find({
       where: recipients.map((userId) => ({ userId, channel })),
     });
-    const preferenceMap = new Map(
-      preferences.map((p) => [p.userId, p]),
-    );
+    const preferenceMap = new Map(preferences.map((p) => [p.userId, p]));
 
     // Persist all notification entities first for audit
     const entities = items.map((item) => {
       const pref = preferenceMap.get(item.recipient);
       const isDisabled = pref && !pref.isEnabled;
       const isUnsubscribed =
-        pref &&
-        pref.subscribedTypes &&
-        !pref.subscribedTypes.includes(type);
+        pref && pref.subscribedTypes && !pref.subscribedTypes.includes(type);
 
       return this.notificationRepository.create({
         recipient: item.recipient,
@@ -269,14 +292,23 @@ export class NotificationsService implements OnModuleInit {
       const batch = pending.slice(i, i + CONCURRENCY);
       const results = await Promise.allSettled(
         batch.map(async (entity) => {
-          const notification = new Notification(channel, entity.recipient, entity.message, {
-            type,
-            title: entity.title,
-            metadata: entity.metadata ?? undefined,
-            batchId,
-          });
+          const notification = new Notification(
+            channel,
+            entity.recipient,
+            entity.message,
+            {
+              type,
+              title: entity.title,
+              metadata: entity.metadata ?? undefined,
+              batchId,
+            },
+          );
 
-          for (let attempt = 1; attempt <= NotificationsService.MAX_RETRIES; attempt++) {
+          for (
+            let attempt = 1;
+            attempt <= NotificationsService.MAX_RETRIES;
+            attempt++
+          ) {
             try {
               await provider.send(notification);
               entity.deliveryStatus = DeliveryStatus.SENT;
@@ -292,7 +324,11 @@ export class NotificationsService implements OnModuleInit {
                 );
               } else {
                 await new Promise((r) =>
-                  setTimeout(r, NotificationsService.BASE_RETRY_DELAY_MS * Math.pow(2, attempt - 1)),
+                  setTimeout(
+                    r,
+                    NotificationsService.BASE_RETRY_DELAY_MS *
+                      Math.pow(2, attempt - 1),
+                  ),
                 );
               }
             }
@@ -358,7 +394,10 @@ export class NotificationsService implements OnModuleInit {
 
   // ─── Mark read ────────────────────────────────────────────────────────
 
-  async markAsRead(userId: string, notificationIds?: string[]): Promise<number> {
+  async markAsRead(
+    userId: string,
+    notificationIds?: string[],
+  ): Promise<number> {
     if (notificationIds && notificationIds.length > 0) {
       const result = await this.notificationRepository.update(
         { id: In(notificationIds), recipient: userId },
@@ -479,7 +518,8 @@ export class NotificationsService implements OnModuleInit {
         channel,
         isEnabled,
         subscribedTypes:
-          subscribedTypes ?? (Object.values(NotificationType) as NotificationType[]),
+          subscribedTypes ??
+          (Object.values(NotificationType) as NotificationType[]),
       });
     }
 
