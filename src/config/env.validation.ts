@@ -26,6 +26,11 @@ export const envValidationSchema = Joi.object({
   JWT_EXPIRES_IN: Joi.string().default('3600s'),
   JWT_REFRESH_EXPIRES_IN: Joi.number().default(2592000), // 30 days in seconds
 
+  // Secret for the AES-256-GCM key that encrypts wallet secret keys at rest.
+  // WalletService already refuses to start without it; validate here so the
+  // failure is a clear boot-time message rather than a constructor throw.
+  WALLET_ENCRYPTION_KEY: Joi.string().min(32).required(),
+
   STELLAR_NETWORK: Joi.string().valid('testnet', 'public').default('testnet'),
   STELLAR_HORIZON_URL: Joi.string().uri().required(),
   SOROBAN_RPC_URL: Joi.string().uri().required(),

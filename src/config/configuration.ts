@@ -124,11 +124,15 @@ export default () => ({
 
   rateLimit: {
     strategy: process.env.RATE_LIMIT_STRATEGY ?? 'sliding_window',
-    defaultWindowSize: parseInt(process.env.RATE_LIMIT_DEFAULT_WINDOW ?? '60', 10),
+    defaultWindowSize: parseInt(
+      process.env.RATE_LIMIT_DEFAULT_WINDOW ?? '60',
+      10,
+    ),
   },
 
   notifications: {
-    emailFrom: process.env.NOTIFICATION_EMAIL_FROM ?? 'noreply@interchangeabletrade.com',
+    emailFrom:
+      process.env.NOTIFICATION_EMAIL_FROM ?? 'noreply@interchangeabletrade.com',
     twilio: {
       accountSid: process.env.TWILIO_ACCOUNT_SID,
       authToken: process.env.TWILIO_AUTH_TOKEN,
