@@ -118,7 +118,8 @@ export class CreateEscrowDto {
 
   @ApiProperty({
     type: [SignatoryInput],
-    description: 'List of signatories (must include at least requiredSignatures)',
+    description:
+      'List of signatories (must include at least requiredSignatures)',
     minItems: MIN_REQUIRED_SIGNATURES,
   })
   @IsArray()
