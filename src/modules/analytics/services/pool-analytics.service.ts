@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { AnalyticsMetric, MetricType, MetricAggregation } from '../entities/analytics-metric.entity';
+import {
+  AnalyticsMetric,
+  MetricType,
+  MetricAggregation,
+} from '../entities/analytics-metric.entity';
 import { Trade } from '../../trading-engine/entities/trade.entity';
 
 export interface PoolMetrics {
@@ -78,7 +82,8 @@ export class PoolAnalyticsService {
       order: { timestamp: 'DESC' },
     });
 
-    const currentTvl = tvlMetrics.length > 0 ? parseFloat(tvlMetrics[0].value) : 0;
+    const currentTvl =
+      tvlMetrics.length > 0 ? parseFloat(tvlMetrics[0].value) : 0;
     const tvl24hAgo = this.findValueAtOffset(tvlMetrics, 24); // Approximate hourly data
     const tvl7dAgo = this.findValueAtOffset(tvlMetrics, 168); // 7 days hourly
 
@@ -109,8 +114,10 @@ export class PoolAnalyticsService {
     const tradingVolume7d = this.sumLastNHours(volumeMetrics, 168);
 
     // Calculate utilization and APR
-    const utilization = currentTvl > 0 ? (tradingVolume24h / currentTvl) * 100 : 0;
-    const feeApr = currentTvl > 0 ? (feeRevenue7d / currentTvl) * (365 / 7) * 100 : 0;
+    const utilization =
+      currentTvl > 0 ? (tradingVolume24h / currentTvl) * 100 : 0;
+    const feeApr =
+      currentTvl > 0 ? (feeRevenue7d / currentTvl) * (365 / 7) * 100 : 0;
 
     // Get LP count
     const lpMetrics = await this.analyticsMetricRepository.find({
@@ -121,7 +128,7 @@ export class PoolAnalyticsService {
       },
     });
 
-    const uniqueLps = new Set(lpMetrics.map(m => m.userId)).size;
+    const uniqueLps = new Set(lpMetrics.map((m) => m.userId)).size;
     const avgLpDeposit = uniqueLps > 0 ? currentTvl / uniqueLps : 0;
 
     return {
@@ -129,8 +136,10 @@ export class PoolAnalyticsService {
       assetCode: tvlMetrics[0]?.assetCode ?? '',
       assetIssuer: tvlMetrics[0]?.assetIssuer ?? null,
       tvl: currentTvl,
-      tvlChange24h: tvl24hAgo > 0 ? ((currentTvl - tvl24hAgo) / tvl24hAgo) * 100 : 0,
-      tvlChange7d: tvl7dAgo > 0 ? ((currentTvl - tvl7dAgo) / tvl7dAgo) * 100 : 0,
+      tvlChange24h:
+        tvl24hAgo > 0 ? ((currentTvl - tvl24hAgo) / tvl24hAgo) * 100 : 0,
+      tvlChange7d:
+        tvl7dAgo > 0 ? ((currentTvl - tvl7dAgo) / tvl7dAgo) * 100 : 0,
       utilization,
       feeRevenue24h,
       feeRevenue7d,
@@ -179,7 +188,8 @@ export class PoolAnalyticsService {
     const initialValue = parseFloat(lpMetrics[0].value);
     const currentValue = parseFloat(lpMetrics[lpMetrics.length - 1].value);
     const totalReturn = currentValue - initialValue;
-    const returnPercent = initialValue > 0 ? (totalReturn / initialValue) * 100 : 0;
+    const returnPercent =
+      initialValue > 0 ? (totalReturn / initialValue) * 100 : 0;
 
     // Calculate fees earned
     const feesEarned = lpMetrics.reduce(
@@ -238,14 +248,20 @@ export class PoolAnalyticsService {
 
     // Group by time bucket
     const feeByBucket = this.groupMetricsByBucket(feeMetrics, aggregation);
-    const volumeByBucket = this.groupMetricsByBucket(volumeMetrics, aggregation);
+    const volumeByBucket = this.groupMetricsByBucket(
+      volumeMetrics,
+      aggregation,
+    );
 
     const result: PoolFeeAnalysis[] = [];
     let cumulativeFees = 0;
 
     for (const [bucket, fees] of feeByBucket) {
       const volumeMetricsInBucket = volumeByBucket.get(bucket) ?? [];
-      const volume = volumeMetricsInBucket.reduce((sum, m) => sum + parseFloat(m.value), 0);
+      const volume = volumeMetricsInBucket.reduce(
+        (sum, m) => sum + parseFloat(m.value),
+        0,
+      );
       const totalFees = fees.reduce((sum, m) => sum + parseFloat(m.value), 0);
       const feeRate = volume > 0 ? (totalFees / volume) * 100 : 0;
       cumulativeFees += totalFees;
@@ -286,7 +302,8 @@ export class PoolAnalyticsService {
     let previousTvl = 0;
 
     for (const [bucket, values] of tvlByBucket) {
-      const currentTvl = values.reduce((sum, m) => sum + parseFloat(m.value), 0) / values.length;
+      const currentTvl =
+        values.reduce((sum, m) => sum + parseFloat(m.value), 0) / values.length;
       const change = currentTvl - previousTvl;
       const changePercent = previousTvl > 0 ? (change / previousTvl) * 100 : 0;
 
@@ -362,14 +379,15 @@ export class PoolAnalyticsService {
       };
     }
 
-    const utilizations = utilizationMetrics.map(m => parseFloat(m.value));
-    const avg = utilizations.reduce((sum, u) => sum + u, 0) / utilizations.length;
+    const utilizations = utilizationMetrics.map((m) => parseFloat(m.value));
+    const avg =
+      utilizations.reduce((sum, u) => sum + u, 0) / utilizations.length;
 
     return {
       avgUtilization: avg,
       maxUtilization: Math.max(...utilizations),
       minUtilization: Math.min(...utilizations),
-      utilizationTrend: utilizationMetrics.map(m => ({
+      utilizationTrend: utilizationMetrics.map((m) => ({
         timestamp: m.timestamp,
         utilization: parseFloat(m.value),
       })),
@@ -378,27 +396,30 @@ export class PoolAnalyticsService {
 
   // ─── Private helper methods ─────────────────────────────────────────────
 
-  private findValueAtOffset(metrics: AnalyticsMetric[], hoursOffset: number): number {
+  private findValueAtOffset(
+    metrics: AnalyticsMetric[],
+    hoursOffset: number,
+  ): number {
     if (metrics.length === 0) return 0;
-    
+
     const targetTime = new Date(metrics[0].timestamp);
     targetTime.setHours(targetTime.getHours() + hoursOffset);
-    
-    const closest = metrics.find(m => 
-      Math.abs(m.timestamp.getTime() - targetTime.getTime()) < 3600000 // Within 1 hour
+
+    const closest = metrics.find(
+      (m) => Math.abs(m.timestamp.getTime() - targetTime.getTime()) < 3600000, // Within 1 hour
     );
-    
+
     return closest ? parseFloat(closest.value) : 0;
   }
 
   private sumLastNHours(metrics: AnalyticsMetric[], hours: number): number {
     if (metrics.length === 0) return 0;
-    
+
     const cutoff = new Date(metrics[metrics.length - 1].timestamp);
     cutoff.setHours(cutoff.getHours() - hours);
-    
+
     return metrics
-      .filter(m => m.timestamp >= cutoff)
+      .filter((m) => m.timestamp >= cutoff)
       .reduce((sum, m) => sum + parseFloat(m.value), 0);
   }
 
@@ -407,7 +428,7 @@ export class PoolAnalyticsService {
     aggregation: MetricAggregation,
   ): Map<string, AnalyticsMetric[]> {
     const buckets = new Map<string, AnalyticsMetric[]>();
-    
+
     for (const metric of metrics) {
       const bucketKey = this.getBucketKey(metric.timestamp, aggregation);
       if (!buckets.has(bucketKey)) {
@@ -415,13 +436,13 @@ export class PoolAnalyticsService {
       }
       buckets.get(bucketKey)!.push(metric);
     }
-    
+
     return buckets;
   }
 
   private getBucketKey(date: Date, aggregation: MetricAggregation): string {
     const d = new Date(date);
-    
+
     switch (aggregation) {
       case MetricAggregation.MINUTE:
         d.setSeconds(0, 0);
@@ -443,7 +464,7 @@ export class PoolAnalyticsService {
         d.setHours(0, 0, 0, 0);
         break;
     }
-    
+
     return d.toISOString();
   }
 }

@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between } from 'typeorm';
-import { AnalyticsMetric, MetricType, MetricAggregation } from '../entities/analytics-metric.entity';
+import {
+  AnalyticsMetric,
+  MetricType,
+  MetricAggregation,
+} from '../entities/analytics-metric.entity';
 import { Transaction } from '../../transactions/entities/transaction.entity';
 
 export interface RevenueBreakdown {
@@ -9,8 +13,16 @@ export interface RevenueBreakdown {
   feeRevenue: number;
   spreadRevenue: number;
   otherRevenue: number;
-  revenueBySource: Array<{ source: string; amount: number; percentage: number }>;
-  revenueByAsset: Array<{ assetCode: string; amount: number; percentage: number }>;
+  revenueBySource: Array<{
+    source: string;
+    amount: number;
+    percentage: number;
+  }>;
+  revenueByAsset: Array<{
+    assetCode: string;
+    amount: number;
+    percentage: number;
+  }>;
   revenueByPeriod: Array<{ period: string; amount: number; change: number }>;
 }
 
@@ -19,7 +31,11 @@ export interface CostAnalysis {
   gasCosts: number;
   operationsCosts: number;
   infrastructureCosts: number;
-  costByCategory: Array<{ category: string; amount: number; percentage: number }>;
+  costByCategory: Array<{
+    category: string;
+    amount: number;
+    percentage: number;
+  }>;
   costTrend: Array<{ period: string; amount: number; change: number }>;
   costPerTransaction: number;
 }
@@ -128,23 +144,51 @@ export class FinancialReportingService {
       order: { timestamp: 'ASC' },
     });
 
-    const feeRevenue = feeMetrics.reduce((sum, m) => sum + parseFloat(m.value), 0);
-    const spreadRevenue = spreadMetrics.reduce((sum, m) => sum + parseFloat(m.value), 0);
-    const otherRevenue = otherMetrics.reduce((sum, m) => sum + parseFloat(m.value), 0);
+    const feeRevenue = feeMetrics.reduce(
+      (sum, m) => sum + parseFloat(m.value),
+      0,
+    );
+    const spreadRevenue = spreadMetrics.reduce(
+      (sum, m) => sum + parseFloat(m.value),
+      0,
+    );
+    const otherRevenue = otherMetrics.reduce(
+      (sum, m) => sum + parseFloat(m.value),
+      0,
+    );
     const totalRevenue = feeRevenue + spreadRevenue + otherRevenue;
 
     // Revenue by source
     const revenueBySource = [
-      { source: 'Trading Fees', amount: feeRevenue, percentage: totalRevenue > 0 ? (feeRevenue / totalRevenue) * 100 : 0 },
-      { source: 'Spread Revenue', amount: spreadRevenue, percentage: totalRevenue > 0 ? (spreadRevenue / totalRevenue) * 100 : 0 },
-      { source: 'Other', amount: otherRevenue, percentage: totalRevenue > 0 ? (otherRevenue / totalRevenue) * 100 : 0 },
+      {
+        source: 'Trading Fees',
+        amount: feeRevenue,
+        percentage: totalRevenue > 0 ? (feeRevenue / totalRevenue) * 100 : 0,
+      },
+      {
+        source: 'Spread Revenue',
+        amount: spreadRevenue,
+        percentage: totalRevenue > 0 ? (spreadRevenue / totalRevenue) * 100 : 0,
+      },
+      {
+        source: 'Other',
+        amount: otherRevenue,
+        percentage: totalRevenue > 0 ? (otherRevenue / totalRevenue) * 100 : 0,
+      },
     ];
 
     // Revenue by asset
-    const revenueByAsset = this.groupMetricsByAsset([...feeMetrics, ...spreadMetrics, ...otherMetrics], totalRevenue);
+    const revenueByAsset = this.groupMetricsByAsset(
+      [...feeMetrics, ...spreadMetrics, ...otherMetrics],
+      totalRevenue,
+    );
 
     // Revenue by period (monthly)
-    const revenueByPeriod = this.groupMetricsByPeriod([...feeMetrics, ...spreadMetrics, ...otherMetrics]);
+    const revenueByPeriod = this.groupMetricsByPeriod([
+      ...feeMetrics,
+      ...spreadMetrics,
+      ...otherMetrics,
+    ]);
 
     return {
       totalRevenue,
@@ -160,10 +204,7 @@ export class FinancialReportingService {
   /**
    * Get comprehensive cost analysis
    */
-  async getCostAnalysis(
-    dateFrom: Date,
-    dateTo: Date,
-  ): Promise<CostAnalysis> {
+  async getCostAnalysis(dateFrom: Date, dateTo: Date): Promise<CostAnalysis> {
     // Get gas costs
     const gasMetrics = await this.analyticsMetricRepository.find({
       where: {
@@ -182,16 +223,35 @@ export class FinancialReportingService {
       order: { timestamp: 'ASC' },
     });
 
-    const gasCosts = gasMetrics.reduce((sum, m) => sum + parseFloat(m.value), 0);
-    const operationsCosts = opsMetrics.reduce((sum, m) => sum + parseFloat(m.value), 0);
+    const gasCosts = gasMetrics.reduce(
+      (sum, m) => sum + parseFloat(m.value),
+      0,
+    );
+    const operationsCosts = opsMetrics.reduce(
+      (sum, m) => sum + parseFloat(m.value),
+      0,
+    );
     const infrastructureCosts = 0; // Would come from infrastructure monitoring
     const totalCosts = gasCosts + operationsCosts + infrastructureCosts;
 
     // Cost by category
     const costByCategory = [
-      { category: 'Gas/Fees', amount: gasCosts, percentage: totalCosts > 0 ? (gasCosts / totalCosts) * 100 : 0 },
-      { category: 'Operations', amount: operationsCosts, percentage: totalCosts > 0 ? (operationsCosts / totalCosts) * 100 : 0 },
-      { category: 'Infrastructure', amount: infrastructureCosts, percentage: totalCosts > 0 ? (infrastructureCosts / totalCosts) * 100 : 0 },
+      {
+        category: 'Gas/Fees',
+        amount: gasCosts,
+        percentage: totalCosts > 0 ? (gasCosts / totalCosts) * 100 : 0,
+      },
+      {
+        category: 'Operations',
+        amount: operationsCosts,
+        percentage: totalCosts > 0 ? (operationsCosts / totalCosts) * 100 : 0,
+      },
+      {
+        category: 'Infrastructure',
+        amount: infrastructureCosts,
+        percentage:
+          totalCosts > 0 ? (infrastructureCosts / totalCosts) * 100 : 0,
+      },
     ];
 
     // Cost trend (monthly)
@@ -201,7 +261,8 @@ export class FinancialReportingService {
     const transactionCount = await this.transactionRepository.count({
       where: { createdAt: Between(dateFrom, dateTo) },
     });
-    const costPerTransaction = transactionCount > 0 ? totalCosts / transactionCount : 0;
+    const costPerTransaction =
+      transactionCount > 0 ? totalCosts / transactionCount : 0;
 
     return {
       totalCosts,
@@ -226,23 +287,44 @@ export class FinancialReportingService {
 
     const grossProfit = revenue.totalRevenue - costs.gasCosts;
     const netProfit = revenue.totalRevenue - costs.totalCosts;
-    const grossMargin = revenue.totalRevenue > 0 ? (grossProfit / revenue.totalRevenue) * 100 : 0;
-    const netMargin = revenue.totalRevenue > 0 ? (netProfit / revenue.totalRevenue) * 100 : 0;
+    const grossMargin =
+      revenue.totalRevenue > 0 ? (grossProfit / revenue.totalRevenue) * 100 : 0;
+    const netMargin =
+      revenue.totalRevenue > 0 ? (netProfit / revenue.totalRevenue) * 100 : 0;
 
     // Profitability by segment (would come from segment definitions)
     const profitabilityBySegment = [
-      { segment: 'Retail Traders', revenue: revenue.totalRevenue * 0.6, costs: costs.totalCosts * 0.5, profit: 0, margin: 0 },
-      { segment: 'Institutional', revenue: revenue.totalRevenue * 0.3, costs: costs.totalCosts * 0.3, profit: 0, margin: 0 },
-      { segment: 'Market Makers', revenue: revenue.totalRevenue * 0.1, costs: costs.totalCosts * 0.2, profit: 0, margin: 0 },
+      {
+        segment: 'Retail Traders',
+        revenue: revenue.totalRevenue * 0.6,
+        costs: costs.totalCosts * 0.5,
+        profit: 0,
+        margin: 0,
+      },
+      {
+        segment: 'Institutional',
+        revenue: revenue.totalRevenue * 0.3,
+        costs: costs.totalCosts * 0.3,
+        profit: 0,
+        margin: 0,
+      },
+      {
+        segment: 'Market Makers',
+        revenue: revenue.totalRevenue * 0.1,
+        costs: costs.totalCosts * 0.2,
+        profit: 0,
+        margin: 0,
+      },
     ];
 
     for (const segment of profitabilityBySegment) {
       segment.profit = segment.revenue - segment.costs;
-      segment.margin = segment.revenue > 0 ? (segment.profit / segment.revenue) * 100 : 0;
+      segment.margin =
+        segment.revenue > 0 ? (segment.profit / segment.revenue) * 100 : 0;
     }
 
     // Profitability by asset
-    const profitabilityByAsset = revenue.revenueByAsset.map(r => {
+    const profitabilityByAsset = revenue.revenueByAsset.map((r) => {
       const assetCosts = costs.totalCosts * (r.percentage / 100);
       return {
         assetCode: r.assetCode,
@@ -274,27 +356,46 @@ export class FinancialReportingService {
 
     // Current year metrics
     const currentYearMetrics = await this.getYearMetrics(currentYearStart, now);
-    const previousYearMetrics = await this.getYearMetrics(previousYearStart, previousYearEnd);
+    const previousYearMetrics = await this.getYearMetrics(
+      previousYearStart,
+      previousYearEnd,
+    );
 
     // Calculate YoY changes
-    const revenueChange = previousYearMetrics.totalRevenue > 0
-      ? ((currentYearMetrics.totalRevenue - previousYearMetrics.totalRevenue) / previousYearMetrics.totalRevenue) * 100
-      : 0;
+    const revenueChange =
+      previousYearMetrics.totalRevenue > 0
+        ? ((currentYearMetrics.totalRevenue -
+            previousYearMetrics.totalRevenue) /
+            previousYearMetrics.totalRevenue) *
+          100
+        : 0;
 
-    const costsChange = previousYearMetrics.totalCosts > 0
-      ? ((currentYearMetrics.totalCosts - previousYearMetrics.totalCosts) / previousYearMetrics.totalCosts) * 100
-      : 0;
+    const costsChange =
+      previousYearMetrics.totalCosts > 0
+        ? ((currentYearMetrics.totalCosts - previousYearMetrics.totalCosts) /
+            previousYearMetrics.totalCosts) *
+          100
+        : 0;
 
-    const profitChange = previousYearMetrics.netProfit > 0
-      ? ((currentYearMetrics.netProfit - previousYearMetrics.netProfit) / previousYearMetrics.netProfit) * 100
-      : 0;
+    const profitChange =
+      previousYearMetrics.netProfit > 0
+        ? ((currentYearMetrics.netProfit - previousYearMetrics.netProfit) /
+            previousYearMetrics.netProfit) *
+          100
+        : 0;
 
-    const transactionChange = previousYearMetrics.transactionCount > 0
-      ? ((currentYearMetrics.transactionCount - previousYearMetrics.transactionCount) / previousYearMetrics.transactionCount) * 100
-      : 0;
+    const transactionChange =
+      previousYearMetrics.transactionCount > 0
+        ? ((currentYearMetrics.transactionCount -
+            previousYearMetrics.transactionCount) /
+            previousYearMetrics.transactionCount) *
+          100
+        : 0;
 
     // Monthly comparison
-    const monthlyComparison = await this.getMonthlyComparison(now.getFullYear());
+    const monthlyComparison = await this.getMonthlyComparison(
+      now.getFullYear(),
+    );
 
     return {
       currentYear: currentYearMetrics,
@@ -331,7 +432,7 @@ export class FinancialReportingService {
       order: { timestamp: 'ASC' },
     });
 
-    const historicalData = historicalMetrics.map(m => ({
+    const historicalData = historicalMetrics.map((m) => ({
       period: m.timestamp.toISOString().slice(0, 7),
       value: parseFloat(m.value),
     }));
@@ -344,7 +445,10 @@ export class FinancialReportingService {
 
   // ─── Private helper methods ─────────────────────────────────────────────
 
-  private groupMetricsByAsset(metrics: AnalyticsMetric[], totalRevenue: number): Array<{ assetCode: string; amount: number; percentage: number }> {
+  private groupMetricsByAsset(
+    metrics: AnalyticsMetric[],
+    totalRevenue: number,
+  ): Array<{ assetCode: string; amount: number; percentage: number }> {
     const byAsset = new Map<string, number>();
 
     for (const metric of metrics) {
@@ -362,7 +466,9 @@ export class FinancialReportingService {
       .sort((a, b) => b.amount - a.amount);
   }
 
-  private groupMetricsByPeriod(metrics: AnalyticsMetric[]): Array<{ period: string; amount: number; change: number }> {
+  private groupMetricsByPeriod(
+    metrics: AnalyticsMetric[],
+  ): Array<{ period: string; amount: number; change: number }> {
     const byPeriod = new Map<string, number>();
 
     for (const metric of metrics) {
@@ -378,7 +484,8 @@ export class FinancialReportingService {
     // Calculate changes
     for (let i = 1; i < sorted.length; i++) {
       const previous = sorted[i - 1].amount;
-      sorted[i].change = previous > 0 ? ((sorted[i].amount - previous) / previous) * 100 : 0;
+      sorted[i].change =
+        previous > 0 ? ((sorted[i].amount - previous) / previous) * 100 : 0;
     }
 
     return sorted;
@@ -399,8 +506,14 @@ export class FinancialReportingService {
       },
     });
 
-    const totalRevenue = revenueMetrics.reduce((sum, m) => sum + parseFloat(m.value), 0);
-    const totalCosts = costMetrics.reduce((sum, m) => sum + parseFloat(m.value), 0);
+    const totalRevenue = revenueMetrics.reduce(
+      (sum, m) => sum + parseFloat(m.value),
+      0,
+    );
+    const totalCosts = costMetrics.reduce(
+      (sum, m) => sum + parseFloat(m.value),
+      0,
+    );
 
     const transactionCount = await this.transactionRepository.count({
       where: { createdAt: Between(startDate, endDate) },
@@ -411,13 +524,39 @@ export class FinancialReportingService {
       totalCosts,
       netProfit: totalRevenue - totalCosts,
       transactionCount,
-      avgRevenuePerTransaction: transactionCount > 0 ? totalRevenue / transactionCount : 0,
+      avgRevenuePerTransaction:
+        transactionCount > 0 ? totalRevenue / transactionCount : 0,
     };
   }
 
-  private async getMonthlyComparison(year: number): Promise<Array<{ month: string; currentYear: number; previousYear: number; change: number }>> {
-    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-    const result: Array<{ month: string; currentYear: number; previousYear: number; change: number }> = [];
+  private async getMonthlyComparison(year: number): Promise<
+    Array<{
+      month: string;
+      currentYear: number;
+      previousYear: number;
+      change: number;
+    }>
+  > {
+    const months = [
+      'Jan',
+      'Feb',
+      'Mar',
+      'Apr',
+      'May',
+      'Jun',
+      'Jul',
+      'Aug',
+      'Sep',
+      'Oct',
+      'Nov',
+      'Dec',
+    ];
+    const result: Array<{
+      month: string;
+      currentYear: number;
+      previousYear: number;
+      change: number;
+    }> = [];
 
     for (let i = 0; i < 12; i++) {
       const currentYearStart = new Date(year, i, 1);
@@ -425,12 +564,19 @@ export class FinancialReportingService {
       const previousYearStart = new Date(year - 1, i, 1);
       const previousYearEnd = new Date(year - 1, i + 1, 0);
 
-      const currentRevenue = await this.getMonthRevenue(currentYearStart, currentYearEnd);
-      const previousRevenue = await this.getMonthRevenue(previousYearStart, previousYearEnd);
+      const currentRevenue = await this.getMonthRevenue(
+        currentYearStart,
+        currentYearEnd,
+      );
+      const previousRevenue = await this.getMonthRevenue(
+        previousYearStart,
+        previousYearEnd,
+      );
 
-      const change = previousRevenue > 0
-        ? ((currentRevenue - previousRevenue) / previousRevenue) * 100
-        : 0;
+      const change =
+        previousRevenue > 0
+          ? ((currentRevenue - previousRevenue) / previousRevenue) * 100
+          : 0;
 
       result.push({
         month: months[i],
@@ -443,7 +589,10 @@ export class FinancialReportingService {
     return result;
   }
 
-  private async getMonthRevenue(startDate: Date, endDate: Date): Promise<number> {
+  private async getMonthRevenue(
+    startDate: Date,
+    endDate: Date,
+  ): Promise<number> {
     const metrics = await this.analyticsMetricRepository.find({
       where: {
         metricType: MetricType.REVENUE,
@@ -465,7 +614,7 @@ export class FinancialReportingService {
     // Simple linear regression
     const n = historicalData.length;
     const x = historicalData.map((_, i) => i);
-    const y = historicalData.map(d => d.value);
+    const y = historicalData.map((d) => d.value);
 
     const sumX = x.reduce((a, b) => a + b, 0);
     const sumY = y.reduce((a, b) => a + b, 0);
@@ -476,7 +625,7 @@ export class FinancialReportingService {
     const intercept = (sumY - slope * sumX) / n;
 
     // Calculate standard error for confidence intervals
-    const predictions = x.map(xi => slope * xi + intercept);
+    const predictions = x.map((xi) => slope * xi + intercept);
     const residuals = y.map((yi, i) => yi - predictions[i]);
     const sse = residuals.reduce((sum, r) => sum + r * r, 0);
     const standardError = Math.sqrt(sse / (n - 2));
@@ -496,19 +645,37 @@ export class FinancialReportingService {
     }
 
     // Forecast
-    const lastDate = new Date(historicalData[historicalData.length - 1].period + '-01');
+    const lastDate = new Date(
+      historicalData[historicalData.length - 1].period + '-01',
+    );
     for (let i = 1; i <= forecastMonths; i++) {
       const forecastDate = new Date(lastDate);
       forecastDate.setMonth(forecastDate.getMonth() + i);
-      
+
       const forecastValue = slope * (n + i - 1) + intercept;
-      
+
       result.push({
         period: forecastDate.toISOString().slice(0, 7),
         actual: null,
         forecast: forecastValue,
-        lowerBound: forecastValue - 1.96 * standardError * Math.sqrt(1 + 1/n + (n + i - 1 - sumX/n)**2 / (sumX2 - sumX*sumX/n)),
-        upperBound: forecastValue + 1.96 * standardError * Math.sqrt(1 + 1/n + (n + i - 1 - sumX/n)**2 / (sumX2 - sumX*sumX/n)),
+        lowerBound:
+          forecastValue -
+          1.96 *
+            standardError *
+            Math.sqrt(
+              1 +
+                1 / n +
+                (n + i - 1 - sumX / n) ** 2 / (sumX2 - (sumX * sumX) / n),
+            ),
+        upperBound:
+          forecastValue +
+          1.96 *
+            standardError *
+            Math.sqrt(
+              1 +
+                1 / n +
+                (n + i - 1 - sumX / n) ** 2 / (sumX2 - (sumX * sumX) / n),
+            ),
         confidence: 0.95,
       });
     }

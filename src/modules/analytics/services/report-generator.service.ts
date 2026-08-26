@@ -3,8 +3,16 @@ import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, MoreThanOrEqual, LessThanOrEqual, In } from 'typeorm';
 import * as fs from 'fs';
 import * as path from 'path';
-import { SavedReport, ReportStatus, ReportFormat, ReportType } from '../entities/saved-report.entity';
-import { AnalyticsMetric, MetricType } from '../entities/analytics-metric.entity';
+import {
+  SavedReport,
+  ReportStatus,
+  ReportFormat,
+  ReportType,
+} from '../entities/saved-report.entity';
+import {
+  AnalyticsMetric,
+  MetricType,
+} from '../entities/analytics-metric.entity';
 import { GenerateReportDto } from '../dto/generate-report.dto';
 import { Trade } from '../../trading-engine/entities/trade.entity';
 import { User } from '../../users/entities/user.entity';
@@ -29,7 +37,10 @@ export class ReportGeneratorService {
     }
   }
 
-  async createReport(userId: string, dto: GenerateReportDto): Promise<SavedReport> {
+  async createReport(
+    userId: string,
+    dto: GenerateReportDto,
+  ): Promise<SavedReport> {
     const report = this.savedReportRepository.create({
       ...dto,
       userId,
@@ -39,8 +50,8 @@ export class ReportGeneratorService {
     });
 
     const savedReport = await this.savedReportRepository.save(report);
-    
-    this.processReport(savedReport.id).catch(err => {
+
+    this.processReport(savedReport.id).catch((err) => {
       this.logger.error(`Failed to process report ${savedReport.id}`, err);
     });
 
@@ -64,9 +75,9 @@ export class ReportGeneratorService {
       report.completedAt = new Date();
       report.fileUrl = fileResult.filePath;
       report.fileSize = fileResult.fileSize;
-      
+
       await this.savedReportRepository.save(report);
-      
+
       this.logger.log(`Report ${reportId} completed successfully`);
     } catch (error) {
       report.status = ReportStatus.FAILED;
@@ -98,14 +109,20 @@ export class ReportGeneratorService {
     }
   }
 
-  private async generateTradeSummaryReport(dateFrom: Date, dateTo: Date, filters?: Record<string, any>): Promise<any[]> {
+  private async generateTradeSummaryReport(
+    dateFrom: Date,
+    dateTo: Date,
+    filters?: Record<string, any>,
+  ): Promise<any[]> {
     const query = this.tradeRepository
       .createQueryBuilder('trade')
       .where('trade.createdAt >= :dateFrom', { dateFrom })
       .andWhere('trade.createdAt <= :dateTo', { dateTo });
 
     if (filters?.assetCode) {
-      query.andWhere('trade.assetCode = :assetCode', { assetCode: filters.assetCode });
+      query.andWhere('trade.assetCode = :assetCode', {
+        assetCode: filters.assetCode,
+      });
     }
     if (filters?.settled !== undefined) {
       query.andWhere('trade.settled = :settled', { settled: filters.settled });
@@ -113,13 +130,15 @@ export class ReportGeneratorService {
 
     const trades = await query.getMany();
 
-    return trades.map(trade => ({
+    return trades.map((trade) => ({
       id: trade.id,
       createdAt: trade.createdAt,
       assetCode: trade.assetCode,
       quantity: trade.quantity,
       price: trade.price,
-      totalValue: (parseFloat(trade.quantity) * parseFloat(trade.price)).toString(),
+      totalValue: (
+        parseFloat(trade.quantity) * parseFloat(trade.price)
+      ).toString(),
       settled: trade.settled,
       settledAt: trade.settledAt,
       makerUserId: trade.makerUserId,
@@ -127,19 +146,25 @@ export class ReportGeneratorService {
     }));
   }
 
-  private async generateUserAnalyticsReport(dateFrom: Date, dateTo: Date, filters?: Record<string, any>): Promise<any[]> {
+  private async generateUserAnalyticsReport(
+    dateFrom: Date,
+    dateTo: Date,
+    filters?: Record<string, any>,
+  ): Promise<any[]> {
     const query = this.userRepository
       .createQueryBuilder('user')
       .where('user.createdAt >= :dateFrom', { dateFrom })
       .andWhere('user.createdAt <= :dateTo', { dateTo });
 
     if (filters?.isActive !== undefined) {
-      query.andWhere('user.isActive = :isActive', { isActive: filters.isActive });
+      query.andWhere('user.isActive = :isActive', {
+        isActive: filters.isActive,
+      });
     }
 
     const users = await query.getMany();
 
-    return users.map(user => ({
+    return users.map((user) => ({
       id: user.id,
       email: user.email,
       createdAt: user.createdAt,
@@ -148,7 +173,11 @@ export class ReportGeneratorService {
     }));
   }
 
-  private async generateRevenueReport(dateFrom: Date, dateTo: Date, filters?: Record<string, any>): Promise<any[]> {
+  private async generateRevenueReport(
+    dateFrom: Date,
+    dateTo: Date,
+    filters?: Record<string, any>,
+  ): Promise<any[]> {
     const metrics = await this.analyticsMetricRepository.find({
       where: {
         metricType: MetricType.TRANSACTION_FEE,
@@ -157,7 +186,7 @@ export class ReportGeneratorService {
       order: { timestamp: 'ASC' },
     });
 
-    return metrics.map(metric => ({
+    return metrics.map((metric) => ({
       timestamp: metric.timestamp,
       aggregation: metric.aggregation,
       amount: metric.value,
@@ -165,7 +194,11 @@ export class ReportGeneratorService {
     }));
   }
 
-  private async generateSystemHealthReport(dateFrom: Date, dateTo: Date, filters?: Record<string, any>): Promise<any[]> {
+  private async generateSystemHealthReport(
+    dateFrom: Date,
+    dateTo: Date,
+    filters?: Record<string, any>,
+  ): Promise<any[]> {
     const latencyMetrics = await this.analyticsMetricRepository.find({
       where: {
         metricType: MetricType.SYSTEM_LATENCY,
@@ -182,7 +215,7 @@ export class ReportGeneratorService {
       order: { timestamp: 'ASC' },
     });
 
-    return [...latencyMetrics, ...errorMetrics].map(metric => ({
+    return [...latencyMetrics, ...errorMetrics].map((metric) => ({
       timestamp: metric.timestamp,
       metricType: metric.metricType,
       value: metric.value,
@@ -190,7 +223,11 @@ export class ReportGeneratorService {
     }));
   }
 
-  private async generateBlockchainMetricsReport(dateFrom: Date, dateTo: Date, filters?: Record<string, any>): Promise<any[]> {
+  private async generateBlockchainMetricsReport(
+    dateFrom: Date,
+    dateTo: Date,
+    filters?: Record<string, any>,
+  ): Promise<any[]> {
     const gasMetrics = await this.analyticsMetricRepository.find({
       where: {
         metricType: MetricType.BLOCKCHAIN_GAS,
@@ -199,28 +236,32 @@ export class ReportGeneratorService {
       order: { timestamp: 'ASC' },
     });
 
-    return gasMetrics.map(metric => ({
+    return gasMetrics.map((metric) => ({
       timestamp: metric.timestamp,
       gasUsed: metric.value,
       aggregation: metric.aggregation,
     }));
   }
 
-  private async generateCustomReport(report: SavedReport, dateFrom: Date, dateTo: Date): Promise<any[]> {
+  private async generateCustomReport(
+    report: SavedReport,
+    dateFrom: Date,
+    dateTo: Date,
+  ): Promise<any[]> {
     const whereClause: any = {
       timestamp: MoreThanOrEqual(dateFrom),
     };
-    
+
     if (report.metrics && Array.isArray(report.metrics)) {
       whereClause.metricType = In(report.metrics);
     }
-    
+
     const metrics = await this.analyticsMetricRepository.find({
       where: whereClause,
       order: { timestamp: 'ASC' },
     });
 
-    return metrics.map(metric => ({
+    return metrics.map((metric) => ({
       timestamp: metric.timestamp,
       metricType: metric.metricType,
       value: metric.value,
@@ -231,7 +272,10 @@ export class ReportGeneratorService {
     }));
   }
 
-  private async exportReport(report: SavedReport, data: any[]): Promise<{ filePath: string; fileSize: number }> {
+  private async exportReport(
+    report: SavedReport,
+    data: any[],
+  ): Promise<{ filePath: string; fileSize: number }> {
     const fileName = `${report.id}_${report.name.replace(/\s+/g, '_')}.${report.format}`;
     const filePath = path.join(this.reportsDir, fileName);
 

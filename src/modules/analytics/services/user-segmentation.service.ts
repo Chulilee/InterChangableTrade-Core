@@ -20,7 +20,10 @@ export class UserSegmentationService {
     private readonly tradeRepository: Repository<Trade>,
   ) {}
 
-  async createSegment(createdBy: string, dto: CreateSegmentDto): Promise<UserSegment> {
+  async createSegment(
+    createdBy: string,
+    dto: CreateSegmentDto,
+  ): Promise<UserSegment> {
     const segment = this.userSegmentRepository.create({
       ...dto,
       createdBy,
@@ -35,14 +38,19 @@ export class UserSegmentationService {
     return this.userSegmentRepository.save(segment);
   }
 
-  async updateSegment(segmentId: string, dto: UpdateSegmentDto): Promise<UserSegment> {
-    const segment = await this.userSegmentRepository.findOneBy({ id: segmentId });
+  async updateSegment(
+    segmentId: string,
+    dto: UpdateSegmentDto,
+  ): Promise<UserSegment> {
+    const segment = await this.userSegmentRepository.findOneBy({
+      id: segmentId,
+    });
     if (!segment) {
       throw new Error(`Segment ${segmentId} not found`);
     }
 
     Object.assign(segment, dto);
-    
+
     if (dto.filterCriteria && segment.segmentType === SegmentType.AUTO) {
       await this.recalculateSegmentUsers(segment);
     }
@@ -52,7 +60,7 @@ export class UserSegmentationService {
 
   async recalculateSegmentUsers(segment: UserSegment): Promise<void> {
     this.logger.log(`Recalculating users for segment ${segment.id}`);
-    
+
     if (segment.segmentType === SegmentType.MANUAL) {
       segment.userCount = segment.userIds.length;
       segment.lastCalculatedAt = new Date();
@@ -67,21 +75,22 @@ export class UserSegmentationService {
     }
 
     const query = this.userRepository.createQueryBuilder('user');
-    
+
     this.applyFilterCriteria(query, segment.filterCriteria);
-    
+
     const users = await query.getMany();
-    const userIds = users.map(u => u.id);
-    
+    const userIds = users.map((u) => u.id);
+
     segment.userIds = userIds;
     segment.userCount = userIds.length;
     segment.lastCalculatedAt = new Date();
-    
+
     this.logger.log(`Segment ${segment.id} now has ${userIds.length} users`);
   }
 
   private applyFilterCriteria(query: any, criteria: Record<string, any>): void {
-    const { minTrades, minVolume, lastLoginDays, roles, isActive, countries } = criteria;
+    const { minTrades, minVolume, lastLoginDays, roles, isActive, countries } =
+      criteria;
 
     if (isActive !== undefined) {
       query.andWhere('user.isActive = :isActive', { isActive });
@@ -102,16 +111,23 @@ export class UserSegmentationService {
     }
 
     if (minTrades !== undefined || minVolume !== undefined) {
-      query.leftJoin('trade', 'trade', 'trade.makerUserId = user.id OR trade.takerUserId = user.id');
-      
+      query.leftJoin(
+        'trade',
+        'trade',
+        'trade.makerUserId = user.id OR trade.takerUserId = user.id',
+      );
+
       query.groupBy('user.id');
-      
+
       if (minTrades !== undefined) {
         query.having('COUNT(trade.id) >= :minTrades', { minTrades });
       }
-      
+
       if (minVolume !== undefined) {
-        query.having('SUM(CAST(trade.quantity AS numeric) * CAST(trade.price AS numeric)) >= :minVolume', { minVolume });
+        query.having(
+          'SUM(CAST(trade.quantity AS numeric) * CAST(trade.price AS numeric)) >= :minVolume',
+          { minVolume },
+        );
       }
     }
   }
@@ -124,7 +140,10 @@ export class UserSegmentationService {
   }
 
   async getSegmentById(segmentId: string): Promise<UserSegment> {
-    const segment = await this.userSegmentRepository.findOneBy({ id: segmentId, isDeleted: false });
+    const segment = await this.userSegmentRepository.findOneBy({
+      id: segmentId,
+      isDeleted: false,
+    });
     if (!segment) {
       throw new Error(`Segment ${segmentId} not found`);
     }
@@ -132,7 +151,9 @@ export class UserSegmentationService {
   }
 
   async deleteSegment(segmentId: string): Promise<void> {
-    const segment = await this.userSegmentRepository.findOneBy({ id: segmentId });
+    const segment = await this.userSegmentRepository.findOneBy({
+      id: segmentId,
+    });
     if (!segment) {
       throw new Error(`Segment ${segmentId} not found`);
     }
@@ -152,9 +173,13 @@ export class UserSegmentationService {
 
   async recalculateAllAutoSegments(): Promise<void> {
     this.logger.log('Recalculating all auto segments');
-    
+
     const autoSegments = await this.userSegmentRepository.find({
-      where: { segmentType: SegmentType.AUTO, isActive: true, isDeleted: false },
+      where: {
+        segmentType: SegmentType.AUTO,
+        isActive: true,
+        isDeleted: false,
+      },
     });
 
     for (const segment of autoSegments) {
@@ -169,13 +194,16 @@ export class UserSegmentationService {
     this.logger.log(`Recalculated ${autoSegments.length} auto segments`);
   }
 
-  async addUserToManualSegment(segmentId: string, userId: string): Promise<UserSegment> {
-    const segment = await this.userSegmentRepository.findOneBy({ 
-      id: segmentId, 
+  async addUserToManualSegment(
+    segmentId: string,
+    userId: string,
+  ): Promise<UserSegment> {
+    const segment = await this.userSegmentRepository.findOneBy({
+      id: segmentId,
       segmentType: SegmentType.MANUAL,
-      isDeleted: false 
+      isDeleted: false,
     });
-    
+
     if (!segment) {
       throw new Error(`Manual segment ${segmentId} not found`);
     }
@@ -188,18 +216,21 @@ export class UserSegmentationService {
     return this.userSegmentRepository.save(segment);
   }
 
-  async removeUserFromManualSegment(segmentId: string, userId: string): Promise<UserSegment> {
-    const segment = await this.userSegmentRepository.findOneBy({ 
-      id: segmentId, 
+  async removeUserFromManualSegment(
+    segmentId: string,
+    userId: string,
+  ): Promise<UserSegment> {
+    const segment = await this.userSegmentRepository.findOneBy({
+      id: segmentId,
       segmentType: SegmentType.MANUAL,
-      isDeleted: false 
+      isDeleted: false,
     });
-    
+
     if (!segment) {
       throw new Error(`Manual segment ${segmentId} not found`);
     }
 
-    segment.userIds = segment.userIds.filter(id => id !== userId);
+    segment.userIds = segment.userIds.filter((id) => id !== userId);
     segment.userCount = segment.userIds.length;
 
     return this.userSegmentRepository.save(segment);
