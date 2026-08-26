@@ -1,4 +1,11 @@
-import { IsNotEmpty, IsOptional, IsString, IsArray, IsEnum, IsUUID } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsArray,
+  IsEnum,
+  IsUUID,
+} from 'class-validator';
 import { SegmentType } from '../entities/user-segment.entity';
 
 export class CreateSegmentDto {

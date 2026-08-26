@@ -1,4 +1,11 @@
-import { IsOptional, IsString, IsDateString, IsEnum, IsArray, IsUUID } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsDateString,
+  IsEnum,
+  IsArray,
+  IsUUID,
+} from 'class-validator';
 import { MetricAggregation } from '../entities/analytics-metric.entity';
 
 export class GetPoolMetricsDto {

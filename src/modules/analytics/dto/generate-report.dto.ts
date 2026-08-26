@@ -1,4 +1,12 @@
-import { IsNotEmpty, IsOptional, IsString, IsDateString, IsArray, IsEnum, IsBoolean } from 'class-validator';
+import {
+  IsNotEmpty,
+  IsOptional,
+  IsString,
+  IsDateString,
+  IsArray,
+  IsEnum,
+  IsBoolean,
+} from 'class-validator';
 import { ReportType, ReportFormat } from '../entities/saved-report.entity';
 
 export class GenerateReportDto {

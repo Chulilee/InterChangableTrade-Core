@@ -1,4 +1,12 @@
-import { IsOptional, IsString, IsDateString, IsEnum, IsInt, Min, Max } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsDateString,
+  IsEnum,
+  IsInt,
+  Min,
+  Max,
+} from 'class-validator';
 import { MetricAggregation } from '../entities/analytics-metric.entity';
 
 export class GetTradingVolumeDto {

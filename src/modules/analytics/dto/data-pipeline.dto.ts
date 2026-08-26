@@ -1,5 +1,18 @@
-import { IsOptional, IsString, IsDateString, IsEnum, IsInt, Min, Max, IsArray, IsBoolean } from 'class-validator';
-import { MetricType, MetricAggregation } from '../entities/analytics-metric.entity';
+import {
+  IsOptional,
+  IsString,
+  IsDateString,
+  IsEnum,
+  IsInt,
+  Min,
+  Max,
+  IsArray,
+  IsBoolean,
+} from 'class-validator';
+import {
+  MetricType,
+  MetricAggregation,
+} from '../entities/analytics-metric.entity';
 import { ScheduleFrequency } from '../services/scheduled-report.service';
 
 export class StartEtlJobDto {
