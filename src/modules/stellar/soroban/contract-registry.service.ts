@@ -56,14 +56,22 @@ export class ContractRegistryService implements OnModuleInit {
   /**
    * Register a new contract in the registry
    */
-  register(contractMetadata: ContractMetadata, specEntriesXdr?: string[]): ContractMetadata {
+  register(
+    contractMetadata: ContractMetadata,
+    specEntriesXdr?: string[],
+  ): ContractMetadata {
     if (this.registry.has(contractMetadata.contractId)) {
-      this.logger.warn(`Contract ${contractMetadata.contractId} is already registered, updating metadata`);
+      this.logger.warn(
+        `Contract ${contractMetadata.contractId} is already registered, updating metadata`,
+      );
     }
 
     // Register ABI if provided
     if (specEntriesXdr) {
-      this.abiService.registerFromXdr(contractMetadata.contractId, specEntriesXdr);
+      this.abiService.registerFromXdr(
+        contractMetadata.contractId,
+        specEntriesXdr,
+      );
     }
 
     const entry: RegistryEntry = {
@@ -102,7 +110,7 @@ export class ContractRegistryService implements OnModuleInit {
    */
   getContractsByType(type: string): ContractMetadata[] {
     const contractIds = this.typeIndex.get(type) || [];
-    return contractIds.map(id => this.getMetadata(id));
+    return contractIds.map((id) => this.getMetadata(id));
   }
 
   /**
@@ -110,7 +118,7 @@ export class ContractRegistryService implements OnModuleInit {
    */
   getActiveContract(type: string): ContractMetadata | null {
     const contracts = this.getContractsByType(type);
-    const active = contracts.find(c => c.isActive);
+    const active = contracts.find((c) => c.isActive);
     return active || null;
   }
 
@@ -118,7 +126,7 @@ export class ContractRegistryService implements OnModuleInit {
    * List all registered contracts
    */
   listAll(): ContractMetadata[] {
-    return Array.from(this.registry.values()).map(e => e.metadata);
+    return Array.from(this.registry.values()).map((e) => e.metadata);
   }
 
   /**
@@ -148,7 +156,9 @@ export class ContractRegistryService implements OnModuleInit {
 
     // Activate this contract
     entry.metadata.isActive = true;
-    this.logger.log(`Set ${contractId} (${entry.metadata.type}) as active version`);
+    this.logger.log(
+      `Set ${contractId} (${entry.metadata.type}) as active version`,
+    );
   }
 
   /**

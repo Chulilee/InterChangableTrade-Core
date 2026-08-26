@@ -4,9 +4,15 @@
  * layer to work with contracts in a type-safe, simplified way.
  */
 
-import { ContractRegistryService, ContractMetadata } from './contract-registry.service';
+import {
+  ContractRegistryService,
+  ContractMetadata,
+} from './contract-registry.service';
 import { SwapPoolContract } from './contracts/swap-pool.contract';
-import { MultisigTransactionBuilder, BatchedInvocation } from './multisig-transaction.builder';
+import {
+  MultisigTransactionBuilder,
+  BatchedInvocation,
+} from './multisig-transaction.builder';
 import { ContractUpgradeManager } from './contract-upgrade.manager';
 
 /**
@@ -75,28 +81,32 @@ async function exampleMultisigUsage(
   ];
 
   // Configure multi-sig requirements: 2-of-3 signing
-  const multisigTx = await multisigBuilder.buildTransaction(invocations, {
-    threshold: 2,
-    signers: [
-      { publicKey: 'GKEY1...', signed: false, weight: 1 },
-      { publicKey: 'GKEY2...', signed: false, weight: 1 },
-      { publicKey: 'GKEY3...', signed: false, weight: 1 },
-    ],
-    timeout: 300,
-    mevProtection: true, // Enable MEV protection
-  }, 'GSOURCE...');
+  const multisigTx = await multisigBuilder.buildTransaction(
+    invocations,
+    {
+      threshold: 2,
+      signers: [
+        { publicKey: 'GKEY1...', signed: false, weight: 1 },
+        { publicKey: 'GKEY2...', signed: false, weight: 1 },
+        { publicKey: 'GKEY3...', signed: false, weight: 1 },
+      ],
+      timeout: 300,
+      mevProtection: true, // Enable MEV protection
+    },
+    'GSOURCE...',
+  );
 
   // Add signatures from signers
   const afterFirstSig = multisigBuilder.addSignature(
     multisigTx,
     'GKEY1...',
-    'sig1_abcdef...' // Actual signature from the signer
+    'sig1_abcdef...', // Actual signature from the signer
   );
 
   const afterSecondSig = multisigBuilder.addSignature(
     afterFirstSig,
     'GKEY2...',
-    'sig2_xyz123...' // Second signature
+    'sig2_xyz123...', // Second signature
   );
 
   // Now the transaction has enough signatures and can be submitted
@@ -115,13 +125,19 @@ async function exampleContractUpgrade(
 ) {
   // Current active contract we want to upgrade
   const currentPool = registry.getActiveContract('swap-pool')!;
-  
+
   // New version metadata
   const newPoolMetadata: ContractMetadata = {
     contractId: 'CNEWPOOL...',
     type: 'swap-pool',
     version: '1.1.0', // New version with improved features
-    capabilities: ['swap', 'add_liquidity', 'remove_liquidity', 'quote', 'flash_loan'],
+    capabilities: [
+      'swap',
+      'add_liquidity',
+      'remove_liquidity',
+      'quote',
+      'flash_loan',
+    ],
     deployedAt: Date.now(),
     isActive: false,
     previousVersions: [currentPool.version],
@@ -137,14 +153,17 @@ async function exampleContractUpgrade(
   const plan = await upgradeManager.createUpgradePlan(
     currentPool.contractId,
     newPoolMetadata,
-    ['AAAA...', 'AAAA...'] // New ABI spec entries
+    ['AAAA...', 'AAAA...'], // New ABI spec entries
   );
 
   if (plan.canUpgrade) {
     // Execute the upgrade
     const result = await upgradeManager.executeUpgrade(plan);
     if (result.success) {
-      console.log('Upgrade successful! New contract active:', result.newContractId);
+      console.log(
+        'Upgrade successful! New contract active:',
+        result.newContractId,
+      );
     }
   } else {
     console.warn('Upgrade not possible:', plan.warnings);

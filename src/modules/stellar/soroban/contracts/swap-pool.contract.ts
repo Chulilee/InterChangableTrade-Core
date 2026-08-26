@@ -24,7 +24,7 @@ export interface SwapQuote {
  * Swap pool contract implementation that extends the base SorobanContract.
  * Provides type-safe methods for interacting with a decentralized exchange
  * pool contract on Soroban.
- * 
+ *
  * The @Contract decorator registers this as a "swap-pool" type contract,
  * enabling automatic validation when initializing instances.
  */
@@ -41,7 +41,10 @@ export class SwapPoolContract extends SorobanContract {
   /**
    * Get a quote for swapping token A to B
    */
-  async quoteSwap(amountIn: string, tokenIn: string): Promise<SimulationResult<SwapQuote>> {
+  async quoteSwap(
+    amountIn: string,
+    tokenIn: string,
+  ): Promise<SimulationResult<SwapQuote>> {
     return this.simulate<SwapQuote>('quote_swap', {
       amount_in: amountIn,
       token_in: tokenIn,
@@ -75,7 +78,9 @@ export class SwapPoolContract extends SorobanContract {
     amountBMin: string,
     recipient: string,
     deadline: number,
-  ): Promise<InvocationResult<{ liquidity: string; amountA: string; amountB: string }>> {
+  ): Promise<
+    InvocationResult<{ liquidity: string; amountA: string; amountB: string }>
+  > {
     return this.invoke('add_liquidity', {
       amount_a_desired: amountADesired,
       amount_b_desired: amountBDesired,
@@ -108,7 +113,9 @@ export class SwapPoolContract extends SorobanContract {
   /**
    * Get the token addresses in this pool
    */
-  async getTokens(): Promise<SimulationResult<{ tokenA: string; tokenB: string }>> {
+  async getTokens(): Promise<
+    SimulationResult<{ tokenA: string; tokenB: string }>
+  > {
     return this.simulate<{ tokenA: string; tokenB: string }>('get_tokens');
   }
 

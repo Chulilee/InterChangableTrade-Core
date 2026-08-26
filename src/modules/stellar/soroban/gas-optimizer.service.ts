@@ -55,7 +55,7 @@ export class GasOptimizationEngine {
   ): Promise<GasOptimization> {
     const optimizationsApplied: string[] = [];
     let optimizedMinResourceFee = BigInt(currentEstimate.minResourceFee);
-    
+
     // Apply various optimization strategies
     const historicalAvg = this.getHistoricalAverage(contractId, method);
     if (historicalAvg) {
@@ -73,7 +73,10 @@ export class GasOptimizationEngine {
       optimizedMinResourceFee = this.applyBuffer(optimizedMinResourceFee, 0.05); // 5% buffer instead of 10%
       optimizationsApplied.push('reduced-safety-buffer-stable-method');
     } else {
-      optimizedMinResourceFee = this.applyBuffer(optimizedMinResourceFee, this.safetyBuffer);
+      optimizedMinResourceFee = this.applyBuffer(
+        optimizedMinResourceFee,
+        this.safetyBuffer,
+      );
     }
 
     // Check for batching opportunities
@@ -110,7 +113,7 @@ export class GasOptimizationEngine {
    */
   recordGasUsage(usage: GasUsageHistory): void {
     this.history.push(usage);
-    
+
     // Maintain history size limit
     if (this.history.length > this.maxHistorySize) {
       this.history.shift();
@@ -122,7 +125,7 @@ export class GasOptimizationEngine {
    */
   predictGasUsage(contractId: string, method: string): GasEstimate | null {
     const relevant = this.history.filter(
-      h => h.contractId === contractId && h.method === method,
+      (h) => h.contractId === contractId && h.method === method,
     );
 
     if (relevant.length === 0) return null;
@@ -141,17 +144,17 @@ export class GasOptimizationEngine {
    */
   private isMethodStable(contractId: string, method: string): boolean {
     const relevant = this.history.filter(
-      h => h.contractId === contractId && h.method === method,
+      (h) => h.contractId === contractId && h.method === method,
     );
 
     if (relevant.length < 10) return false; // Need enough data points
 
     // Calculate variance to determine stability
-    const values = relevant.map(h => BigInt(h.gasUsed));
+    const values = relevant.map((h) => BigInt(h.gasUsed));
     const avg = values.reduce((a, b) => a + b, 0n) / BigInt(values.length);
-    
+
     // If all recent values are within 20% of average, consider stable
-    const variance = values.every(v => {
+    const variance = values.every((v) => {
       const diff = v > avg ? v - avg : avg - v;
       return (diff * 100n) / avg < 20n;
     });
@@ -162,7 +165,10 @@ export class GasOptimizationEngine {
   /**
    * Check if there are similar pending calls that could be batched
    */
-  private canBatchWithSimilarCalls(contractId: string, method: string): boolean {
+  private canBatchWithSimilarCalls(
+    contractId: string,
+    method: string,
+  ): boolean {
     // In a real implementation, this would check pending transactions
     // For now, return false as a placeholder
     return false;
@@ -171,7 +177,10 @@ export class GasOptimizationEngine {
   /**
    * Get the historical average gas usage for a method
    */
-  private getHistoricalAverage(contractId: string, method: string): string | null {
+  private getHistoricalAverage(
+    contractId: string,
+    method: string,
+  ): string | null {
     const prediction = this.predictGasUsage(contractId, method);
     return prediction?.minResourceFee || null;
   }
@@ -188,22 +197,27 @@ export class GasOptimizationEngine {
    * Get gas usage statistics for monitoring
    */
   getStatistics() {
-    const contractStats = new Map<string, Map<string, { count: number; avgGas: string }>>();
-    
+    const contractStats = new Map<
+      string,
+      Map<string, { count: number; avgGas: string }>
+    >();
+
     for (const usage of this.history) {
       if (!contractStats.has(usage.contractId)) {
         contractStats.set(usage.contractId, new Map());
       }
-      
+
       const methodStats = contractStats.get(usage.contractId)!;
       if (!methodStats.has(usage.method)) {
         methodStats.set(usage.method, { count: 0, avgGas: '0' });
       }
-      
+
       const stats = methodStats.get(usage.method)!;
       stats.count++;
       const current = BigInt(stats.avgGas);
-      const newAvg = (current * BigInt(stats.count - 1) + BigInt(usage.gasUsed)) / BigInt(stats.count);
+      const newAvg =
+        (current * BigInt(stats.count - 1) + BigInt(usage.gasUsed)) /
+        BigInt(stats.count);
       stats.avgGas = newAvg.toString();
     }
 

@@ -67,7 +67,9 @@ export class ContractEventDecoder {
       this.schemas.set(contractId, []);
     }
     this.schemas.get(contractId)!.push(schema);
-    this.logger.debug(`Registered schema for event ${schema.name} on contract ${contractId}`);
+    this.logger.debug(
+      `Registered schema for event ${schema.name} on contract ${contractId}`,
+    );
   }
 
   /**
@@ -76,7 +78,7 @@ export class ContractEventDecoder {
   decodeAndValidate(rawEvent: ParsedContractEvent): EventValidationResult {
     const errors: string[] = [];
     const warnings: string[] = [];
-    
+
     try {
       // Extract event name from topics
       const eventName = this.extractEventName(rawEvent.topics);
@@ -106,7 +108,10 @@ export class ContractEventDecoder {
       // Validate against schema if one exists
       const schema = this.getSchemaForEvent(rawEvent.contractId, eventName);
       if (schema) {
-        const validationErrors = this.validateAgainstSchema(decodedData, schema);
+        const validationErrors = this.validateAgainstSchema(
+          decodedData,
+          schema,
+        );
         errors.push(...validationErrors);
       } else {
         warnings.push(`No schema registered for event ${eventName}`);
@@ -124,7 +129,9 @@ export class ContractEventDecoder {
 
       const valid = errors.length === 0;
       if (valid) {
-        this.logger.debug(`Successfully decoded event ${eventName} from ${rawEvent.contractId}`);
+        this.logger.debug(
+          `Successfully decoded event ${eventName} from ${rawEvent.contractId}`,
+        );
       }
 
       return {
@@ -133,9 +140,10 @@ export class ContractEventDecoder {
         warnings,
         decodedEvent,
       };
-
     } catch (error) {
-      errors.push(`Unexpected error decoding event: ${(error as Error).message}`);
+      errors.push(
+        `Unexpected error decoding event: ${(error as Error).message}`,
+      );
       return { valid: false, errors, warnings, decodedEvent: null };
     }
   }
@@ -144,7 +152,7 @@ export class ContractEventDecoder {
    * Batch decode multiple events at once
    */
   decodeBatch(events: ParsedContractEvent[]): EventValidationResult[] {
-    return events.map(event => this.decodeAndValidate(event));
+    return events.map((event) => this.decodeAndValidate(event));
   }
 
   /**
@@ -152,16 +160,20 @@ export class ContractEventDecoder {
    */
   private extractEventName(topics: unknown[]): string | null {
     if (!topics || topics.length === 0) return null;
-    
+
     // The first topic is typically the event name/identifier
     const firstTopic = topics[0];
     if (typeof firstTopic === 'string') {
       return firstTopic;
     }
-    if (firstTopic && typeof firstTopic === 'object' && 'toString' in firstTopic) {
+    if (
+      firstTopic &&
+      typeof firstTopic === 'object' &&
+      'toString' in firstTopic
+    ) {
       return (firstTopic as { toString: () => string }).toString();
     }
-    
+
     return String(firstTopic);
   }
 
@@ -176,7 +188,7 @@ export class ContractEventDecoder {
     // Use the ABI spec to properly decode the event data
     // This leverages the SDK's built-in decoding capabilities
     if (typeof rawValue === 'object' && rawValue !== null) {
-      return { ...rawValue as Record<string, unknown> };
+      return { ...(rawValue as Record<string, unknown>) };
     }
     return { value: rawValue };
   }
@@ -186,7 +198,7 @@ export class ContractEventDecoder {
    */
   private basicDecode(value: unknown): Record<string, unknown> {
     if (typeof value === 'object' && value !== null) {
-      return { ...value as Record<string, unknown> };
+      return { ...(value as Record<string, unknown>) };
     }
     return { value };
   }
@@ -194,9 +206,12 @@ export class ContractEventDecoder {
   /**
    * Get a registered schema for a specific event
    */
-  private getSchemaForEvent(contractId: string, eventName: string): EventSchema | null {
+  private getSchemaForEvent(
+    contractId: string,
+    eventName: string,
+  ): EventSchema | null {
     const schemas = this.schemas.get(contractId) || [];
-    return schemas.find(s => s.name === eventName) || null;
+    return schemas.find((s) => s.name === eventName) || null;
   }
 
   /**
@@ -219,7 +234,9 @@ export class ContractEventDecoder {
       if (key in data) {
         const actualType = typeof data[key];
         if (actualType !== propSchema.type) {
-          errors.push(`Type mismatch for ${key}: expected ${propSchema.type}, got ${actualType}`);
+          errors.push(
+            `Type mismatch for ${key}: expected ${propSchema.type}, got ${actualType}`,
+          );
         }
       }
     }
