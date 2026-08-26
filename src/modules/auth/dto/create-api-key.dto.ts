@@ -10,7 +10,10 @@ import {
 } from 'class-validator';
 
 export class CreateApiKeyDto {
-  @ApiProperty({ description: 'Human-readable label for the key', example: 'CI Pipeline Key' })
+  @ApiProperty({
+    description: 'Human-readable label for the key',
+    example: 'CI Pipeline Key',
+  })
   @IsString()
   @MinLength(3)
   @MaxLength(64)
@@ -25,7 +28,8 @@ export class CreateApiKeyDto {
   expiresAt?: string;
 
   @ApiPropertyOptional({
-    description: 'Scope restrictions for this key. Omit to inherit all user scopes.',
+    description:
+      'Scope restrictions for this key. Omit to inherit all user scopes.',
     example: ['assets:read', 'orders:write'],
     type: [String],
   })

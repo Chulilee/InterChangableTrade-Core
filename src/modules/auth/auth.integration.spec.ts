@@ -77,12 +77,10 @@ describe('Auth Module (e2e)', () => {
 
   describe('POST /api/auth/login', () => {
     beforeAll(async () => {
-      await request(app.getHttpServer())
-        .post('/api/auth/register')
-        .send({
-          email: 'login-test@example.com',
-          password: 'SecurePass123!',
-        });
+      await request(app.getHttpServer()).post('/api/auth/register').send({
+        email: 'login-test@example.com',
+        password: 'SecurePass123!',
+      });
     });
 
     it('should login with valid credentials', async () => {
