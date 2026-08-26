@@ -1,12 +1,23 @@
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
-import { IsBoolean, IsEnum, IsInt, IsOptional, IsString, Max, Min } from 'class-validator';
+import {
+  IsBoolean,
+  IsEnum,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  Min,
+} from 'class-validator';
 import { ComplianceRegion } from '../enums/compliance-region.enum';
 
 /**
  * DTO for creating or updating compliance configuration for a region.
  */
 export class UpsertComplianceConfigDto {
-  @ApiProperty({ enum: ComplianceRegion, description: 'Region for this config' })
+  @ApiProperty({
+    enum: ComplianceRegion,
+    description: 'Region for this config',
+  })
   @IsEnum(ComplianceRegion)
   region: ComplianceRegion;
 
@@ -45,7 +56,9 @@ export class UpsertComplianceConfigDto {
   @Max(100)
   flagThresholdScore?: number;
 
-  @ApiPropertyOptional({ description: 'Max daily transactions before flagging' })
+  @ApiPropertyOptional({
+    description: 'Max daily transactions before flagging',
+  })
   @IsOptional()
   @IsInt()
   @Min(1)
@@ -57,7 +70,9 @@ export class UpsertComplianceConfigDto {
   @Min(1)
   kycExpiryMonths?: number;
 
-  @ApiPropertyOptional({ description: 'Whether SAR is required for critical flags' })
+  @ApiPropertyOptional({
+    description: 'Whether SAR is required for critical flags',
+  })
   @IsOptional()
   @IsBoolean()
   requireSarForCritical?: boolean;

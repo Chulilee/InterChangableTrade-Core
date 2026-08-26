@@ -110,7 +110,9 @@ describeIfDb('KYC/AML Compliance (e2e)', () => {
 
       if (res.status === 201) {
         expect(res.body.success).toBe(true);
-        expect(res.body.data.documentType).toBe(KycDocumentType.ID_VERIFICATION);
+        expect(res.body.data.documentType).toBe(
+          KycDocumentType.ID_VERIFICATION,
+        );
         expect(res.body.data.fileName).toBe('passport.pdf');
         expect(res.body.data.status).toBe('pending');
         documentId = res.body.data.id;
@@ -183,7 +185,9 @@ describeIfDb('KYC/AML Compliance (e2e)', () => {
         .expect(200);
 
       expect(res.body.success).toBe(true);
-      expect(res.body.data.triggeredRules).toContain('aml_transaction_threshold');
+      expect(res.body.data.triggeredRules).toContain(
+        'aml_transaction_threshold',
+      );
     });
   });
 

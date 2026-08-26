@@ -99,8 +99,9 @@ export class ComplianceController {
     description: 'KYC status retrieved',
   })
   async getStatus(@CurrentUser() user: AuthenticatedUser) {
-    const verification =
-      await this.complianceService.getVerificationStatus(user.id);
+    const verification = await this.complianceService.getVerificationStatus(
+      user.id,
+    );
     return { success: true, data: verification };
   }
 
@@ -110,9 +111,7 @@ export class ComplianceController {
   @ApiOperation({
     summary: 'Get KYC status for a specific user (admin/analyst)',
   })
-  async getStatusByUserId(
-    @Param('userId', ParseUUIDPipe) userId: string,
-  ) {
+  async getStatusByUserId(@Param('userId', ParseUUIDPipe) userId: string) {
     const verification =
       await this.complianceService.getVerificationStatus(userId);
     return { success: true, data: verification };
@@ -133,7 +132,7 @@ export class ComplianceController {
   @ApiOperation({
     summary: 'Update user KYC level (admin only)',
     description:
-      'Manually sets a user\'s KYC verification level and optionally blocks their transactions.',
+      "Manually sets a user's KYC verification level and optionally blocks their transactions.",
   })
   async updateKycLevel(
     @Param('userId', ParseUUIDPipe) userId: string,
@@ -316,9 +315,7 @@ export class ComplianceController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Check if a user has blocked transactions' })
-  async checkTransactionBlock(
-    @Param('userId', ParseUUIDPipe) userId: string,
-  ) {
+  async checkTransactionBlock(@Param('userId', ParseUUIDPipe) userId: string) {
     const blocked =
       await this.complianceService.shouldBlockTransactions(userId);
     return { success: true, data: { blocked } };
@@ -403,8 +400,7 @@ export class ComplianceController {
   @Roles(UserRole.ADMIN)
   @ApiOperation({
     summary: 'Create or update compliance configuration (admin)',
-    description:
-      'Sets compliance thresholds and rules for a specific region.',
+    description: 'Sets compliance thresholds and rules for a specific region.',
   })
   async upsertConfig(
     @CurrentUser() user: AuthenticatedUser,
