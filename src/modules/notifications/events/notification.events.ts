@@ -44,10 +44,7 @@ export class PortfolioAlertEvent {
     public readonly payload: {
       userId: string;
       alertType:
-        | 'threshold_breach'
-        | 'margin_warning'
-        | 'large_move'
-        | 'new_asset';
+        'threshold_breach' | 'margin_warning' | 'large_move' | 'new_asset';
       currentValue: string;
       threshold: string;
       details: Record<string, any>;

@@ -1,4 +1,3 @@
-
 import { Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '@app/common';
 

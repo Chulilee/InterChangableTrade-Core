@@ -1,4 +1,3 @@
-
 import { BlockchainEvent } from '../../blockchain-indexer/entities/blockchain-event.entity';
 
 export enum LogicalOperator {
@@ -9,7 +8,13 @@ export enum LogicalOperator {
 
 export interface AlertCondition {
   field: string;
-  operator: 'equals' | 'not_equals' | 'greater_than' | 'less_than' | 'contains' | 'regex';
+  operator:
+    | 'equals'
+    | 'not_equals'
+    | 'greater_than'
+    | 'less_than'
+    | 'contains'
+    | 'regex';
   value: any;
 }
 
@@ -40,13 +45,20 @@ export interface AlertRule {
   enabled: boolean;
   conditions: {
     operator: LogicalOperator;
-    conditions: (AlertCondition | { operator: LogicalOperator; conditions: AlertCondition[] })[];
+    conditions: (
+      | AlertCondition
+      | { operator: LogicalOperator; conditions: AlertCondition[] }
+    )[];
   };
   actions: AlertAction[];
   rateLimit: RateLimitConfig;
   metadata: AlertMetadata;
-  
+
   // Evaluation methods
   shouldTrigger(event: BlockchainEvent): boolean;
-  getNotification(event: BlockchainEvent): { title: string; message: string; data?: any };
+  getNotification(event: BlockchainEvent): {
+    title: string;
+    message: string;
+    data?: any;
+  };
 }
