@@ -278,6 +278,55 @@ export class WalletService {
     return { signedXdr };
   }
 
+  /**
+   * Produces a **decorated signature** (base64 XDR) for an unsigned transaction
+   * without assembling a full envelope. This is the server-custodied path of
+   * the multi-sig pipeline: the signature is pooled alongside others and
+   * reattached to the base transaction at broadcast.
+   *
+   * Signing is a pure ed25519 operation — it completes well within the
+   * sub-second validation budget.
+   */
+  async createDecoratedSignature(
+    walletId: string,
+    userId: string,
+    unsignedXdr: string,
+  ): Promise<{ signerPublicKey: string; signatureXdr: string }> {
+    const wallet = await this.walletRepository.findOne({
+      where: { id: walletId },
+      select: ['id', 'userId', 'publicKey', 'encryptedSecretKey', 'status'],
+    });
+
+    if (!wallet) {
+      throw new NotFoundException(`Wallet ${walletId} not found`);
+    }
+    if (wallet.userId !== userId) {
+      throw new ForbiddenException('You do not own this wallet');
+    }
+    if (wallet.status !== WalletStatus.ACTIVE) {
+      throw new BadRequestException(
+        `Wallet is ${wallet.status} and cannot sign transactions`,
+      );
+    }
+
+    const secretKey = this.decrypt(wallet.encryptedSecretKey);
+    const keypair = Keypair.fromSecret(secretKey);
+
+    const transaction = TransactionBuilder.fromXDR(
+      unsignedXdr,
+      this.configService.get<string>('stellar.networkPassphrase') ??
+        'Test SDF Network ; September 2015',
+    );
+
+    const decorated = keypair.signDecorated(transaction.hash());
+
+    this.logger.log(`Decorated signature created by wallet ${walletId}`);
+    return {
+      signerPublicKey: keypair.publicKey(),
+      signatureXdr: decorated.toXDR('base64'),
+    };
+  }
+
   // ─── Account recovery ────────────────────────────────────────────────────
 
   /**
