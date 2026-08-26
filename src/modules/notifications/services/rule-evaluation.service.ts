@@ -1,7 +1,10 @@
-
 import { Injectable, Logger } from '@nestjs/common';
 import { BlockchainEvent } from '../../blockchain-indexer/entities/blockchain-event.entity';
-import { AlertRule, AlertCondition, LogicalOperator } from '../interfaces/alert-rule.interface';
+import {
+  AlertRule,
+  AlertCondition,
+  LogicalOperator,
+} from '../interfaces/alert-rule.interface';
 import * as _ from 'lodash';
 
 @Injectable()
@@ -28,8 +31,18 @@ export class RuleEvaluationService {
         ],
       },
       actions: [
-        { type: 'push_notification', channels: ['websocket', 'mobile'], template: 'liquidation-warning', priority: 'critical' },
-        { type: 'sms_alert', channels: ['sms'], template: 'liquidation-sms', priority: 'critical' },
+        {
+          type: 'push_notification',
+          channels: ['websocket', 'mobile'],
+          template: 'liquidation-warning',
+          priority: 'critical',
+        },
+        {
+          type: 'sms_alert',
+          channels: ['sms'],
+          template: 'liquidation-sms',
+          priority: 'critical',
+        },
       ],
       rateLimit: { maxPerHour: 10, maxPerDay: 50, cooldownPeriod: 300 },
       metadata: {
@@ -62,8 +75,18 @@ export class RuleEvaluationService {
         ],
       },
       actions: [
-        { type: 'in_app', channels: ['websocket'], template: 'large-transfer', priority: 'high' },
-        { type: 'email', channels: ['email'], template: 'large-transfer-html', priority: 'high' },
+        {
+          type: 'in_app',
+          channels: ['websocket'],
+          template: 'large-transfer',
+          priority: 'high',
+        },
+        {
+          type: 'email',
+          channels: ['email'],
+          template: 'large-transfer-html',
+          priority: 'high',
+        },
       ],
       rateLimit: { maxPerHour: 20, maxPerDay: 100, cooldownPeriod: 600 },
       metadata: {
@@ -96,7 +119,12 @@ export class RuleEvaluationService {
         ],
       },
       actions: [
-        { type: 'push_notification', channels: ['websocket', 'mobile'], template: 'price-alert', priority: 'medium' },
+        {
+          type: 'push_notification',
+          channels: ['websocket', 'mobile'],
+          template: 'price-alert',
+          priority: 'medium',
+        },
       ],
       rateLimit: { maxPerHour: 30, maxPerDay: 150, cooldownPeriod: 900 },
       metadata: {
@@ -123,10 +151,10 @@ export class RuleEvaluationService {
 
   async evaluateRules(event: BlockchainEvent): Promise<AlertRule[]> {
     const matchingRules: AlertRule[] = [];
-    
+
     for (const rule of this.rules.values()) {
       if (!rule.enabled) continue;
-      
+
       try {
         if (rule.shouldTrigger(event)) {
           matchingRules.push(rule);
@@ -135,18 +163,29 @@ export class RuleEvaluationService {
         this.logger.error(`Failed to evaluate rule ${rule.id}:`, error);
       }
     }
-    
+
     return matchingRules;
   }
 
-  evaluateConditions(conditions: { operator: LogicalOperator; conditions: (AlertCondition | { operator: LogicalOperator; conditions: any[] })[] }, event: BlockchainEvent): boolean {
+  evaluateConditions(
+    conditions: {
+      operator: LogicalOperator;
+      conditions: (
+        AlertCondition | { operator: LogicalOperator; conditions: any[] }
+      )[];
+    },
+    event: BlockchainEvent,
+  ): boolean {
     const { operator, conditions: subConditions } = conditions;
-    
+
     const results = subConditions.map((subCondition: any) => {
       if ('conditions' in subCondition) {
         return this.evaluateConditions(subCondition, event);
       }
-      return this.evaluateSingleCondition(subCondition as AlertCondition, event);
+      return this.evaluateSingleCondition(
+        subCondition as AlertCondition,
+        event,
+      );
     });
 
     switch (operator) {
@@ -161,9 +200,12 @@ export class RuleEvaluationService {
     }
   }
 
-  private evaluateSingleCondition(condition: AlertCondition, event: BlockchainEvent): boolean {
+  private evaluateSingleCondition(
+    condition: AlertCondition,
+    event: BlockchainEvent,
+  ): boolean {
     const fieldValue = _.get(event, condition.field);
-    
+
     switch (condition.operator) {
       case 'equals':
         return fieldValue === condition.value;
@@ -182,7 +224,10 @@ export class RuleEvaluationService {
     }
   }
 
-  async getAffectedUsers(event: BlockchainEvent, rule: AlertRule): Promise<string[]> {
+  async getAffectedUsers(
+    event: BlockchainEvent,
+    rule: AlertRule,
+  ): Promise<string[]> {
     switch (rule.metadata.affectedUsers) {
       case 'specific':
         return rule.metadata.userIds || [];
@@ -194,7 +239,10 @@ export class RuleEvaluationService {
     }
   }
 
-  private async getUsersWithAsset(assetCode: string, assetIssuer: string | undefined): Promise<string[]> {
+  private async getUsersWithAsset(
+    assetCode: string,
+    assetIssuer: string | undefined,
+  ): Promise<string[]> {
     return [];
   }
 
