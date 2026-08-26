@@ -85,6 +85,63 @@ export class ContractStateService {
     await this.redis.del(this.cacheKey(contractId, key, durability));
   }
 
+  /**
+   * List all known storage keys for a contract from cache
+   * Note: This only returns keys that have been previously cached
+   */
+  async listStorageKeys(contractId: string): Promise<string[]> {
+    const pattern = `${ContractStateService.KEY_PREFIX}${contractId}:*`;
+    const keys: string[] = [];
+    let cursor = '0';
+    
+    do {
+      const [next, foundKeys] = await this.redis.scan(
+        cursor,
+        'MATCH',
+        pattern,
+        'COUNT',
+        100,
+      );
+      keys.push(...foundKeys);
+      cursor = next;
+    } while (cursor !== '0');
+
+    // Extract just the storage key portion from the full cache key
+    return keys.map(key => {
+      const parts = key.split(':');
+      return parts.length >= 4 ? parts[3] : key;
+    });
+  }
+
+  /**
+   * Export all cached state for a contract
+   */
+  async exportContractState(contractId: string): Promise<Record<string, unknown>> {
+    const keys = await this.listStorageKeys(contractId);
+    const state: Record<string, unknown> = {};
+    
+    for (const key of keys) {
+      try {
+        const entry = await this.getState(contractId, key);
+        state[key] = entry.value;
+      } catch (error) {
+        // Skip keys that fail to load
+      }
+    }
+    
+    return state;
+  }
+
+  /**
+   * Import state into a new contract (placeholder implementation)
+   * In a real scenario, this would build and submit transactions to set storage
+   */
+  async importContractState(contractId: string, state: Record<string, unknown>): Promise<void> {
+    this.logger.log(`Importing ${Object.keys(state).length} state entries into ${contractId}`);
+    // Implementation would generate transactions to set each state key
+    // This requires the contract to support state migration methods
+  }
+
   /** Drops every cached state entry for a contract. */
   async invalidateContract(contractId: string): Promise<number> {
     const pattern = `${ContractStateService.KEY_PREFIX}${contractId}:*`;

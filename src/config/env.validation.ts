@@ -50,6 +50,14 @@ export const envValidationSchema = Joi.object({
   BLOCKCHAIN_INDEXER_MAX_BACKFILL_LEDGERS: Joi.number().default(1000),
   BLOCKCHAIN_INDEXER_STREAM_TTL_SECS: Joi.number().default(300),
   BLOCKCHAIN_INDEXER_INCLUDE_FAILED: Joi.boolean().default(true),
+  BLOCKCHAIN_INDEXER_PAGE_LIMIT: Joi.number().default(200),
+  BLOCKCHAIN_INDEXER_WS_RECONNECT_BASE_MS: Joi.number().default(1000),
+  BLOCKCHAIN_INDEXER_WS_RECONNECT_MAX_MS: Joi.number().default(30000),
+  BLOCKCHAIN_INDEXER_BUFFER_SIZE: Joi.number().default(10000),
+  BLOCKCHAIN_INDEXER_BUFFER_TTL_MS: Joi.number().default(60000),
+  BLOCKCHAIN_INDEXER_BATCH_FLUSH_MS: Joi.number().default(1000),
+  BLOCKCHAIN_INDEXER_BATCH_MAX_SIZE: Joi.number().default(1000),
+  BLOCKCHAIN_INDEXER_RETENTION_DAYS: Joi.number().default(90),
 
   // Rate limiting
   RATE_LIMIT_STRATEGY: Joi.string()

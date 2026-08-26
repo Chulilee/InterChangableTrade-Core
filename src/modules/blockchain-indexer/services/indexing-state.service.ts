@@ -50,4 +50,25 @@ export class IndexingStateService {
   async setLastCursor(cursor: string): Promise<void> {
     await this.set('last_cursor', cursor);
   }
+
+  async getLedgerCursor(): Promise<string | null> {
+    return this.get('stream_ledger_cursor');
+  }
+
+  async setLedgerCursor(sequence: string): Promise<void> {
+    await this.set('stream_ledger_cursor', sequence);
+  }
+
+  async getLastLedgerCursor(): Promise<string | null> {
+    return this.get('stream_ledger_cursor');
+  }
+
+  async getSequenceCounter(): Promise<bigint> {
+    const value = await this.get('sequence_counter');
+    return value ? BigInt(value) : BigInt(0);
+  }
+
+  async setSequenceCounter(counter: bigint): Promise<void> {
+    await this.set('sequence_counter', counter.toString());
+  }
 }
