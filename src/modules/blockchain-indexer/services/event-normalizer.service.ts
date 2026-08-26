@@ -1,12 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
-import {
-  BlockchainEventType,
-} from '../entities/blockchain-event.entity';
+import { BlockchainEventType } from '../entities/blockchain-event.entity';
 import { IndexedEvent } from '../entities/indexed-event.entity';
-import {
-  RawTransaction,
-  RawOperation,
-} from './stellar-event-source.service';
+import { RawTransaction, RawOperation } from './stellar-event-source.service';
 import { ParsedContractEvent } from '../../stellar/soroban/soroban.types';
 
 /**
@@ -76,7 +71,10 @@ export class EventNormalizer {
         assetCode: op.asset_code ?? 'native',
         assetIssuer: op.asset_issuer,
         amount: op.amount ?? op.starting_balance ?? undefined,
-        raw: { operation: op, transaction: { hash: tx.hash, ledger: tx.ledger } },
+        raw: {
+          operation: op,
+          transaction: { hash: tx.hash, ledger: tx.ledger },
+        },
         invalidated: false,
       });
     }
@@ -88,9 +86,7 @@ export class EventNormalizer {
    * Converts a Soroban contract event into a normalized event input.
    * Returns events without sequence numbers — caller must use assignSequence().
    */
-  normalizeSorobanEvent(
-    sorobanEvent: ParsedContractEvent,
-  ): UnsequencedEvent {
+  normalizeSorobanEvent(sorobanEvent: ParsedContractEvent): UnsequencedEvent {
     const eventType = this.mapSorobanEventType(sorobanEvent.type);
 
     return {
@@ -120,27 +116,21 @@ export class EventNormalizer {
   /**
    * Batch-converts Soroban events.
    */
-  normalizeSorobanEvents(
-    events: ParsedContractEvent[],
-  ): UnsequencedEvent[] {
+  normalizeSorobanEvents(events: ParsedContractEvent[]): UnsequencedEvent[] {
     return events.map((e) => this.normalizeSorobanEvent(e));
   }
 
   /**
    * Builds a complete IndexedEvent ready for persistence, assigning sequence numbers.
    */
-  assignSequence(
-    input: UnsequencedEvent,
-  ): IndexedEventInput {
+  assignSequence(input: UnsequencedEvent): IndexedEventInput {
     return {
       ...input,
       sequenceNumber: this.getNextSequence().toString(),
     } as IndexedEventInput;
   }
 
-  private mapOperationType(
-    horizonType: string,
-  ): BlockchainEventType | null {
+  private mapOperationType(horizonType: string): BlockchainEventType | null {
     const mapping: Record<string, BlockchainEventType> = {
       payment: BlockchainEventType.PAYMENT,
       path_payment_strict_receive:
@@ -154,9 +144,7 @@ export class EventNormalizer {
     return mapping[horizonType] ?? null;
   }
 
-  private mapSorobanEventType(
-    sorobanType: string,
-  ): BlockchainEventType {
+  private mapSorobanEventType(sorobanType: string): BlockchainEventType {
     switch (sorobanType) {
       case 'contract':
         return BlockchainEventType.SOROBAN_CONTRACT_EVENT;

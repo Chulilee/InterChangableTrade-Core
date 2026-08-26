@@ -1,12 +1,18 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { ConfigModule } from '@nestjs/config';
-import { EventBufferService, BufferedEvent } from './services/event-buffer.service';
+import {
+  EventBufferService,
+  BufferedEvent,
+} from './services/event-buffer.service';
 
 describe('EventBufferService', () => {
   let module: TestingModule;
   let buffer: EventBufferService;
 
-  const makeEvent = (seq: number, ledger: number = seq * 10): BufferedEvent => ({
+  const makeEvent = (
+    seq: number,
+    ledger: number = seq * 10,
+  ): BufferedEvent => ({
     sequenceNumber: seq,
     ledgerSequence: ledger,
     eventType: 'payment',

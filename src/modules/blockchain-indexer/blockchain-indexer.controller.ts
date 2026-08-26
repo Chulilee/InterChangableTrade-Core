@@ -89,8 +89,7 @@ export class BlockchainIndexerController {
 
   @Get('realtime/events')
   @ApiOperation({
-    summary:
-      'Query indexed events from the real-time pipeline with filtering',
+    summary: 'Query indexed events from the real-time pipeline with filtering',
   })
   @ApiResponse({
     status: HttpStatus.OK,

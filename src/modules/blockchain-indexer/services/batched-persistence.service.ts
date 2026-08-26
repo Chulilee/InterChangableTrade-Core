@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-} from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
@@ -12,7 +8,10 @@ import { IndexingStateService } from './indexing-state.service';
 /**
  * Type used internally before an event is assigned a database-generated ID.
  */
-export type IndexedEventInput = Omit<IndexedEvent, 'id' | 'createdAt' | 'updatedAt'>;
+export type IndexedEventInput = Omit<
+  IndexedEvent,
+  'id' | 'createdAt' | 'updatedAt'
+>;
 
 /**
  * High-throughput batched persistence layer for IndexedEvent records.
@@ -49,7 +48,9 @@ export class BatchedPersistenceService implements OnModuleDestroy {
     private readonly configService: ConfigService,
   ) {
     this.flushIntervalMs =
-      this.configService.get<number>('blockchainIndexer.batchFlushIntervalMs') ?? 1000;
+      this.configService.get<number>(
+        'blockchainIndexer.batchFlushIntervalMs',
+      ) ?? 1000;
     this.batchMaxSize =
       this.configService.get<number>('blockchainIndexer.batchMaxSize') ?? 1000;
     this.retentionDays =
@@ -142,7 +143,9 @@ export class BatchedPersistenceService implements OnModuleDestroy {
 
       // Persist the high-water mark for restart recovery.
       if (batch.length > 0) {
-        await this.stateService.setSequenceCounter(this.highestPersistedSequence);
+        await this.stateService.setSequenceCounter(
+          this.highestPersistedSequence,
+        );
       }
 
       this.logger.debug(

@@ -1,8 +1,4 @@
-import {
-  Injectable,
-  Logger,
-  OnModuleDestroy,
-} from '@nestjs/common';
+import { Injectable, Logger, OnModuleDestroy } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { EventEmitter } from 'events';
 import { IndexingStateService } from './indexing-state.service';
@@ -62,11 +58,13 @@ export class HorizonStreamService
       this.configService.get<string>('stellar.horizonUrl') ??
       'https://horizon-testnet.stellar.org';
     this.reconnectBaseMs =
-      this.configService.get<number>('blockchainIndexer.wsReconnectBaseDelayMs') ??
-      1000;
+      this.configService.get<number>(
+        'blockchainIndexer.wsReconnectBaseDelayMs',
+      ) ?? 1000;
     this.reconnectMaxMs =
-      this.configService.get<number>('blockchainIndexer.wsReconnectMaxDelayMs') ??
-      30000;
+      this.configService.get<number>(
+        'blockchainIndexer.wsReconnectMaxDelayMs',
+      ) ?? 30000;
   }
 
   onModuleDestroy(): void {
@@ -82,9 +80,7 @@ export class HorizonStreamService
     this.currentReconnectDelay = 0;
 
     const cursor = await this.stateService.getLastLedgerCursor();
-    this.lastLedgerSequence = cursor
-      ? Number(cursor)
-      : null;
+    this.lastLedgerSequence = cursor ? Number(cursor) : null;
 
     this.logger.log(
       `Starting Horizon SSE stream from ledger ${this.lastLedgerSequence ?? 'latest'}`,
@@ -158,10 +154,7 @@ export class HorizonStreamService
     this.connected = false;
   }
 
-  private async streamLoop(
-    url: string,
-    signal: AbortSignal,
-  ): Promise<void> {
+  private async streamLoop(url: string, signal: AbortSignal): Promise<void> {
     try {
       const response = await fetch(url, {
         signal,
@@ -211,9 +204,7 @@ export class HorizonStreamService
         return;
       }
 
-      this.logger.warn(
-        `Horizon SSE stream error: ${(error as Error).message}`,
-      );
+      this.logger.warn(`Horizon SSE stream error: ${(error as Error).message}`);
       this.connected = false;
       this.emit('health', {
         status: 'error',
