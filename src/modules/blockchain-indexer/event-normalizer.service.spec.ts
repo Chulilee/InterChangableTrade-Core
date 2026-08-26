@@ -50,7 +50,10 @@ describe('EventNormalizer', () => {
         },
       ];
 
-      const events = normalizer.normalizeStellarOperations(mockTx as any, operations);
+      const events = normalizer.normalizeStellarOperations(
+        mockTx as any,
+        operations,
+      );
 
       expect(events).toHaveLength(1);
       expect(events[0].eventType).toBe(BlockchainEventType.PAYMENT);
@@ -75,7 +78,10 @@ describe('EventNormalizer', () => {
         },
       ];
 
-      const events = normalizer.normalizeStellarOperations(mockTx as any, operations);
+      const events = normalizer.normalizeStellarOperations(
+        mockTx as any,
+        operations,
+      );
 
       expect(events).toHaveLength(1);
       expect(events[0].eventType).toBe(BlockchainEventType.MANAGE_OFFER);
@@ -90,7 +96,10 @@ describe('EventNormalizer', () => {
         },
       ];
 
-      const events = normalizer.normalizeStellarOperations(mockTx as any, operations);
+      const events = normalizer.normalizeStellarOperations(
+        mockTx as any,
+        operations,
+      );
 
       expect(events).toHaveLength(0);
     });
@@ -107,7 +116,10 @@ describe('EventNormalizer', () => {
         },
       ];
 
-      const events = normalizer.normalizeStellarOperations(mockTx as any, operations);
+      const events = normalizer.normalizeStellarOperations(
+        mockTx as any,
+        operations,
+      );
 
       expect(events).toHaveLength(1);
       expect(events[0].eventType).toBe(BlockchainEventType.CREATE_ACCOUNT);
@@ -133,9 +145,7 @@ describe('EventNormalizer', () => {
 
       const event = normalizer.normalizeSorobanEvent(sorobanEvent);
 
-      expect(event.eventType).toBe(
-        BlockchainEventType.SOROBAN_CONTRACT_EVENT,
-      );
+      expect(event.eventType).toBe(BlockchainEventType.SOROBAN_CONTRACT_EVENT);
       expect(event.contractId).toBe('CCONTRACT...');
       expect(event.methodName).toBe('transfer');
       expect(event.topics).toEqual(['transfer', 'GABC...', 'GXYZ...']);
@@ -159,9 +169,7 @@ describe('EventNormalizer', () => {
 
       const event = normalizer.normalizeSorobanEvent(sorobanEvent);
 
-      expect(event.eventType).toBe(
-        BlockchainEventType.SOROBAN_SYSTEM_EVENT,
-      );
+      expect(event.eventType).toBe(BlockchainEventType.SOROBAN_SYSTEM_EVENT);
     });
   });
 

@@ -32,9 +32,7 @@ export class NotificationGateway
         this.userSockets.set(userId, new Set());
       }
       this.userSockets.get(userId)!.add(client.id);
-      this.logger.log(
-        `Client connected: ${client.id} (user: ${userId})`,
-      );
+      this.logger.log(`Client connected: ${client.id} (user: ${userId})`);
     } else {
       this.logger.warn(`Client connected without userId: ${client.id}`);
     }
@@ -64,14 +62,17 @@ export class NotificationGateway
     );
   }
 
-  sendToUser(userId: string, notification: {
-    id: string;
-    type: string;
-    title: string | null;
-    message: string;
-    metadata: Record<string, any> | null;
-    createdAt: Date;
-  }): void {
+  sendToUser(
+    userId: string,
+    notification: {
+      id: string;
+      type: string;
+      title: string | null;
+      message: string;
+      metadata: Record<string, any> | null;
+      createdAt: Date;
+    },
+  ): void {
     this.server.to(`user:${userId}`).emit('notification', {
       id: notification.id,
       type: notification.type,

@@ -51,9 +51,7 @@ export class SmsNotificationProvider implements NotificationProvider {
 
   private buildSmsBody(notification: Notification): string {
     const maxLen = 160;
-    const prefix = notification.title
-      ? `${notification.title}: `
-      : '';
+    const prefix = notification.title ? `${notification.title}: ` : '';
     const fullMessage = `${prefix}${notification.message}`;
     if (fullMessage.length <= maxLen) {
       return fullMessage;

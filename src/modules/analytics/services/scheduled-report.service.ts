@@ -1,7 +1,12 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual } from 'typeorm';
-import { SavedReport, ReportStatus, ReportType, ReportFormat } from '../entities/saved-report.entity';
+import {
+  SavedReport,
+  ReportStatus,
+  ReportType,
+  ReportFormat,
+} from '../entities/saved-report.entity';
 import { ReportGeneratorService } from './report-generator.service';
 
 export enum ScheduleFrequency {
@@ -61,17 +66,23 @@ export class ScheduledReportService {
       customParameters?: Record<string, any>;
     },
   ): Promise<ScheduledReportConfig> {
-    const report = await this.savedReportRepository.findOne({ where: { id: reportId } });
+    const report = await this.savedReportRepository.findOne({
+      where: { id: reportId },
+    });
     if (!report) {
       throw new Error(`Report ${reportId} not found`);
     }
 
     // Update report with scheduling info
     report.isScheduled = true;
-    report.scheduleCron = config.cronExpression ?? this.getCronForFrequency(config.frequency);
+    report.scheduleCron =
+      config.cronExpression ?? this.getCronForFrequency(config.frequency);
     await this.savedReportRepository.save(report);
 
-    const nextRunAt = this.calculateNextRun(config.frequency, config.cronExpression);
+    const nextRunAt = this.calculateNextRun(
+      config.frequency,
+      config.cronExpression,
+    );
 
     const scheduledConfig: ScheduledReportConfig = {
       id: `sched_${reportId}_${Date.now()}`,
@@ -86,8 +97,10 @@ export class ScheduledReportService {
       isActive: true,
     };
 
-    this.logger.log(`Report ${reportId} scheduled for ${config.frequency} execution`);
-    
+    this.logger.log(
+      `Report ${reportId} scheduled for ${config.frequency} execution`,
+    );
+
     return scheduledConfig;
   }
 
@@ -96,7 +109,7 @@ export class ScheduledReportService {
    */
   async processScheduledReports(): Promise<void> {
     const now = new Date();
-    
+
     // Find reports that are scheduled and due
     const dueReports = await this.savedReportRepository.find({
       where: {
@@ -112,7 +125,10 @@ export class ScheduledReportService {
       try {
         await this.processScheduledReport(report);
       } catch (error) {
-        this.logger.error(`Failed to process scheduled report ${report.id}`, error);
+        this.logger.error(
+          `Failed to process scheduled report ${report.id}`,
+          error,
+        );
       }
     }
   }
@@ -171,18 +187,21 @@ export class ScheduledReportService {
     try {
       // In production, this would integrate with an email service
       // For now, log the delivery
-      this.logger.log(`Sending report ${report.id} to ${recipients.length} recipients`);
-      
+      this.logger.log(
+        `Sending report ${report.id} to ${recipients.length} recipients`,
+      );
+
       // Simulate email sending
-      await new Promise(resolve => setTimeout(resolve, 100));
-      
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
       delivery.status = 'sent';
       delivery.fileUrl = report.fileUrl;
-      
+
       this.logger.log(`Report ${report.id} sent successfully`);
     } catch (error) {
       delivery.status = 'failed';
-      delivery.errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      delivery.errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       this.logger.error(`Failed to send report ${report.id}`, error);
     }
 
@@ -211,14 +230,20 @@ export class ScheduledReportService {
       isActive?: boolean;
     },
   ): Promise<SavedReport> {
-    const report = await this.savedReportRepository.findOne({ where: { id: reportId } });
+    const report = await this.savedReportRepository.findOne({
+      where: { id: reportId },
+    });
     if (!report) {
       throw new Error(`Report ${reportId} not found`);
     }
 
     if (config.frequency) {
-      report.scheduleCron = config.cronExpression ?? this.getCronForFrequency(config.frequency);
-      report.nextRunAt = this.calculateNextRun(config.frequency, config.cronExpression);
+      report.scheduleCron =
+        config.cronExpression ?? this.getCronForFrequency(config.frequency);
+      report.nextRunAt = this.calculateNextRun(
+        config.frequency,
+        config.cronExpression,
+      );
     }
 
     if (config.isActive !== undefined) {
@@ -226,7 +251,7 @@ export class ScheduledReportService {
     }
 
     await this.savedReportRepository.save(report);
-    
+
     this.logger.log(`Schedule updated for report ${reportId}`);
     return report;
   }
@@ -235,7 +260,9 @@ export class ScheduledReportService {
    * Remove schedule for a report
    */
   async removeSchedule(reportId: string): Promise<void> {
-    const report = await this.savedReportRepository.findOne({ where: { id: reportId } });
+    const report = await this.savedReportRepository.findOne({
+      where: { id: reportId },
+    });
     if (!report) {
       throw new Error(`Report ${reportId} not found`);
     }
@@ -243,7 +270,7 @@ export class ScheduledReportService {
     report.isScheduled = false;
     report.scheduleCron = undefined;
     await this.savedReportRepository.save(report);
-    
+
     this.logger.log(`Schedule removed for report ${reportId}`);
   }
 
@@ -276,7 +303,10 @@ export class ScheduledReportService {
     }
   }
 
-  private calculateNextRun(frequency: ScheduleFrequency, cronExpression?: string): Date {
+  private calculateNextRun(
+    frequency: ScheduleFrequency,
+    cronExpression?: string,
+  ): Date {
     const now = new Date();
     const next = new Date(now);
 
@@ -311,7 +341,7 @@ export class ScheduledReportService {
 
   private getStartDateForFrequency(cronExpression: string): string {
     const now = new Date();
-    
+
     // Simple heuristic based on cron expression
     if (cronExpression.includes('0 0 1 1,4,7,10')) {
       // Quarterly

@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, MoreThanOrEqual } from 'typeorm';
-import { AnalyticsMetric, MetricType, MetricAggregation } from '../entities/analytics-metric.entity';
+import {
+  AnalyticsMetric,
+  MetricType,
+  MetricAggregation,
+} from '../entities/analytics-metric.entity';
 import { Trade } from '../../trading-engine/entities/trade.entity';
 import { Transaction } from '../../transactions/entities/transaction.entity';
 
@@ -91,19 +95,24 @@ export class AnomalyDetectionService {
     ];
 
     const results = await Promise.all(detectionTasks);
-    
+
     for (const result of results) {
       anomalies.push(...result);
     }
 
     // Filter by severity if specified
     const filteredAnomalies = options.minSeverity
-      ? anomalies.filter(a => this.getSeverityWeight(a.severity) >= this.getSeverityWeight(options.minSeverity!))
+      ? anomalies.filter(
+          (a) =>
+            this.getSeverityWeight(a.severity) >=
+            this.getSeverityWeight(options.minSeverity!),
+        )
       : anomalies;
 
     // Sort by severity and confidence
     filteredAnomalies.sort((a, b) => {
-      const severityDiff = this.getSeverityWeight(b.severity) - this.getSeverityWeight(a.severity);
+      const severityDiff =
+        this.getSeverityWeight(b.severity) - this.getSeverityWeight(a.severity);
       if (severityDiff !== 0) return severityDiff;
       return b.confidence - a.confidence;
     });
@@ -154,21 +163,30 @@ export class AnomalyDetectionService {
     const anomalies: Anomaly[] = [];
 
     // Get trades in the period
-    const query = this.tradeRepository.createQueryBuilder('trade')
-      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
+    const query = this.tradeRepository
+      .createQueryBuilder('trade')
+      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      });
 
     if (options.userId) {
-      query.andWhere('(trade.makerUserId = :userId OR trade.takerUserId = :userId)', { userId: options.userId });
+      query.andWhere(
+        '(trade.makerUserId = :userId OR trade.takerUserId = :userId)',
+        { userId: options.userId },
+      );
     }
     if (options.assetCode) {
-      query.andWhere('trade.assetCode = :assetCode', { assetCode: options.assetCode });
+      query.andWhere('trade.assetCode = :assetCode', {
+        assetCode: options.assetCode,
+      });
     }
 
     const trades = await query.getMany();
 
     // Group trades by user pairs
     const userPairTrades = new Map<string, Trade[]>();
-    
+
     for (const trade of trades) {
       const pairKey = [trade.makerUserId, trade.takerUserId].sort().join(':');
       if (!userPairTrades.has(pairKey)) {
@@ -182,13 +200,13 @@ export class AnomalyDetectionService {
       if (pairTrades.length < 3) continue;
 
       const [user1, user2] = pairKey.split(':');
-      
+
       // Check for round-trip trades (A->B then B->A)
       let roundTrips = 0;
       for (let i = 1; i < pairTrades.length; i++) {
         const prev = pairTrades[i - 1];
         const curr = pairTrades[i];
-        
+
         if (
           prev.makerUserId === curr.takerUserId &&
           prev.takerUserId === curr.makerUserId &&
@@ -199,12 +217,15 @@ export class AnomalyDetectionService {
       }
 
       const roundTripRatio = roundTrips / (pairTrades.length - 1);
-      
+
       if (roundTripRatio > 0.6 && pairTrades.length >= 5) {
         anomalies.push({
           id: `wash_${pairKey}_${Date.now()}`,
           type: AnomalyType.WASH_TRADING,
-          severity: roundTripRatio > 0.8 ? AnomalySeverity.CRITICAL : AnomalySeverity.HIGH,
+          severity:
+            roundTripRatio > 0.8
+              ? AnomalySeverity.CRITICAL
+              : AnomalySeverity.HIGH,
           confidence: Math.min(0.7 + roundTripRatio * 0.3, 0.99),
           detectedAt: new Date(),
           userId: user1,
@@ -251,13 +272,15 @@ export class AnomalyDetectionService {
     if (volumeMetrics.length < 10) return anomalies;
 
     // Calculate rolling average and standard deviation
-    const values = volumeMetrics.map(m => parseFloat(m.value));
+    const values = volumeMetrics.map((m) => parseFloat(m.value));
     const windowSize = Math.min(20, Math.floor(values.length / 3));
 
     for (let i = windowSize; i < values.length; i++) {
       const window = values.slice(i - windowSize, i);
       const mean = window.reduce((a, b) => a + b, 0) / window.length;
-      const variance = window.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) / window.length;
+      const variance =
+        window.reduce((sum, v) => sum + Math.pow(v - mean, 2), 0) /
+        window.length;
       const stdDev = Math.sqrt(variance);
 
       const currentValue = values[i];
@@ -268,7 +291,10 @@ export class AnomalyDetectionService {
         anomalies.push({
           id: `vol_manip_${i}_${Date.now()}`,
           type: AnomalyType.MANIPULATION,
-          severity: Math.abs(zScore) > 4 ? AnomalySeverity.CRITICAL : AnomalySeverity.HIGH,
+          severity:
+            Math.abs(zScore) > 4
+              ? AnomalySeverity.CRITICAL
+              : AnomalySeverity.HIGH,
           confidence: Math.min(0.6 + (Math.abs(zScore) - 3) * 0.1, 0.95),
           detectedAt: volumeMetrics[i].timestamp,
           assetCode: volumeMetrics[i].assetCode,
@@ -330,16 +356,19 @@ export class AnomalyDetectionService {
       for (let i = 1; i < metrics.length; i++) {
         const prevVolume = parseFloat(metrics[i - 1].value);
         const currVolume = parseFloat(metrics[i].value);
-        
+
         if (prevVolume > 0) {
           const changePercent = ((currVolume - prevVolume) / prevVolume) * 100;
-          
+
           // Detect >500% increase in 1 hour
           if (changePercent > 500) {
             anomalies.push({
               id: `vol_spike_${asset}_${i}_${Date.now()}`,
               type: AnomalyType.SUSPICIOUS_VOLUME,
-              severity: changePercent > 1000 ? AnomalySeverity.HIGH : AnomalySeverity.MEDIUM,
+              severity:
+                changePercent > 1000
+                  ? AnomalySeverity.HIGH
+                  : AnomalySeverity.MEDIUM,
               confidence: Math.min(0.5 + (changePercent - 500) / 1000, 0.9),
               detectedAt: metrics[i].timestamp,
               assetCode: asset,
@@ -378,7 +407,10 @@ export class AnomalyDetectionService {
     // Get trade patterns
     const trades = await this.tradeRepository
       .createQueryBuilder('trade')
-      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      })
       .orderBy('trade.createdAt', 'ASC')
       .getMany();
 
@@ -399,14 +431,20 @@ export class AnomalyDetectionService {
       // Check for mechanical trading patterns (exact time intervals)
       const intervals: number[] = [];
       for (let i = 1; i < userTradeList.length; i++) {
-        const interval = userTradeList[i].createdAt.getTime() - userTradeList[i - 1].createdAt.getTime();
+        const interval =
+          userTradeList[i].createdAt.getTime() -
+          userTradeList[i - 1].createdAt.getTime();
         intervals.push(interval);
       }
 
       // Calculate interval variance
-      const meanInterval = intervals.reduce((a, b) => a + b, 0) / intervals.length;
-      const variance = intervals.reduce((sum, v) => sum + Math.pow(v - meanInterval, 2), 0) / intervals.length;
-      const coefficientOfVariance = meanInterval > 0 ? Math.sqrt(variance) / meanInterval : 0;
+      const meanInterval =
+        intervals.reduce((a, b) => a + b, 0) / intervals.length;
+      const variance =
+        intervals.reduce((sum, v) => sum + Math.pow(v - meanInterval, 2), 0) /
+        intervals.length;
+      const coefficientOfVariance =
+        meanInterval > 0 ? Math.sqrt(variance) / meanInterval : 0;
 
       // Very low variance suggests bot/algorithmic trading
       if (coefficientOfVariance < 0.1 && intervals.length >= 10) {
@@ -448,11 +486,18 @@ export class AnomalyDetectionService {
     const anomalies: Anomaly[] = [];
 
     // Get trades grouped by user
-    const query = this.tradeRepository.createQueryBuilder('trade')
-      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo });
+    const query = this.tradeRepository
+      .createQueryBuilder('trade')
+      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      });
 
     if (options.userId) {
-      query.andWhere('(trade.makerUserId = :userId OR trade.takerUserId = :userId)', { userId: options.userId });
+      query.andWhere(
+        '(trade.makerUserId = :userId OR trade.takerUserId = :userId)',
+        { userId: options.userId },
+      );
     }
 
     const trades = await query.orderBy('trade.createdAt', 'ASC').getMany();
@@ -476,17 +521,25 @@ export class AnomalyDetectionService {
       for (let i = 0; i < userTradeList.length; i++) {
         const windowStart = userTradeList[i].createdAt.getTime();
         const windowEnd = windowStart + rapidWindowMs;
-        
+
         const tradesInWindow = userTradeList.filter(
-          t => t.createdAt.getTime() >= windowStart && t.createdAt.getTime() < windowEnd
+          (t) =>
+            t.createdAt.getTime() >= windowStart &&
+            t.createdAt.getTime() < windowEnd,
         );
 
         if (tradesInWindow.length >= rapidThreshold) {
           anomalies.push({
             id: `rapid_${userId}_${i}_${Date.now()}`,
             type: AnomalyType.RAPID_TRADING,
-            severity: tradesInWindow.length > 20 ? AnomalySeverity.HIGH : AnomalySeverity.MEDIUM,
-            confidence: Math.min(0.6 + (tradesInWindow.length - rapidThreshold) / 50, 0.95),
+            severity:
+              tradesInWindow.length > 20
+                ? AnomalySeverity.HIGH
+                : AnomalySeverity.MEDIUM,
+            confidence: Math.min(
+              0.6 + (tradesInWindow.length - rapidThreshold) / 50,
+              0.95,
+            ),
             detectedAt: new Date(windowStart),
             userId,
             description: `Rapid trading detected: ${tradesInWindow.length} trades in 1 minute`,
@@ -550,16 +603,20 @@ export class AnomalyDetectionService {
       for (let i = 1; i < metrics.length; i++) {
         const prevPrice = parseFloat(metrics[i - 1].value);
         const currPrice = parseFloat(metrics[i].value);
-        
+
         if (prevPrice > 0) {
-          const priceChange = Math.abs((currPrice - prevPrice) / prevPrice) * 100;
-          
+          const priceChange =
+            Math.abs((currPrice - prevPrice) / prevPrice) * 100;
+
           // Detect >20% price movement in short time
           if (priceChange > 20) {
             anomalies.push({
               id: `price_manip_${asset}_${i}_${Date.now()}`,
               type: AnomalyType.PRICE_MANIPULATION,
-              severity: priceChange > 50 ? AnomalySeverity.CRITICAL : AnomalySeverity.HIGH,
+              severity:
+                priceChange > 50
+                  ? AnomalySeverity.CRITICAL
+                  : AnomalySeverity.HIGH,
               confidence: Math.min(0.5 + (priceChange - 20) / 100, 0.9),
               detectedAt: metrics[i].timestamp,
               assetCode: asset,

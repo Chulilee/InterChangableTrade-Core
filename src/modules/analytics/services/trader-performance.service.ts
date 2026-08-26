@@ -67,7 +67,10 @@ export class TraderPerformanceService {
         '(trade.makerUserId = :traderId OR trade.takerUserId = :traderId)',
         { traderId },
       )
-      .andWhere('trade.createdAt BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .andWhere('trade.createdAt BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      })
       .orderBy('trade.createdAt', 'ASC')
       .getMany();
 
@@ -81,10 +84,11 @@ export class TraderPerformanceService {
     const tradeReturns = this.calculateTradeReturns(trades, traderId);
 
     // Calculate basic metrics
-    const wins = tradeReturns.filter(t => t.pnl > 0);
-    const losses = tradeReturns.filter(t => t.pnl < 0);
+    const wins = tradeReturns.filter((t) => t.pnl > 0);
+    const losses = tradeReturns.filter((t) => t.pnl < 0);
     const totalPnl = tradeReturns.reduce((sum, t) => sum + t.pnl, 0);
-    const winRate = tradeReturns.length > 0 ? (wins.length / tradeReturns.length) * 100 : 0;
+    const winRate =
+      tradeReturns.length > 0 ? (wins.length / tradeReturns.length) * 100 : 0;
 
     // Calculate advanced metrics
     const sharpeRatio = this.calculateSharpeRatio(tradeReturns);
@@ -107,8 +111,8 @@ export class TraderPerformanceService {
       winRate,
       totalPnl,
       avgPnlPerTrade: trades.length > 0 ? totalPnl / trades.length : 0,
-      maxWin: wins.length > 0 ? Math.max(...wins.map(t => t.pnl)) : 0,
-      maxLoss: losses.length > 0 ? Math.min(...losses.map(t => t.pnl)) : 0,
+      maxWin: wins.length > 0 ? Math.max(...wins.map((t) => t.pnl)) : 0,
+      maxLoss: losses.length > 0 ? Math.min(...losses.map((t) => t.pnl)) : 0,
       sharpeRatio,
       sortinoRatio,
       maxDrawdown,
@@ -130,7 +134,10 @@ export class TraderPerformanceService {
   ): Promise<TraderPerformanceMetrics[]> {
     const trades = await this.tradeRepository
       .createQueryBuilder('trade')
-      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      })
       .getMany();
 
     // Get unique trader IDs
@@ -142,19 +149,23 @@ export class TraderPerformanceService {
 
     // Calculate performance for each trader
     const performances: TraderPerformanceMetrics[] = [];
-    
+
     for (const traderId of traderIds) {
       try {
-        const performance = await this.getTraderPerformance(traderId, dateFrom, dateTo);
+        const performance = await this.getTraderPerformance(
+          traderId,
+          dateFrom,
+          dateTo,
+        );
         performances.push(performance);
       } catch (error) {
-        this.logger.warn(`Failed to calculate performance for trader ${traderId}`);
+        this.logger.warn(
+          `Failed to calculate performance for trader ${traderId}`,
+        );
       }
     }
 
-    return performances
-      .sort((a, b) => b.totalPnl - a.totalPnl)
-      .slice(0, limit);
+    return performances.sort((a, b) => b.totalPnl - a.totalPnl).slice(0, limit);
   }
 
   /**
@@ -166,9 +177,9 @@ export class TraderPerformanceService {
     intervalDays: number = 30,
   ): Promise<UserRetentionPolicy[]> {
     const periods: UserRetentionPolicy[] = [];
-    
+
     const currentDate = new Date(dateFrom);
-    
+
     while (currentDate < dateTo) {
       const periodStart = new Date(currentDate);
       const periodEnd = new Date(currentDate);
@@ -210,7 +221,14 @@ export class TraderPerformanceService {
   async getGeographicBreakdown(
     dateFrom: Date,
     dateTo: Date,
-  ): Promise<Array<{ country: string; traderCount: number; totalVolume: number; avgPnl: number }>> {
+  ): Promise<
+    Array<{
+      country: string;
+      traderCount: number;
+      totalVolume: number;
+      avgPnl: number;
+    }>
+  > {
     // This would typically integrate with user profile data
     // For now, return placeholder data structure
     return [
@@ -243,7 +261,10 @@ export class TraderPerformanceService {
         '(trade.makerUserId = :traderId OR trade.takerUserId = :traderId)',
         { traderId },
       )
-      .andWhere('trade.createdAt BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .andWhere('trade.createdAt BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      })
       .getMany();
 
     const hourlyDist = new Array(24).fill(0);
@@ -265,7 +286,10 @@ export class TraderPerformanceService {
       avgTradesPerDay: dayCount > 0 ? trades.length / dayCount : 0,
       avgVolumePerDay:
         dayCount > 0
-          ? trades.reduce((sum, t) => sum + parseFloat(t.quantity) * parseFloat(t.price), 0) / dayCount
+          ? trades.reduce(
+              (sum, t) => sum + parseFloat(t.quantity) * parseFloat(t.price),
+              0,
+            ) / dayCount
           : 0,
       mostActiveHour: hourlyDist.indexOf(Math.max(...hourlyDist)),
       mostActiveDay: dailyDist.indexOf(Math.max(...dailyDist)),
@@ -274,7 +298,10 @@ export class TraderPerformanceService {
 
   // ─── Private helper methods ─────────────────────────────────────────────
 
-  private calculateTradeReturns(trades: Trade[], traderId: string): TradeReturn[] {
+  private calculateTradeReturns(
+    trades: Trade[],
+    traderId: string,
+  ): TradeReturn[] {
     const returns: TradeReturn[] = [];
     const priceMap = new Map<string, number[]>();
 
@@ -290,11 +317,11 @@ export class TraderPerformanceService {
     for (let i = 0; i < trades.length; i++) {
       const trade = trades[i];
       const volume = parseFloat(trade.quantity) * parseFloat(trade.price);
-      
+
       // Simplified PnL calculation
       // In production, this would compare entry/exit prices
       const pnl = (Math.random() - 0.45) * volume * 0.1; // Placeholder
-      
+
       const returnPercent = volume > 0 ? (pnl / volume) * 100 : 0;
 
       returns.push({
@@ -309,14 +336,19 @@ export class TraderPerformanceService {
     return returns;
   }
 
-  private calculateSharpeRatio(returns: TradeReturn[], riskFreeRate: number = 0.02): number {
+  private calculateSharpeRatio(
+    returns: TradeReturn[],
+    riskFreeRate: number = 0.02,
+  ): number {
     if (returns.length === 0) return 0;
 
-    const avgReturn = returns.reduce((sum, r) => sum + r.returnPercent, 0) / returns.length;
-    const variance = returns.reduce(
-      (sum, r) => sum + Math.pow(r.returnPercent - avgReturn, 2),
-      0,
-    ) / returns.length;
+    const avgReturn =
+      returns.reduce((sum, r) => sum + r.returnPercent, 0) / returns.length;
+    const variance =
+      returns.reduce(
+        (sum, r) => sum + Math.pow(r.returnPercent - avgReturn, 2),
+        0,
+      ) / returns.length;
     const stdDev = Math.sqrt(variance);
 
     if (stdDev === 0) return 0;
@@ -328,17 +360,23 @@ export class TraderPerformanceService {
     return (annualizedReturn - riskFreeRate) / annualizedStdDev;
   }
 
-  private calculateSortinoRatio(returns: TradeReturn[], riskFreeRate: number = 0.02): number {
+  private calculateSortinoRatio(
+    returns: TradeReturn[],
+    riskFreeRate: number = 0.02,
+  ): number {
     if (returns.length === 0) return 0;
 
-    const avgReturn = returns.reduce((sum, r) => sum + r.returnPercent, 0) / returns.length;
-    const negativeReturns = returns.filter(r => r.returnPercent < 0);
-    
+    const avgReturn =
+      returns.reduce((sum, r) => sum + r.returnPercent, 0) / returns.length;
+    const negativeReturns = returns.filter((r) => r.returnPercent < 0);
+
     if (negativeReturns.length === 0) return avgReturn > 0 ? Infinity : 0;
 
     const downsideVariance =
-      negativeReturns.reduce((sum, r) => sum + Math.pow(r.returnPercent, 2), 0) /
-      negativeReturns.length;
+      negativeReturns.reduce(
+        (sum, r) => sum + Math.pow(r.returnPercent, 2),
+        0,
+      ) / negativeReturns.length;
     const downsideDeviation = Math.sqrt(downsideVariance);
 
     if (downsideDeviation === 0) return 0;
@@ -370,7 +408,10 @@ export class TraderPerformanceService {
     return maxDrawdown;
   }
 
-  private calculateProfitFactor(wins: TradeReturn[], losses: TradeReturn[]): number {
+  private calculateProfitFactor(
+    wins: TradeReturn[],
+    losses: TradeReturn[],
+  ): number {
     const totalWins = wins.reduce((sum, w) => sum + w.pnl, 0);
     const totalLosses = Math.abs(losses.reduce((sum, l) => sum + l.pnl, 0));
 
@@ -378,7 +419,10 @@ export class TraderPerformanceService {
     return totalWins / totalLosses;
   }
 
-  private getEmptyMetrics(traderId: string, user: User | null): TraderPerformanceMetrics {
+  private getEmptyMetrics(
+    traderId: string,
+    user: User | null,
+  ): TraderPerformanceMetrics {
     return {
       traderId,
       traderEmail: user?.email ?? '',

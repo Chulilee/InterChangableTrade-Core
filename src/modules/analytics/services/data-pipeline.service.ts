@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, LessThan } from 'typeorm';
-import { AnalyticsMetric, MetricType, MetricAggregation } from '../entities/analytics-metric.entity';
+import {
+  AnalyticsMetric,
+  MetricType,
+  MetricAggregation,
+} from '../entities/analytics-metric.entity';
 import { MetricsCollectorService } from './metrics-collector.service';
 
 export enum PipelineStatus {
@@ -94,7 +98,7 @@ export class DataPipelineService {
     this.activeJobs.set(job.id, job);
 
     // Process asynchronously
-    this.processEtlJob(job, config).catch(error => {
+    this.processEtlJob(job, config).catch((error) => {
       job.status = PipelineStatus.FAILED;
       job.errorMessage = error.message;
       this.logger.error(`ETL job ${job.id} failed`, error);
@@ -123,7 +127,7 @@ export class DataPipelineService {
     this.activeJobs.set(job.id, job);
 
     // Process asynchronously
-    this.processBackfillJob(job, config).catch(error => {
+    this.processBackfillJob(job, config).catch((error) => {
       job.status = PipelineStatus.FAILED;
       job.errorMessage = error.message;
       this.logger.error(`Backfill job ${job.id} failed`, error);
@@ -156,11 +160,13 @@ export class DataPipelineService {
     this.activeJobs.set(job.id, job);
 
     // Process asynchronously
-    this.processAggregationJob(job, metricTypes, dateFrom, dateTo).catch(error => {
-      job.status = PipelineStatus.FAILED;
-      job.errorMessage = error.message;
-      this.logger.error(`Aggregation job ${job.id} failed`, error);
-    });
+    this.processAggregationJob(job, metricTypes, dateFrom, dateTo).catch(
+      (error) => {
+        job.status = PipelineStatus.FAILED;
+        job.errorMessage = error.message;
+        this.logger.error(`Aggregation job ${job.id} failed`, error);
+      },
+    );
 
     return job;
   }
@@ -185,7 +191,7 @@ export class DataPipelineService {
     this.activeJobs.set(job.id, job);
 
     // Process asynchronously
-    this.processCleanupJob(job, retentionDays).catch(error => {
+    this.processCleanupJob(job, retentionDays).catch((error) => {
       job.status = PipelineStatus.FAILED;
       job.errorMessage = error.message;
       this.logger.error(`Cleanup job ${job.id} failed`, error);
@@ -264,7 +270,10 @@ export class DataPipelineService {
       where: { timestamp: Between(dateFrom, dateTo) },
     });
 
-    const invalidRecords = issues.reduce((sum, issue) => sum + issue.affectedRecords, 0);
+    const invalidRecords = issues.reduce(
+      (sum, issue) => sum + issue.affectedRecords,
+      0,
+    );
     const validRecords = totalRecords - invalidRecords;
 
     return {
@@ -272,7 +281,8 @@ export class DataPipelineService {
       totalRecords,
       validRecords,
       invalidRecords,
-      completeness: totalRecords > 0 ? (validRecords / totalRecords) * 100 : 100,
+      completeness:
+        totalRecords > 0 ? (validRecords / totalRecords) * 100 : 100,
       accuracy: totalRecords > 0 ? (validRecords / totalRecords) * 100 : 100,
       consistency: 100, // Would need cross-table checks
       issues,
@@ -281,47 +291,56 @@ export class DataPipelineService {
 
   // ─── Private helper methods ─────────────────────────────────────────────
 
-  private async processEtlJob(job: PipelineJob, config: EtlConfig): Promise<void> {
+  private async processEtlJob(
+    job: PipelineJob,
+    config: EtlConfig,
+  ): Promise<void> {
     this.logger.log(`Processing ETL job ${job.id}`);
 
     try {
       // Simulate ETL processing
       const totalBatches = 10;
-      
+
       for (let i = 0; i < totalBatches; i++) {
         if (job.status === PipelineStatus.PAUSED) {
           await this.waitForResume(job.id);
         }
 
         // Process batch
-        await new Promise(resolve => setTimeout(resolve, 100));
-        
+        await new Promise((resolve) => setTimeout(resolve, 100));
+
         job.processedRecords += config.batchSize;
         job.progress = ((i + 1) / totalBatches) * 100;
-        
-        this.logger.debug(`ETL job ${job.id}: ${job.progress.toFixed(1)}% complete`);
+
+        this.logger.debug(
+          `ETL job ${job.id}: ${job.progress.toFixed(1)}% complete`,
+        );
       }
 
       job.status = PipelineStatus.COMPLETED;
       job.completedAt = new Date();
       job.progress = 100;
-      
+
       this.logger.log(`ETL job ${job.id} completed`);
     } catch (error) {
       job.status = PipelineStatus.FAILED;
-      job.errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      job.errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       throw error;
     }
   }
 
-  private async processBackfillJob(job: PipelineJob, config: BackfillConfig): Promise<void> {
+  private async processBackfillJob(
+    job: PipelineJob,
+    config: BackfillConfig,
+  ): Promise<void> {
     this.logger.log(`Processing backfill job ${job.id}`);
 
     try {
       const dateRange = config.dateTo.getTime() - config.dateFrom.getTime();
       const dayMs = 24 * 60 * 60 * 1000;
       const totalDays = Math.ceil(dateRange / dayMs);
-      
+
       job.totalRecords = totalDays * config.metricTypes.length;
 
       for (let i = 0; i < totalDays; i++) {
@@ -348,7 +367,9 @@ export class DataPipelineService {
             job.processedRecords++;
           } catch (error) {
             job.failedRecords++;
-            this.logger.warn(`Failed to backfill ${metricType} for ${currentDate}`);
+            this.logger.warn(
+              `Failed to backfill ${metricType} for ${currentDate}`,
+            );
           }
         }
 
@@ -358,11 +379,12 @@ export class DataPipelineService {
       job.status = PipelineStatus.COMPLETED;
       job.completedAt = new Date();
       job.progress = 100;
-      
+
       this.logger.log(`Backfill job ${job.id} completed`);
     } catch (error) {
       job.status = PipelineStatus.FAILED;
-      job.errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      job.errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       throw error;
     }
   }
@@ -397,11 +419,14 @@ export class DataPipelineService {
 
       for (const aggregation of aggregations) {
         // Group and aggregate
-        const grouped = this.groupMetricsForAggregation(rawMetrics, aggregation);
-        
+        const grouped = this.groupMetricsForAggregation(
+          rawMetrics,
+          aggregation,
+        );
+
         for (const [key, metrics] of grouped) {
           const aggregatedValue = this.aggregateMetricValues(metrics);
-          
+
           await this.analyticsMetricRepository.save({
             metricType: metrics[0].metricType,
             aggregation,
@@ -409,7 +434,7 @@ export class DataPipelineService {
             value: aggregatedValue.toString(),
             assetCode: metrics[0].assetCode,
           });
-          
+
           job.processedRecords++;
         }
       }
@@ -417,16 +442,20 @@ export class DataPipelineService {
       job.status = PipelineStatus.COMPLETED;
       job.completedAt = new Date();
       job.progress = 100;
-      
+
       this.logger.log(`Aggregation job ${job.id} completed`);
     } catch (error) {
       job.status = PipelineStatus.FAILED;
-      job.errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      job.errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       throw error;
     }
   }
 
-  private async processCleanupJob(job: PipelineJob, retentionDays: number): Promise<void> {
+  private async processCleanupJob(
+    job: PipelineJob,
+    retentionDays: number,
+  ): Promise<void> {
     this.logger.log(`Processing cleanup job ${job.id}`);
 
     try {
@@ -444,17 +473,20 @@ export class DataPipelineService {
       job.status = PipelineStatus.COMPLETED;
       job.completedAt = new Date();
       job.progress = 100;
-      
-      this.logger.log(`Cleanup job ${job.id} completed: ${result.affected} records removed`);
+
+      this.logger.log(
+        `Cleanup job ${job.id} completed: ${result.affected} records removed`,
+      );
     } catch (error) {
       job.status = PipelineStatus.FAILED;
-      job.errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      job.errorMessage =
+        error instanceof Error ? error.message : 'Unknown error';
       throw error;
     }
   }
 
   private async waitForResume(jobId: string): Promise<void> {
-    return new Promise(resolve => {
+    return new Promise((resolve) => {
       const checkInterval = setInterval(() => {
         const job = this.activeJobs.get(jobId);
         if (job && job.status !== PipelineStatus.PAUSED) {
@@ -482,9 +514,12 @@ export class DataPipelineService {
     return grouped;
   }
 
-  private getAggregationKey(date: Date, aggregation: MetricAggregation): string {
+  private getAggregationKey(
+    date: Date,
+    aggregation: MetricAggregation,
+  ): string {
     const d = new Date(date);
-    
+
     switch (aggregation) {
       case MetricAggregation.HOUR:
         d.setMinutes(0, 0, 0);
@@ -503,7 +538,7 @@ export class DataPipelineService {
         d.setHours(0, 0, 0, 0);
         break;
     }
-    
+
     return d.toISOString();
   }
 
@@ -530,7 +565,7 @@ export class DataPipelineService {
     );
 
     const actualDays = new Set(
-      dailyMetrics.map(m => m.timestamp.toISOString().split('T')[0]),
+      dailyMetrics.map((m) => m.timestamp.toISOString().split('T')[0]),
     ).size;
 
     const missingDays = expectedDays - actualDays;
@@ -556,16 +591,29 @@ export class DataPipelineService {
         'metric.assetCode',
         'COUNT(*) as count',
       ])
-      .where('metric.timestamp BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
-      .groupBy('metric.metricType, metric.aggregation, metric.timestamp, metric.assetCode')
+      .where('metric.timestamp BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      })
+      .groupBy(
+        'metric.metricType, metric.aggregation, metric.timestamp, metric.assetCode',
+      )
       .having('COUNT(*) > 1')
       .getRawMany();
 
     return {
       type: 'duplicate',
-      severity: duplicates.length > 10 ? 'high' : duplicates.length > 0 ? 'medium' : 'low',
+      severity:
+        duplicates.length > 10
+          ? 'high'
+          : duplicates.length > 0
+            ? 'medium'
+            : 'low',
       description: `Found ${duplicates.length} duplicate metric entries`,
-      affectedRecords: duplicates.reduce((sum, d) => sum + parseInt(d.count) - 1, 0),
+      affectedRecords: duplicates.reduce(
+        (sum, d) => sum + parseInt(d.count) - 1,
+        0,
+      ),
     };
   }
 
@@ -575,13 +623,19 @@ export class DataPipelineService {
   ): Promise<DataQualityIssue> {
     const invalidCount = await this.analyticsMetricRepository
       .createQueryBuilder('metric')
-      .where('metric.timestamp BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
-      .andWhere("(metric.value IS NULL OR metric.value = '' OR CAST(metric.value AS NUMERIC) IS NULL)")
+      .where('metric.timestamp BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      })
+      .andWhere(
+        "(metric.value IS NULL OR metric.value = '' OR CAST(metric.value AS NUMERIC) IS NULL)",
+      )
       .getCount();
 
     return {
       type: 'invalid',
-      severity: invalidCount > 100 ? 'high' : invalidCount > 0 ? 'medium' : 'low',
+      severity:
+        invalidCount > 100 ? 'high' : invalidCount > 0 ? 'medium' : 'low',
       description: `Found ${invalidCount} records with invalid values`,
       affectedRecords: invalidCount,
     };

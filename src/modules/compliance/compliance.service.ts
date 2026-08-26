@@ -54,9 +54,7 @@ const RISK_WEIGHTS = {
 const HIGH_RISK_REGIONS = new Set(['KP', 'IR', 'SY']);
 
 /** Medium-risk country codes (simplified) */
-const MEDIUM_RISK_REGIONS = new Set([
-  'RU', 'CN', 'NG', 'PK', 'BD', 'MM', 'IR',
-]);
+const MEDIUM_RISK_REGIONS = new Set(['RU', 'CN', 'NG', 'PK', 'BD', 'MM', 'IR']);
 
 /** Suspicious activity patterns */
 export const SUSPICIOUS_PATTERNS = {
@@ -275,7 +273,9 @@ export class ComplianceService {
       newLevel: level,
     });
 
-    this.logger.log(`KYC level updated for user ${userId}: ${previousState.level} → ${level}`);
+    this.logger.log(
+      `KYC level updated for user ${userId}: ${previousState.level} → ${level}`,
+    );
     return saved;
   }
 
@@ -324,7 +324,11 @@ export class ComplianceService {
 
     // Simulate encryption - in production, use AWS KMS or similar
     const encryptionKeyId = `kms-key-${Date.now()}`;
-    const storagePath = this.generateStoragePath(userId, documentType, file.originalname);
+    const storagePath = this.generateStoragePath(
+      userId,
+      documentType,
+      file.originalname,
+    );
 
     const document = this.documentRepo.create({
       userId,
@@ -364,7 +368,9 @@ export class ComplianceService {
       documentType,
     });
 
-    this.logger.log(`Document uploaded for user ${userId}: ${documentType} (${file.originalname})`);
+    this.logger.log(
+      `Document uploaded for user ${userId}: ${documentType} (${file.originalname})`,
+    );
     return saved;
   }
 
@@ -426,7 +432,9 @@ export class ComplianceService {
       newState: { status },
     });
 
-    this.logger.log(`Document ${documentId} reviewed as ${status} by ${reviewerId}`);
+    this.logger.log(
+      `Document ${documentId} reviewed as ${status} by ${reviewerId}`,
+    );
     return saved;
   }
 
@@ -437,7 +445,11 @@ export class ComplianceService {
   async retrieveDocument(
     documentId: string,
     userId: string,
-  ): Promise<{ storagePath: string; encryptionKeyId: string; fileName: string }> {
+  ): Promise<{
+    storagePath: string;
+    encryptionKeyId: string;
+    fileName: string;
+  }> {
     const doc = await this.getDocument(documentId);
     if (doc.userId !== userId) {
       throw new NotFoundException(`Document ${documentId} not found for user`);
@@ -511,16 +523,26 @@ export class ComplianceService {
     const highFlags = recentFlags.filter(
       (f) => f.riskLevel === AmlRiskLevel.HIGH,
     );
-    const flagScore =
-      Math.min(criticalFlags.length * 40 + highFlags.length * 20 + recentFlags.length * 5, 100);
-    factors.previousFlags =
-      flagScore * (RISK_WEIGHTS.previousFlags / 100);
+    const flagScore = Math.min(
+      criticalFlags.length * 40 +
+        highFlags.length * 20 +
+        recentFlags.length * 5,
+      100,
+    );
+    factors.previousFlags = flagScore * (RISK_WEIGHTS.previousFlags / 100);
 
     // Factor 4: Account age (newer accounts are riskier)
     const accountAgeDays = verification?.createdAt
       ? (Date.now() - verification.createdAt.getTime()) / (24 * 60 * 60 * 1000)
       : 0;
-    const ageScore = accountAgeDays < 30 ? 90 : accountAgeDays < 90 ? 60 : accountAgeDays < 365 ? 30 : 10;
+    const ageScore =
+      accountAgeDays < 30
+        ? 90
+        : accountAgeDays < 90
+          ? 60
+          : accountAgeDays < 365
+            ? 30
+            : 10;
     factors.accountAge = ageScore * (RISK_WEIGHTS.accountAge / 100);
 
     // Factor 5: Region risk
@@ -540,8 +562,8 @@ export class ComplianceService {
     // Calculate weighted total
     const totalScore = Math.min(
       Math.round(
-        Object.values(factors).reduce((sum, val) => sum + val, 0) /
-          (Object.keys(RISK_WEIGHTS).length / 100) *
+        (Object.values(factors).reduce((sum, val) => sum + val, 0) /
+          (Object.keys(RISK_WEIGHTS).length / 100)) *
           (100 / Object.keys(factors).length),
       ),
       100,
@@ -610,7 +632,9 @@ export class ComplianceService {
     flag?: AmlFlag;
   }> {
     const verification = await this.kycRepo.findOne({ where: { userId } });
-    const config = await this.getConfigForRegion(verification?.region ?? 'global');
+    const config = await this.getConfigForRegion(
+      verification?.region ?? 'global',
+    );
 
     const triggeredRules: string[] = [];
     let riskScore = 0;
@@ -641,10 +665,7 @@ export class ComplianceService {
           Date.now() - txnTime < SUSPICIOUS_PATTERNS.rapidMovement.windowMs
         );
       });
-      const totalInWindow = recentWindow.reduce(
-        (sum, t) => sum + t.amount,
-        0,
-      );
+      const totalInWindow = recentWindow.reduce((sum, t) => sum + t.amount, 0);
       if (totalInWindow > parseFloat(config.dailyVolumeThreshold)) {
         triggeredRules.push('rapid_movement');
         riskScore += 25;
@@ -793,7 +814,10 @@ export class ComplianceService {
   ): Promise<AmlFlag> {
     const flag = await this.getFlag(flagId);
 
-    if (flag.status !== AmlFlagStatus.PENDING && flag.status !== AmlFlagStatus.REVIEWING) {
+    if (
+      flag.status !== AmlFlagStatus.PENDING &&
+      flag.status !== AmlFlagStatus.REVIEWING
+    ) {
       throw new ConflictException(
         `AML flag ${flagId} is already in ${flag.status} status and cannot be reviewed`,
       );
@@ -922,17 +946,23 @@ export class ComplianceService {
     let savedEntity: ComplianceConfig;
     if (existing) {
       Object.assign(existing, dto);
-      savedEntity = await this.configRepo.save(existing) as unknown as ComplianceConfig;
+      savedEntity = (await this.configRepo.save(
+        existing,
+      )) as unknown as ComplianceConfig;
     } else {
       const newConfig = this.configRepo.create(dto as any);
-      savedEntity = await this.configRepo.save(newConfig) as unknown as ComplianceConfig;
+      savedEntity = (await this.configRepo.save(
+        newConfig,
+      )) as unknown as ComplianceConfig;
     }
 
     await this.appendAudit({
       performedBy,
       performedByRole,
       targetUserId: 'system',
-      action: previousState ? 'compliance.config_update' : 'compliance.config_create',
+      action: previousState
+        ? 'compliance.config_update'
+        : 'compliance.config_create',
       description: `Compliance config ${previousState ? 'updated' : 'created'} for region ${region}`,
       entityType: 'compliance_config',
       entityId: savedEntity.id,

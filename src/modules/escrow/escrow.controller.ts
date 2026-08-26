@@ -63,7 +63,9 @@ export class EscrowController {
   // ─── List ────────────────────────────────────────────────────────────────
 
   @Get('accounts')
-  @ApiOperation({ summary: 'List escrow accounts with filtering and pagination' })
+  @ApiOperation({
+    summary: 'List escrow accounts with filtering and pagination',
+  })
   async findAll(
     @CurrentUser() user: AuthenticatedUser,
     @Query() query: QueryEscrowDto,
@@ -74,7 +76,9 @@ export class EscrowController {
   // ─── Get Detail ──────────────────────────────────────────────────────────
 
   @Get('accounts/:id')
-  @ApiOperation({ summary: 'Get escrow account details with signatories and milestones' })
+  @ApiOperation({
+    summary: 'Get escrow account details with signatories and milestones',
+  })
   async findOne(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -85,8 +89,13 @@ export class EscrowController {
   // ─── Fund ────────────────────────────────────────────────────────────────
 
   @Post('accounts/:id/fund')
-  @ApiOperation({ summary: 'Mark an escrow as funded with a Stellar transaction hash' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Escrow funded successfully' })
+  @ApiOperation({
+    summary: 'Mark an escrow as funded with a Stellar transaction hash',
+  })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Escrow funded successfully',
+  })
   async fundEscrow(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -161,7 +170,11 @@ export class EscrowController {
     description:
       'Refunds are only allowed on escrows that have not been partially released.',
   })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Escrow refunded', type: EscrowAccount })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Escrow refunded',
+    type: EscrowAccount,
+  })
   async refundEscrow(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -250,7 +263,9 @@ export class EscrowController {
   @Post('accounts/:id/resolve-dispute')
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.ARBITRATOR)
-  @ApiOperation({ summary: 'Resolve a dispute on an escrow account (admin/arbitrator only)' })
+  @ApiOperation({
+    summary: 'Resolve a dispute on an escrow account (admin/arbitrator only)',
+  })
   async resolveDispute(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
@@ -262,7 +277,9 @@ export class EscrowController {
   // ─── Timeline ────────────────────────────────────────────────────────────
 
   @Get('accounts/:id/timeline')
-  @ApiOperation({ summary: 'Get the audit trail timeline for an escrow account' })
+  @ApiOperation({
+    summary: 'Get the audit trail timeline for an escrow account',
+  })
   async getTimeline(@Param('id', ParseUUIDPipe) id: string) {
     return this.escrowService.getTimeline(id);
   }

@@ -59,10 +59,7 @@ export class AuthService {
   // Registration & Email/Password Login
   // --------------------------------------------------------------------------
 
-  async register(
-    dto: RegisterDto,
-    ctx: RequestContext,
-  ): Promise<AuthResult> {
+  async register(dto: RegisterDto, ctx: RequestContext): Promise<AuthResult> {
     const user = await this.usersService.create(dto);
 
     await this.auditService.recordSuccess(AuthEventType.REGISTER, {
@@ -141,11 +138,14 @@ export class AuthService {
     publicKey: string,
     ctx: RequestContext,
   ): Promise<{ nonce: string; expiresAt: Date }> {
-    await this.auditService.recordSuccess(AuthEventType.STELLAR_AUTH_CHALLENGE, {
-      ipAddress: ctx.ipAddress,
-      userAgent: ctx.userAgent,
-      metadata: { publicKey },
-    });
+    await this.auditService.recordSuccess(
+      AuthEventType.STELLAR_AUTH_CHALLENGE,
+      {
+        ipAddress: ctx.ipAddress,
+        userAgent: ctx.userAgent,
+        metadata: { publicKey },
+      },
+    );
 
     return this.stellarAuth.createChallenge(publicKey);
   }
@@ -274,7 +274,10 @@ export class AuthService {
   // Password Reset Flow
   // --------------------------------------------------------------------------
 
-  async requestPasswordReset(email: string, ctx: RequestContext): Promise<void> {
+  async requestPasswordReset(
+    email: string,
+    ctx: RequestContext,
+  ): Promise<void> {
     const user = await this.usersService.findByEmail(email);
     if (!user) {
       // For security, always return success even if the email doesn't exist.
@@ -282,7 +285,10 @@ export class AuthService {
     }
 
     // Revoke any existing tokens for this user.
-    await this.resetTokenRepo.update({ userId: user.id, isUsed: false }, { isUsed: true });
+    await this.resetTokenRepo.update(
+      { userId: user.id, isUsed: false },
+      { isUsed: true },
+    );
 
     const rawToken = randomBytes(32).toString('hex');
     const tokenHash = await bcrypt.hash(rawToken, BCRYPT_ROUNDS);
@@ -364,7 +370,11 @@ export class AuthService {
     user: User,
     ctx: RequestContext,
   ): Promise<AuthResult> {
-    const payload: JwtPayload = { sub: user.id, email: user.email, role: user.role };
+    const payload: JwtPayload = {
+      sub: user.id,
+      email: user.email,
+      role: user.role,
+    };
     const accessToken = this.jwtService.sign(payload);
 
     const rawRefreshToken = randomBytes(REFRESH_TOKEN_BYTES).toString('hex');

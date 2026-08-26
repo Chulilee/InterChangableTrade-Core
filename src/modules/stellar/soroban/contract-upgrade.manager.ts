@@ -1,5 +1,8 @@
 import { Injectable, Logger } from '@nestjs/common';
-import { ContractRegistryService, ContractMetadata } from './contract-registry.service';
+import {
+  ContractRegistryService,
+  ContractMetadata,
+} from './contract-registry.service';
 import { ContractDeploymentService } from './contract-deployment.service';
 import { ContractStateService } from './contract-state.service';
 import { ContractAbiService } from './contract-abi.service';
@@ -86,7 +89,10 @@ export class ContractUpgradeManager {
     // Register the new contract temporarily to check compatibility
     let newAbi;
     try {
-      newAbi = this.abiService.registerFromXdr(newContractMetadata.contractId, newSpecXdr);
+      newAbi = this.abiService.registerFromXdr(
+        newContractMetadata.contractId,
+        newSpecXdr,
+      );
       preflightChecks.abiCompatible = true;
     } catch (error) {
       warnings.push(`ABI registration failed: ${(error as Error).message}`);
@@ -106,7 +112,7 @@ export class ContractUpgradeManager {
     }
 
     // Determine if upgrade can proceed
-    const canUpgrade = Object.values(preflightChecks).every(v => v);
+    const canUpgrade = Object.values(preflightChecks).every((v) => v);
 
     this.logger.log(
       `Upgrade plan created for ${currentContractId} -> ${newContractMetadata.contractId}, canUpgrade: ${canUpgrade}`,
@@ -128,7 +134,9 @@ export class ContractUpgradeManager {
    */
   async executeUpgrade(plan: UpgradePlan): Promise<UpgradeResult> {
     if (!plan.canUpgrade) {
-      throw new Error(`Cannot execute upgrade plan, preflight checks failed: ${plan.warnings.join(', ')}`);
+      throw new Error(
+        `Cannot execute upgrade plan, preflight checks failed: ${plan.warnings.join(', ')}`,
+      );
     }
 
     const errors: string[] = [];
@@ -143,7 +151,10 @@ export class ContractUpgradeManager {
 
       // Step 2: Migrate state from old to new contract
       migrationsExecuted.push('migrate-state');
-      await this.migrateContractState(plan.currentContractId, plan.newContractId);
+      await this.migrateContractState(
+        plan.currentContractId,
+        plan.newContractId,
+      );
       this.logger.log('State migration completed');
 
       // Step 3: Update registry to set new contract as active
@@ -154,8 +165,9 @@ export class ContractUpgradeManager {
       const oldMetadata = this.registry.getMetadata(plan.currentContractId);
       const updatedOldMetadata = { ...oldMetadata, isActive: false };
       // This would typically persist to the registry, for now just log
-      this.logger.log(`Marked ${plan.currentContractId} as inactive, ${plan.newContractId} is now active`);
-
+      this.logger.log(
+        `Marked ${plan.currentContractId} as inactive, ${plan.newContractId} is now active`,
+      );
     } catch (error) {
       errors.push((error as Error).message);
       this.logger.error(`Upgrade failed: ${(error as Error).message}`);
@@ -235,11 +247,13 @@ export class ContractUpgradeManager {
   ): Promise<void> {
     // Get all storage entries from the old contract
     const allState = await this.stateService.exportContractState(oldContractId);
-    
+
     // Import them into the new contract
     await this.stateService.importContractState(newContractId, allState);
-    
-    this.logger.log(`Migrated ${Object.keys(allState).length} storage entries from ${oldContractId} to ${newContractId}`);
+
+    this.logger.log(
+      `Migrated ${Object.keys(allState).length} storage entries from ${oldContractId} to ${newContractId}`,
+    );
   }
 
   /**
@@ -251,6 +265,8 @@ export class ContractUpgradeManager {
   ): Promise<void> {
     // Reactivate the old contract
     this.registry.setActive(previousContractId);
-    this.logger.log(`Rolled back to previous contract ${previousContractId}, deactivated ${newContractId}`);
+    this.logger.log(
+      `Rolled back to previous contract ${previousContractId}, deactivated ${newContractId}`,
+    );
   }
 }

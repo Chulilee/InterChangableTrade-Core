@@ -5,7 +5,12 @@ import {
 } from '@nestjs/common';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { Repository } from 'typeorm';
-import { ComplianceService, ALLOWED_MIME_TYPES, MAX_FILE_SIZE_BYTES, SUSPICIOUS_PATTERNS } from './compliance.service';
+import {
+  ComplianceService,
+  ALLOWED_MIME_TYPES,
+  MAX_FILE_SIZE_BYTES,
+  SUSPICIOUS_PATTERNS,
+} from './compliance.service';
 import { KycVerification } from './entities/kyc-verification.entity';
 import { KycDocument } from './entities/kyc-document.entity';
 import { AmlFlag } from './entities/aml-flag.entity';
@@ -360,7 +365,13 @@ describe('ComplianceService', () => {
     it('throws NotFoundException for missing verification', async () => {
       kycRepo.findOne.mockResolvedValue(null);
       await expect(
-        service.updateKycLevel(userId, KycLevel.STANDARD, {}, adminId, adminRole),
+        service.updateKycLevel(
+          userId,
+          KycLevel.STANDARD,
+          {},
+          adminId,
+          adminRole,
+        ),
       ).rejects.toThrow(NotFoundException);
     });
   });
@@ -413,7 +424,11 @@ describe('ComplianceService', () => {
       const invalidFile = { ...mockFile, mimetype: 'application/x-executable' };
 
       await expect(
-        service.uploadDocument(userId, invalidFile, KycDocumentType.ID_VERIFICATION),
+        service.uploadDocument(
+          userId,
+          invalidFile,
+          KycDocumentType.ID_VERIFICATION,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -422,7 +437,11 @@ describe('ComplianceService', () => {
       const largeFile = { ...mockFile, size: MAX_FILE_SIZE_BYTES + 1 };
 
       await expect(
-        service.uploadDocument(userId, largeFile, KycDocumentType.ID_VERIFICATION),
+        service.uploadDocument(
+          userId,
+          largeFile,
+          KycDocumentType.ID_VERIFICATION,
+        ),
       ).rejects.toThrow(BadRequestException);
     });
 
@@ -474,7 +493,12 @@ describe('ComplianceService', () => {
       });
       documentRepo.save.mockImplementation((v) => Promise.resolve(v));
       documentRepo.find.mockResolvedValue([
-        { id: 'doc-1', userId, status: KycDocumentStatus.VERIFIED, documentType: KycDocumentType.ID_VERIFICATION },
+        {
+          id: 'doc-1',
+          userId,
+          status: KycDocumentStatus.VERIFIED,
+          documentType: KycDocumentType.ID_VERIFICATION,
+        },
       ]);
       kycRepo.findOne.mockResolvedValue({ ...mockVerification });
 
@@ -535,9 +559,9 @@ describe('ComplianceService', () => {
         userId: 'other-user',
       });
 
-      await expect(
-        service.retrieveDocument('doc-1', userId),
-      ).rejects.toThrow(NotFoundException);
+      await expect(service.retrieveDocument('doc-1', userId)).rejects.toThrow(
+        NotFoundException,
+      );
     });
   });
 
@@ -553,9 +577,18 @@ describe('ComplianceService', () => {
       });
       flagRepo.find.mockResolvedValue([]);
       documentRepo.find.mockResolvedValue([
-        { status: KycDocumentStatus.VERIFIED, documentType: KycDocumentType.ID_VERIFICATION },
-        { status: KycDocumentStatus.VERIFIED, documentType: KycDocumentType.ADDRESS_PROOF },
-        { status: KycDocumentStatus.VERIFIED, documentType: KycDocumentType.BENEFICIAL_OWNERSHIP },
+        {
+          status: KycDocumentStatus.VERIFIED,
+          documentType: KycDocumentType.ID_VERIFICATION,
+        },
+        {
+          status: KycDocumentStatus.VERIFIED,
+          documentType: KycDocumentType.ADDRESS_PROOF,
+        },
+        {
+          status: KycDocumentStatus.VERIFIED,
+          documentType: KycDocumentType.BENEFICIAL_OWNERSHIP,
+        },
       ]);
 
       const result = await service.calculateRiskScore(userId);
@@ -618,7 +651,9 @@ describe('ComplianceService', () => {
       });
 
       const resultOld = await service.calculateRiskScore(userId);
-      expect(resultOld.factors.accountAge).toBeLessThan(resultNew.factors.accountAge);
+      expect(resultOld.factors.accountAge).toBeLessThan(
+        resultNew.factors.accountAge,
+      );
     });
 
     it('accounts for medium-risk regions', async () => {
@@ -680,7 +715,9 @@ describe('ComplianceService', () => {
       });
       configRepo.findOne.mockResolvedValue(mockConfig);
       flagRepo.create.mockImplementation((v) => v);
-      flagRepo.save.mockImplementation((v) => Promise.resolve({ id: 'flag-1', ...v }));
+      flagRepo.save.mockImplementation((v) =>
+        Promise.resolve({ id: 'flag-1', ...v }),
+      );
     });
 
     it('returns LOW risk for small transaction', async () => {
@@ -920,15 +957,10 @@ describe('ComplianceService', () => {
       });
       flagRepo.save.mockImplementation((v) => Promise.resolve(v));
 
-      const result = await service.reviewFlag(
-        'flag-1',
-        adminId,
-        adminRole,
-        {
-          status: AmlFlagStatus.CLEARED,
-          resolutionNotes: 'Transaction is legitimate',
-        },
-      );
+      const result = await service.reviewFlag('flag-1', adminId, adminRole, {
+        status: AmlFlagStatus.CLEARED,
+        resolutionNotes: 'Transaction is legitimate',
+      });
 
       expect(result.status).toBe(AmlFlagStatus.CLEARED);
       expect(result.resolutionNotes).toBe('Transaction is legitimate');
@@ -943,17 +975,12 @@ describe('ComplianceService', () => {
       });
       flagRepo.save.mockImplementation((v) => Promise.resolve(v));
 
-      const result = await service.reviewFlag(
-        'flag-1',
-        adminId,
-        adminRole,
-        {
-          status: AmlFlagStatus.CONFIRMED,
-          resolutionNotes: 'Confirmed suspicious activity',
-          sarFiled: true,
-          sarReference: 'SAR-2025-001',
-        },
-      );
+      const result = await service.reviewFlag('flag-1', adminId, adminRole, {
+        status: AmlFlagStatus.CONFIRMED,
+        resolutionNotes: 'Confirmed suspicious activity',
+        sarFiled: true,
+        sarReference: 'SAR-2025-001',
+      });
 
       expect(result.status).toBe(AmlFlagStatus.CONFIRMED);
       expect(result.sarFiled).toBe(true);
@@ -968,16 +995,11 @@ describe('ComplianceService', () => {
       });
       flagRepo.save.mockImplementation((v) => Promise.resolve(v));
 
-      const result = await service.reviewFlag(
-        'flag-1',
-        adminId,
-        adminRole,
-        {
-          status: AmlFlagStatus.CONFIRMED,
-          resolutionNotes: 'Confirmed',
-          evidence: JSON.stringify({ key: 'value' }),
-        },
-      );
+      const result = await service.reviewFlag('flag-1', adminId, adminRole, {
+        status: AmlFlagStatus.CONFIRMED,
+        resolutionNotes: 'Confirmed',
+        evidence: JSON.stringify({ key: 'value' }),
+      });
 
       expect(result.evidence).toEqual({ key: 'value' });
     });
@@ -990,16 +1012,11 @@ describe('ComplianceService', () => {
       });
       flagRepo.save.mockImplementation((v) => Promise.resolve(v));
 
-      const result = await service.reviewFlag(
-        'flag-1',
-        adminId,
-        adminRole,
-        {
-          status: AmlFlagStatus.CONFIRMED,
-          resolutionNotes: 'Confirmed',
-          evidence: 'plain text evidence',
-        },
-      );
+      const result = await service.reviewFlag('flag-1', adminId, adminRole, {
+        status: AmlFlagStatus.CONFIRMED,
+        resolutionNotes: 'Confirmed',
+        evidence: 'plain text evidence',
+      });
 
       expect(result.evidence).toEqual({ rawEvidence: 'plain text evidence' });
     });
@@ -1027,15 +1044,10 @@ describe('ComplianceService', () => {
       });
       flagRepo.save.mockImplementation((v) => Promise.resolve(v));
 
-      const result = await service.reviewFlag(
-        'flag-1',
-        adminId,
-        adminRole,
-        {
-          status: AmlFlagStatus.CLEARED,
-          resolutionNotes: 'Completed review',
-        },
-      );
+      const result = await service.reviewFlag('flag-1', adminId, adminRole, {
+        status: AmlFlagStatus.CLEARED,
+        resolutionNotes: 'Completed review',
+      });
 
       expect(result.status).toBe(AmlFlagStatus.CLEARED);
     });
@@ -1064,7 +1076,10 @@ describe('ComplianceService', () => {
 
   describe('getConfigForRegion', () => {
     it('returns existing config for region', async () => {
-      configRepo.findOne.mockResolvedValue({ ...mockConfig, region: ComplianceRegion.US });
+      configRepo.findOne.mockResolvedValue({
+        ...mockConfig,
+        region: ComplianceRegion.US,
+      });
 
       const result = await service.getConfigForRegion('us');
       expect(result.region).toBe(ComplianceRegion.US);
@@ -1228,7 +1243,10 @@ describe('ComplianceService', () => {
         ...mockVerification,
         riskScore: 85,
       });
-      configRepo.findOne.mockResolvedValue({ ...mockConfig, blockThresholdScore: 80 });
+      configRepo.findOne.mockResolvedValue({
+        ...mockConfig,
+        blockThresholdScore: 80,
+      });
 
       const result = await service.shouldBlockTransactions(userId);
       expect(result).toBe(true);
@@ -1239,7 +1257,10 @@ describe('ComplianceService', () => {
         ...mockVerification,
         riskScore: 30,
       });
-      configRepo.findOne.mockResolvedValue({ ...mockConfig, blockThresholdScore: 80 });
+      configRepo.findOne.mockResolvedValue({
+        ...mockConfig,
+        blockThresholdScore: 80,
+      });
 
       const result = await service.shouldBlockTransactions(userId);
       expect(result).toBe(false);

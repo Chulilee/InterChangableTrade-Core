@@ -36,7 +36,11 @@ describe('Notifications (e2e)', () => {
           username: process.env.DB_USERNAME ?? 'postgres',
           password: process.env.DB_PASSWORD ?? 'postgres',
           database: process.env.DB_NAME ?? 'interchangabletrade_test',
-          entities: [Notification, NotificationPreference, NotificationTemplate],
+          entities: [
+            Notification,
+            NotificationPreference,
+            NotificationTemplate,
+          ],
           synchronize: true,
           dropSchema: false,
         }),
@@ -70,7 +74,10 @@ describe('Notifications (e2e)', () => {
         .send({
           channel: Channel.EMAIL,
           isEnabled: true,
-          subscribedTypes: [NotificationType.ORDER_UPDATE, NotificationType.PRICE_ALERT],
+          subscribedTypes: [
+            NotificationType.ORDER_UPDATE,
+            NotificationType.PRICE_ALERT,
+          ],
         });
 
       if (res.status === 201 || res.status === 200) {
@@ -220,7 +227,8 @@ describe('Notifications (e2e)', () => {
         .send({
           name: templateName,
           subject: 'Order {{orderId}} {{status}}',
-          bodyTemplate: 'Your {{side}} order for {{assetCode}} has been {{status}}.',
+          bodyTemplate:
+            'Your {{side}} order for {{assetCode}} has been {{status}}.',
           htmlTemplate: '<h1>Order {{status}}</h1><p>{{assetCode}}</p>',
           channel: Channel.EMAIL,
         });
@@ -251,7 +259,12 @@ describe('Notifications (e2e)', () => {
           templateName: tplName,
           channel: Channel.IN_APP,
           recipient: userId,
-          data: { orderId: 'ORD-100', status: 'filled', side: 'buy', assetCode: 'XLM' },
+          data: {
+            orderId: 'ORD-100',
+            status: 'filled',
+            side: 'buy',
+            assetCode: 'XLM',
+          },
           type: NotificationType.ORDER_UPDATE,
         });
 

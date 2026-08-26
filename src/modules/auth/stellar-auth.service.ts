@@ -43,7 +43,11 @@ export class StellarAuthService {
     const nonce = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + CHALLENGE_TTL_SECONDS * 1000);
 
-    const challenge = this.challengeRepo.create({ nonce, publicKey, expiresAt });
+    const challenge = this.challengeRepo.create({
+      nonce,
+      publicKey,
+      expiresAt,
+    });
     await this.challengeRepo.save(challenge);
 
     return { nonce, expiresAt };
@@ -74,7 +78,11 @@ export class StellarAuthService {
       throw new UnauthorizedException('Challenge has expired');
     }
 
-    const signatureValid = this.verifySignature(publicKey, nonce, signatureBase64);
+    const signatureValid = this.verifySignature(
+      publicKey,
+      nonce,
+      signatureBase64,
+    );
     if (!signatureValid) {
       throw new UnauthorizedException('Signature verification failed');
     }

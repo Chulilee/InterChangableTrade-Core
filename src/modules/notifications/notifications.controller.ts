@@ -188,16 +188,19 @@ export class NotificationsController {
   // ─── Trigger events (for other modules / testing) ─────────────────────
 
   @Post('trigger/order')
-  async triggerOrderUpdate(@Body() body: {
-    userId: string;
-    orderId: string;
-    side: 'buy' | 'sell';
-    assetCode: string;
-    quantity: string;
-    price: string;
-    status: 'filled' | 'partial_fill' | 'cancelled' | 'rejected' | 'placed';
-    executedAt?: string;
-  }) {
+  async triggerOrderUpdate(
+    @Body()
+    body: {
+      userId: string;
+      orderId: string;
+      side: 'buy' | 'sell';
+      assetCode: string;
+      quantity: string;
+      price: string;
+      status: 'filled' | 'partial_fill' | 'cancelled' | 'rejected' | 'placed';
+      executedAt?: string;
+    },
+  ) {
     this.eventEmitter.emit(
       OrderUpdateEvent.NAME,
       new OrderUpdateEvent({
@@ -209,29 +212,32 @@ export class NotificationsController {
   }
 
   @Post('trigger/price')
-  async triggerPriceAlert(@Body() body: {
-    userId: string;
-    assetCode: string;
-    currentPrice: string;
-    thresholdPrice: string;
-    direction: 'above' | 'below';
-    changePercent: string;
-  }) {
-    this.eventEmitter.emit(
-      PriceAlertEvent.NAME,
-      new PriceAlertEvent(body),
-    );
+  async triggerPriceAlert(
+    @Body()
+    body: {
+      userId: string;
+      assetCode: string;
+      currentPrice: string;
+      thresholdPrice: string;
+      direction: 'above' | 'below';
+      changePercent: string;
+    },
+  ) {
+    this.eventEmitter.emit(PriceAlertEvent.NAME, new PriceAlertEvent(body));
     return { message: 'Price alert event triggered' };
   }
 
   @Post('trigger/portfolio')
-  async triggerPortfolioAlert(@Body() body: {
-    userId: string;
-    alertType: string;
-    currentValue: string;
-    threshold: string;
-    details: Record<string, any>;
-  }) {
+  async triggerPortfolioAlert(
+    @Body()
+    body: {
+      userId: string;
+      alertType: string;
+      currentValue: string;
+      threshold: string;
+      details: Record<string, any>;
+    },
+  ) {
     this.eventEmitter.emit(
       PortfolioAlertEvent.NAME,
       new PortfolioAlertEvent(body as any),
@@ -240,17 +246,17 @@ export class NotificationsController {
   }
 
   @Post('trigger/system')
-  async triggerSystemNotice(@Body() body: {
-    title: string;
-    message: string;
-    severity: 'info' | 'warning' | 'critical';
-    userId?: string;
-    metadata?: Record<string, any>;
-  }) {
-    this.eventEmitter.emit(
-      SystemNoticeEvent.NAME,
-      new SystemNoticeEvent(body),
-    );
+  async triggerSystemNotice(
+    @Body()
+    body: {
+      title: string;
+      message: string;
+      severity: 'info' | 'warning' | 'critical';
+      userId?: string;
+      metadata?: Record<string, any>;
+    },
+  ) {
+    this.eventEmitter.emit(SystemNoticeEvent.NAME, new SystemNoticeEvent(body));
     return { message: 'System notice event triggered' };
   }
 }

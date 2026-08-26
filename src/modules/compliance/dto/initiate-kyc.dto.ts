@@ -16,7 +16,9 @@ export class InitiateKycDto {
   @IsEnum(KycLevel)
   targetLevel?: KycLevel;
 
-  @ApiPropertyOptional({ description: 'Additional context for the verification' })
+  @ApiPropertyOptional({
+    description: 'Additional context for the verification',
+  })
   @IsOptional()
   @IsString()
   context?: string;

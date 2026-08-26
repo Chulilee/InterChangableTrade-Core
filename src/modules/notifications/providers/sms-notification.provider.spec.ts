@@ -29,7 +29,11 @@ describe('SmsNotificationProvider', () => {
   });
 
   it('should send SMS notification (skip when Twilio not configured)', async () => {
-    const notif = new Notification(Channel.SMS, '+1234567890', 'Your order is filled');
+    const notif = new Notification(
+      Channel.SMS,
+      '+1234567890',
+      'Your order is filled',
+    );
 
     // Twilio not configured, so it should just log and return
     await expect(provider.send(notif)).resolves.toBeUndefined();

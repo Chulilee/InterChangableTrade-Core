@@ -1,4 +1,11 @@
-import { IsOptional, IsDateString, IsEnum, IsInt, Min, Max } from 'class-validator';
+import {
+  IsOptional,
+  IsDateString,
+  IsEnum,
+  IsInt,
+  Min,
+  Max,
+} from 'class-validator';
 import { MetricType } from '../entities/analytics-metric.entity';
 
 export class GetRevenueBreakdownDto {

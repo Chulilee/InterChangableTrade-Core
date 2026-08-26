@@ -50,6 +50,11 @@ import { DeduplicationService } from './services/deduplication.service';
     AnalyticsService,
     DeduplicationService,
   ],
-  exports: [NotificationsService, NotificationGateway, AlertingService, AnalyticsService],
+  exports: [
+    NotificationsService,
+    NotificationGateway,
+    AlertingService,
+    AnalyticsService,
+  ],
 })
 export class NotificationsModule {}

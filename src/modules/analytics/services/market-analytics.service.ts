@@ -1,7 +1,11 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, Between, MoreThanOrEqual } from 'typeorm';
-import { AnalyticsMetric, MetricType, MetricAggregation } from '../entities/analytics-metric.entity';
+import {
+  AnalyticsMetric,
+  MetricType,
+  MetricAggregation,
+} from '../entities/analytics-metric.entity';
 import { Trade } from '../../trading-engine/entities/trade.entity';
 
 export interface TradingVolumeByPair {
@@ -65,7 +69,10 @@ export class MarketAnalyticsService {
   ): Promise<TradingVolumeByPair[]> {
     const trades = await this.tradeRepository
       .createQueryBuilder('trade')
-      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      })
       .getMany();
 
     const volumeByPair = new Map<string, TradingVolumeByPair>();
@@ -93,12 +100,11 @@ export class MarketAnalyticsService {
     // Calculate averages and unique traders
     const result = Array.from(volumeByPair.values());
     for (const pair of result) {
-      pair.avgTradeSize = pair.tradeCount > 0 ? pair.totalVolume / pair.tradeCount : 0;
+      pair.avgTradeSize =
+        pair.tradeCount > 0 ? pair.totalVolume / pair.tradeCount : 0;
     }
 
-    return result
-      .sort((a, b) => b.totalVolume - a.totalVolume)
-      .slice(0, limit);
+    return result.sort((a, b) => b.totalVolume - a.totalVolume).slice(0, limit);
   }
 
   /**
@@ -108,29 +114,37 @@ export class MarketAnalyticsService {
     dateFrom: Date,
     dateTo: Date,
     limit: number = 20,
-  ): Promise<Array<{
-    traderId: string;
-    totalVolume: number;
-    tradeCount: number;
-    avgTradeSize: number;
-    buyVolume: number;
-    sellVolume: number;
-  }>> {
-    const trades = await this.tradeRepository
-      .createQueryBuilder('trade')
-      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
-      .getMany();
-
-    const volumeByTrader = new Map<string, {
+  ): Promise<
+    Array<{
+      traderId: string;
       totalVolume: number;
       tradeCount: number;
+      avgTradeSize: number;
       buyVolume: number;
       sellVolume: number;
-    }>();
+    }>
+  > {
+    const trades = await this.tradeRepository
+      .createQueryBuilder('trade')
+      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      })
+      .getMany();
+
+    const volumeByTrader = new Map<
+      string,
+      {
+        totalVolume: number;
+        tradeCount: number;
+        buyVolume: number;
+        sellVolume: number;
+      }
+    >();
 
     for (const trade of trades) {
       const volume = parseFloat(trade.quantity) * parseFloat(trade.price);
-      
+
       // Track as maker
       if (!volumeByTrader.has(trade.makerUserId)) {
         volumeByTrader.set(trade.makerUserId, {
@@ -160,18 +174,19 @@ export class MarketAnalyticsService {
       takerData.buyVolume += volume; // Taker typically buys
     }
 
-    const result = Array.from(volumeByTrader.entries()).map(([traderId, data]) => ({
-      traderId,
-      totalVolume: data.totalVolume,
-      tradeCount: data.tradeCount,
-      avgTradeSize: data.tradeCount > 0 ? data.totalVolume / data.tradeCount : 0,
-      buyVolume: data.buyVolume,
-      sellVolume: data.sellVolume,
-    }));
+    const result = Array.from(volumeByTrader.entries()).map(
+      ([traderId, data]) => ({
+        traderId,
+        totalVolume: data.totalVolume,
+        tradeCount: data.tradeCount,
+        avgTradeSize:
+          data.tradeCount > 0 ? data.totalVolume / data.tradeCount : 0,
+        buyVolume: data.buyVolume,
+        sellVolume: data.sellVolume,
+      }),
+    );
 
-    return result
-      .sort((a, b) => b.totalVolume - a.totalVolume)
-      .slice(0, limit);
+    return result.sort((a, b) => b.totalVolume - a.totalVolume).slice(0, limit);
   }
 
   /**
@@ -186,7 +201,10 @@ export class MarketAnalyticsService {
     const trades = await this.tradeRepository
       .createQueryBuilder('trade')
       .where('trade.assetCode = :assetCode', { assetCode })
-      .andWhere('trade.createdAt BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .andWhere('trade.createdAt BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      })
       .orderBy('trade.createdAt', 'ASC')
       .getMany();
 
@@ -204,8 +222,10 @@ export class MarketAnalyticsService {
     const priceActions: PriceAction[] = [];
 
     for (const [bucketKey, bucketTrades] of buckets) {
-      const prices = bucketTrades.map(t => parseFloat(t.price));
-      const volumes = bucketTrades.map(t => parseFloat(t.quantity) * parseFloat(t.price));
+      const prices = bucketTrades.map((t) => parseFloat(t.price));
+      const volumes = bucketTrades.map(
+        (t) => parseFloat(t.quantity) * parseFloat(t.price),
+      );
 
       priceActions.push({
         timestamp: new Date(bucketKey),
@@ -229,7 +249,9 @@ export class MarketAnalyticsService {
     dateFrom: Date,
     dateTo: Date,
     windowSize: number = 20,
-  ): Promise<Array<{ timestamp: Date; volatility: number; returns: number[] }>> {
+  ): Promise<
+    Array<{ timestamp: Date; volatility: number; returns: number[] }>
+  > {
     const priceActions = await this.getPriceAction(
       assetCode,
       dateFrom,
@@ -241,7 +263,11 @@ export class MarketAnalyticsService {
       return [];
     }
 
-    const volatilityData: Array<{ timestamp: Date; volatility: number; returns: number[] }> = [];
+    const volatilityData: Array<{
+      timestamp: Date;
+      volatility: number;
+      returns: number[];
+    }> = [];
 
     for (let i = windowSize; i < priceActions.length; i++) {
       const window = priceActions.slice(i - windowSize, i);
@@ -257,7 +283,9 @@ export class MarketAnalyticsService {
 
       // Calculate standard deviation of returns
       const mean = returns.reduce((sum, r) => sum + r, 0) / returns.length;
-      const variance = returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) / returns.length;
+      const variance =
+        returns.reduce((sum, r) => sum + Math.pow(r - mean, 2), 0) /
+        returns.length;
       const volatility = Math.sqrt(variance);
 
       volatilityData.push({
@@ -282,7 +310,10 @@ export class MarketAnalyticsService {
     const trades = await this.tradeRepository
       .createQueryBuilder('trade')
       .where('trade.assetCode = :assetCode', { assetCode })
-      .andWhere('trade.createdAt BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .andWhere('trade.createdAt BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      })
       .orderBy('trade.createdAt', 'ASC')
       .getMany();
 
@@ -307,10 +338,11 @@ export class MarketAnalyticsService {
 
       for (const trade of bucketTrades) {
         const volume = parseFloat(trade.quantity) * parseFloat(trade.price);
-        
+
         // Simplified buy/sell detection based on price movement
         // In production, this would use order book data or trade direction
-        if (Math.random() > 0.5) { // Placeholder - real implementation needs order data
+        if (Math.random() > 0.5) {
+          // Placeholder - real implementation needs order data
           buyVolume += volume;
           buyCount++;
         } else {
@@ -346,18 +378,24 @@ export class MarketAnalyticsService {
   ): Promise<MarketMakerPerformance[]> {
     const trades = await this.tradeRepository
       .createQueryBuilder('trade')
-      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .where('trade.createdAt BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      })
       .getMany();
 
-    const makerStats = new Map<string, {
-      totalTrades: number;
-      totalVolume: number;
-      filledOrders: number;
-    }>();
+    const makerStats = new Map<
+      string,
+      {
+        totalTrades: number;
+        totalVolume: number;
+        filledOrders: number;
+      }
+    >();
 
     for (const trade of trades) {
       const makerId = trade.makerUserId;
-      
+
       if (!makerStats.has(makerId)) {
         makerStats.set(makerId, {
           totalTrades: 0,
@@ -372,20 +410,20 @@ export class MarketAnalyticsService {
       stats.filledOrders += 1;
     }
 
-    const result = Array.from(makerStats.entries()).map(([traderId, stats]) => ({
-      traderId,
-      totalTrades: stats.totalTrades,
-      totalVolume: stats.totalVolume,
-      avgSpread: 0, // Would need order book data
-      filledOrders: stats.filledOrders,
-      cancelledOrders: 0, // Would need order data
-      fillRate: stats.filledOrders > 0 ? 100 : 0,
-      estimatedPnl: 0, // Would need price data for PnL calculation
-    }));
+    const result = Array.from(makerStats.entries()).map(
+      ([traderId, stats]) => ({
+        traderId,
+        totalTrades: stats.totalTrades,
+        totalVolume: stats.totalVolume,
+        avgSpread: 0, // Would need order book data
+        filledOrders: stats.filledOrders,
+        cancelledOrders: 0, // Would need order data
+        fillRate: stats.filledOrders > 0 ? 100 : 0,
+        estimatedPnl: 0, // Would need price data for PnL calculation
+      }),
+    );
 
-    return result
-      .sort((a, b) => b.totalVolume - a.totalVolume)
-      .slice(0, limit);
+    return result.sort((a, b) => b.totalVolume - a.totalVolume).slice(0, limit);
   }
 
   /**
@@ -405,7 +443,10 @@ export class MarketAnalyticsService {
     const trades = await this.tradeRepository
       .createQueryBuilder('trade')
       .where('trade.assetCode = :assetCode', { assetCode })
-      .andWhere('trade.createdAt BETWEEN :dateFrom AND :dateTo', { dateFrom, dateTo })
+      .andWhere('trade.createdAt BETWEEN :dateFrom AND :dateTo', {
+        dateFrom,
+        dateTo,
+      })
       .getMany();
 
     const totalVolume = trades.reduce(
@@ -427,7 +468,7 @@ export class MarketAnalyticsService {
 
   private getBucketKey(date: Date, aggregation: MetricAggregation): string {
     const d = new Date(date);
-    
+
     switch (aggregation) {
       case MetricAggregation.MINUTE:
         d.setSeconds(0, 0);
@@ -449,7 +490,7 @@ export class MarketAnalyticsService {
         d.setHours(0, 0, 0, 0);
         break;
     }
-    
+
     return d.toISOString();
   }
 }

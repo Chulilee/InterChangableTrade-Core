@@ -22,7 +22,10 @@ export class QueryAmlFlagDto extends PaginationQueryDto {
   @IsEnum(AmlFlagStatus)
   status?: AmlFlagStatus;
 
-  @ApiPropertyOptional({ enum: AmlRiskLevel, description: 'Filter by risk level' })
+  @ApiPropertyOptional({
+    enum: AmlRiskLevel,
+    description: 'Filter by risk level',
+  })
   @IsOptional()
   @IsEnum(AmlRiskLevel)
   riskLevel?: AmlRiskLevel;

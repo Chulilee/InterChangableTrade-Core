@@ -48,9 +48,11 @@ export class EventBufferService implements OnModuleDestroy {
 
   constructor(private readonly configService: ConfigService) {
     this.maxBufferSize =
-      this.configService.get<number>('blockchainIndexer.eventBufferSize') ?? 10000;
+      this.configService.get<number>('blockchainIndexer.eventBufferSize') ??
+      10000;
     this.eventTtlMs =
-      this.configService.get<number>('blockchainIndexer.eventBufferTtlMs') ?? 60000;
+      this.configService.get<number>('blockchainIndexer.eventBufferTtlMs') ??
+      60000;
 
     // Start periodic cleanup to evict expired events.
     this.cleanupTimer = setInterval(

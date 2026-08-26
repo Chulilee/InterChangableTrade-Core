@@ -55,7 +55,10 @@ export class EventWebSocketGateway
 
     // Clean up the listener when the client disconnects.
     client.on('disconnect', () => {
-      this.subscriptionManager.removeListener(`event:${clientId}`, eventHandler);
+      this.subscriptionManager.removeListener(
+        `event:${clientId}`,
+        eventHandler,
+      );
     });
 
     // Notify the client of successful connection.
@@ -111,9 +114,7 @@ export class EventWebSocketGateway
       message: 'Successfully subscribed to event stream',
     });
 
-    this.logger.debug(
-      `Client ${client.id} subscribed as ${subscriptionId}`,
-    );
+    this.logger.debug(`Client ${client.id} subscribed as ${subscriptionId}`);
   }
 
   /**

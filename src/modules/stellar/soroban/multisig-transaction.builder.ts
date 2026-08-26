@@ -89,7 +89,7 @@ export class MultisigTransactionBuilder {
   ): Promise<MultisigTransaction> {
     // Load source account
     const sourceAccount = await this.client.getAccount(sourcePublicKey);
-    
+
     // Start building the transaction
     const txBuilder = new TransactionBuilder(sourceAccount, {
       fee: BASE_FEE,
@@ -103,17 +103,17 @@ export class MultisigTransactionBuilder {
         invocation.method,
         invocation.args,
       );
-      
+
       const contract = new Contract(invocation.contractId);
       txBuilder.addOperation(contract.call(invocation.method, ...scArgs));
     }
 
     // Set timeout
     const transaction = txBuilder.setTimeout(config.timeout).build();
-    
+
     // Simulate to get gas estimate
     const simulation = await this.client.simulate(transaction);
-    
+
     // If MEV protection is enabled, add sequential execution constraints
     if (config.mevProtection) {
       this.applyMevProtection(transaction);
@@ -136,7 +136,7 @@ export class MultisigTransactionBuilder {
       currentWeight,
       requiredThreshold: config.threshold,
       isReadyToSubmit: isReady,
-      signers: config.signers.map(s => ({ ...s, signed: false })),
+      signers: config.signers.map((s) => ({ ...s, signed: false })),
       estimatedGas: {
         minResourceFee: simulation.minResourceFee,
       },
@@ -151,7 +151,7 @@ export class MultisigTransactionBuilder {
     publicKey: string,
     signature: string,
   ): MultisigTransaction {
-    const signer = multisigTx.signers.find(s => s.publicKey === publicKey);
+    const signer = multisigTx.signers.find((s) => s.publicKey === publicKey);
     if (!signer) {
       throw new Error(`Unknown signer: ${publicKey}`);
     }
@@ -166,7 +166,7 @@ export class MultisigTransactionBuilder {
 
     // Recalculate current weight
     const currentWeight = multisigTx.signers
-      .filter(s => s.signed)
+      .filter((s) => s.signed)
       .reduce((sum, s) => sum + s.weight, 0);
 
     const isReady = currentWeight >= multisigTx.requiredThreshold;
@@ -191,7 +191,9 @@ export class MultisigTransactionBuilder {
     }
 
     // Prepare and send the transaction
-    const prepared = await this.client.prepareTransaction(multisigTx.transaction);
+    const prepared = await this.client.prepareTransaction(
+      multisigTx.transaction,
+    );
     const confirmed = await this.client.sendAndConfirm(prepared);
 
     this.logger.log(`Submitted multi-sig transaction ${confirmed.txHash}`);

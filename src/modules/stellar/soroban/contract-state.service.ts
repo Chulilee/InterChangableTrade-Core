@@ -93,7 +93,7 @@ export class ContractStateService {
     const pattern = `${ContractStateService.KEY_PREFIX}${contractId}:*`;
     const keys: string[] = [];
     let cursor = '0';
-    
+
     do {
       const [next, foundKeys] = await this.redis.scan(
         cursor,
@@ -107,7 +107,7 @@ export class ContractStateService {
     } while (cursor !== '0');
 
     // Extract just the storage key portion from the full cache key
-    return keys.map(key => {
+    return keys.map((key) => {
       const parts = key.split(':');
       return parts.length >= 4 ? parts[3] : key;
     });
@@ -116,10 +116,12 @@ export class ContractStateService {
   /**
    * Export all cached state for a contract
    */
-  async exportContractState(contractId: string): Promise<Record<string, unknown>> {
+  async exportContractState(
+    contractId: string,
+  ): Promise<Record<string, unknown>> {
     const keys = await this.listStorageKeys(contractId);
     const state: Record<string, unknown> = {};
-    
+
     for (const key of keys) {
       try {
         const entry = await this.getState(contractId, key);
@@ -128,7 +130,7 @@ export class ContractStateService {
         // Skip keys that fail to load
       }
     }
-    
+
     return state;
   }
 
@@ -136,8 +138,13 @@ export class ContractStateService {
    * Import state into a new contract (placeholder implementation)
    * In a real scenario, this would build and submit transactions to set storage
    */
-  async importContractState(contractId: string, state: Record<string, unknown>): Promise<void> {
-    this.logger.log(`Importing ${Object.keys(state).length} state entries into ${contractId}`);
+  async importContractState(
+    contractId: string,
+    state: Record<string, unknown>,
+  ): Promise<void> {
+    this.logger.log(
+      `Importing ${Object.keys(state).length} state entries into ${contractId}`,
+    );
     // Implementation would generate transactions to set each state key
     // This requires the contract to support state migration methods
   }

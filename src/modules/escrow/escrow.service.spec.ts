@@ -134,7 +134,10 @@ describe('EscrowService', () => {
       rollbackTransaction: jest.fn(),
       release: jest.fn(),
       manager: {
-        create: jest.fn((entity: any, data: any) => ({ id: `${entity.name}-1`, ...data })),
+        create: jest.fn((entity: any, data: any) => ({
+          id: `${entity.name}-1`,
+          ...data,
+        })),
         save: jest.fn((v: any) => Promise.resolve(v)),
       },
     } as unknown as jest.Mocked<QueryRunner>;
@@ -165,7 +168,11 @@ describe('EscrowService', () => {
       amount: 1000,
       signatories: [
         { userId, publicKey: 'GCREATORSIGNER1', role: SignatoryRole.CREATOR },
-        { userId: counterpartyId, publicKey: 'GCOUNTERPARTYSIGNER1', role: SignatoryRole.COUNTERPARTY },
+        {
+          userId: counterpartyId,
+          publicKey: 'GCOUNTERPARTYSIGNER1',
+          role: SignatoryRole.COUNTERPARTY,
+        },
       ],
     };
 
@@ -183,16 +190,16 @@ describe('EscrowService', () => {
 
     it('rejects when requiredSignatures exceeds signatories count', async () => {
       const dto = { ...createDto, requiredSignatures: 3 };
-      await expect(
-        service.createEscrow(userId, userRole, dto),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.createEscrow(userId, userRole, dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('rejects TIME_LOCKED escrow without timeLockExpiry', async () => {
       const dto = { ...createDto, type: EscrowType.TIME_LOCKED };
-      await expect(
-        service.createEscrow(userId, userRole, dto),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.createEscrow(userId, userRole, dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('creates TIME_LOCKED escrow with timeLockExpiry', async () => {
@@ -207,9 +214,9 @@ describe('EscrowService', () => {
 
     it('rejects MILESTONE_BASED escrow without milestones', async () => {
       const dto = { ...createDto, type: EscrowType.MILESTONE_BASED };
-      await expect(
-        service.createEscrow(userId, userRole, dto),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.createEscrow(userId, userRole, dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('rejects MILESTONE_BASED escrow when milestone amounts dont sum correctly', async () => {
@@ -221,9 +228,9 @@ describe('EscrowService', () => {
           { title: 'M2', orderIndex: 1, amount: 400 },
         ],
       };
-      await expect(
-        service.createEscrow(userId, userRole, dto),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.createEscrow(userId, userRole, dto)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('creates MILESTONE_BASED escrow with valid milestones', async () => {
@@ -240,7 +247,9 @@ describe('EscrowService', () => {
     });
 
     it('rolls back transaction on error', async () => {
-      (queryRunner.manager.save as jest.Mock).mockRejectedValueOnce(new Error('db error'));
+      (queryRunner.manager.save as jest.Mock).mockRejectedValueOnce(
+        new Error('db error'),
+      );
       await expect(
         service.createEscrow(userId, userRole, createDto),
       ).rejects.toThrow('db error');
@@ -260,7 +269,11 @@ describe('EscrowService', () => {
       ]);
       milestoneRepo.find.mockResolvedValue([]);
 
-      const result = await service.getEscrowDetail('escrow-1', userId, userRole);
+      const result = await service.getEscrowDetail(
+        'escrow-1',
+        userId,
+        userRole,
+      );
 
       expect(result.escrow).toEqual(mockEscrow);
       expect(result.signatories).toHaveLength(2);
@@ -276,7 +289,11 @@ describe('EscrowService', () => {
       ]);
       milestoneRepo.find.mockResolvedValue([]);
 
-      const result = await service.getEscrowDetail('escrow-1', adminId, adminRole);
+      const result = await service.getEscrowDetail(
+        'escrow-1',
+        adminId,
+        adminRole,
+      );
       expect(result.escrow).toEqual(mockEscrow);
     });
 
@@ -288,7 +305,11 @@ describe('EscrowService', () => {
       ]);
       milestoneRepo.find.mockResolvedValue([]);
 
-      const result = await service.getEscrowDetail('escrow-1', counterpartyId, userRole);
+      const result = await service.getEscrowDetail(
+        'escrow-1',
+        counterpartyId,
+        userRole,
+      );
       expect(result.escrow).toEqual(mockEscrow);
     });
 
@@ -320,7 +341,11 @@ describe('EscrowService', () => {
       ] as any[]);
       milestoneRepo.find.mockResolvedValue([]);
 
-      const result = await service.getEscrowDetail('escrow-1', userId, userRole);
+      const result = await service.getEscrowDetail(
+        'escrow-1',
+        userId,
+        userRole,
+      );
       expect(result.approvalProgress.current).toBe(1);
       expect(result.approvalProgress.required).toBe(2);
       expect(result.approvalProgress.percentage).toBe(50);
@@ -335,7 +360,11 @@ describe('EscrowService', () => {
       ] as any[]);
       milestoneRepo.find.mockResolvedValue([]);
 
-      const result = await service.getEscrowDetail('escrow-1', userId, userRole);
+      const result = await service.getEscrowDetail(
+        'escrow-1',
+        userId,
+        userRole,
+      );
       expect(result.approvalProgress.isThresholdMet).toBe(true);
     });
   });
@@ -418,9 +447,12 @@ describe('EscrowService', () => {
         creatorId: userId,
       } as never);
 
-      expect(qb.andWhere).toHaveBeenCalledWith('escrow.creatorId = :creatorId', {
-        creatorId: userId,
-      });
+      expect(qb.andWhere).toHaveBeenCalledWith(
+        'escrow.creatorId = :creatorId',
+        {
+          creatorId: userId,
+        },
+      );
     });
 
     it('applies tradeId filter', async () => {
@@ -548,9 +580,9 @@ describe('EscrowService', () => {
         status: EscrowStatus.PENDING,
       });
 
-      await expect(
-        service.revokeApproval('escrow-1', userId),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.revokeApproval('escrow-1', userId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('rejects revocation when not previously approved', async () => {
@@ -560,9 +592,9 @@ describe('EscrowService', () => {
         mockCounterpartySignatory as any,
       ]);
 
-      await expect(
-        service.revokeApproval('escrow-1', userId),
-      ).rejects.toThrow(BadRequestException);
+      await expect(service.revokeApproval('escrow-1', userId)).rejects.toThrow(
+        BadRequestException,
+      );
     });
 
     it('rejects revocation by non-signatory', async () => {
@@ -587,7 +619,11 @@ describe('EscrowService', () => {
         status: EscrowStatus.PENDING,
       });
 
-      const result = await service.fundEscrow('escrow-1', userId, 'tx_hash_123');
+      const result = await service.fundEscrow(
+        'escrow-1',
+        userId,
+        'tx_hash_123',
+      );
 
       expect(result.status).toBe(EscrowStatus.FUNDED);
       expect(result.fundedAt).toBeInstanceOf(Date);
@@ -656,12 +692,9 @@ describe('EscrowService', () => {
         { ...mockCounterpartySignatory, hasApproved: true },
       ]);
 
-      const result = await service.releaseFunds(
-        'escrow-1',
-        userId,
-        userRole,
-        { amount: 500 },
-      );
+      const result = await service.releaseFunds('escrow-1', userId, userRole, {
+        amount: 500,
+      });
 
       expect(result.status).toBe(EscrowStatus.PARTIALLY_RELEASED);
       expect(result.releasedAmount).toBe('500.0000000');
@@ -777,12 +810,10 @@ describe('EscrowService', () => {
         amount: '500.0000000',
       } as any);
 
-      const result = await service.releaseFunds(
-        'escrow-1',
-        userId,
-        userRole,
-        { milestoneId: 'milestone-1', amount: 500 },
-      );
+      const result = await service.releaseFunds('escrow-1', userId, userRole, {
+        milestoneId: 'milestone-1',
+        amount: 500,
+      });
 
       expect(result.releasedAmount).toBe('500.0000000');
     });
@@ -1075,9 +1106,15 @@ describe('EscrowService', () => {
       ]);
 
       await expect(
-        service.updateMilestone('escrow-1', 'milestone-1', 'outsider', userRole, {
-          isCompleted: true,
-        }),
+        service.updateMilestone(
+          'escrow-1',
+          'milestone-1',
+          'outsider',
+          userRole,
+          {
+            isCompleted: true,
+          },
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 

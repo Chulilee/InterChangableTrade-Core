@@ -93,7 +93,10 @@ export class AnalyticsController {
   @Get('metrics')
   @Roles(UserRole.ADMIN, UserRole.ANALYST)
   @ApiOperation({ summary: 'Query analytics metrics' })
-  @ApiResponse({ status: HttpStatus.OK, description: 'Metrics retrieved successfully' })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Metrics retrieved successfully',
+  })
   async queryMetrics(@Query() queryDto: QueryMetricsDto) {
     return this.metricsQueryService.queryMetrics(queryDto);
   }
@@ -132,7 +135,11 @@ export class AnalyticsController {
     @Query('months') months: number = 12,
     @Query('assetCode') assetCode?: string,
   ) {
-    return this.metricsQueryService.getHistoricalTrends(metricType, months, assetCode);
+    return this.metricsQueryService.getHistoricalTrends(
+      metricType,
+      months,
+      assetCode,
+    );
   }
 
   @Post('reports')
@@ -164,9 +171,16 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Download report file' })
   async downloadReport(@Param('id') id: string): Promise<StreamableFile> {
     const report = await this.reportGeneratorService.getReport(id);
-    
-    if (report.status !== 'completed' || !report.fileUrl || !fs.existsSync(report.fileUrl)) {
-      throw new HttpException('Report file not available', HttpStatus.BAD_REQUEST);
+
+    if (
+      report.status !== 'completed' ||
+      !report.fileUrl ||
+      !fs.existsSync(report.fileUrl)
+    ) {
+      throw new HttpException(
+        'Report file not available',
+        HttpStatus.BAD_REQUEST,
+      );
     }
 
     const file = createReadStream(report.fileUrl);
@@ -184,10 +198,7 @@ export class AnalyticsController {
   @Post('segments')
   @Roles(UserRole.ADMIN, UserRole.ANALYST)
   @ApiOperation({ summary: 'Create a new user segment' })
-  async createSegment(
-    @CurrentUser() user: any,
-    @Body() dto: CreateSegmentDto,
-  ) {
+  async createSegment(@CurrentUser() user: any, @Body() dto: CreateSegmentDto) {
     return this.userSegmentationService.createSegment(user.id, dto);
   }
 
@@ -208,10 +219,7 @@ export class AnalyticsController {
   @Put('segments/:id')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Update a segment' })
-  async updateSegment(
-    @Param('id') id: string,
-    @Body() dto: UpdateSegmentDto,
-  ) {
+  async updateSegment(@Param('id') id: string, @Body() dto: UpdateSegmentDto) {
     return this.userSegmentationService.updateSegment(id, dto);
   }
 
@@ -239,7 +247,10 @@ export class AnalyticsController {
     @Param('segmentId') segmentId: string,
     @Param('userId') userId: string,
   ) {
-    return this.userSegmentationService.addUserToManualSegment(segmentId, userId);
+    return this.userSegmentationService.addUserToManualSegment(
+      segmentId,
+      userId,
+    );
   }
 
   @Delete('segments/:segmentId/users/:userId')
@@ -249,7 +260,10 @@ export class AnalyticsController {
     @Param('segmentId') segmentId: string,
     @Param('userId') userId: string,
   ) {
-    return this.userSegmentationService.removeUserFromManualSegment(segmentId, userId);
+    return this.userSegmentationService.removeUserFromManualSegment(
+      segmentId,
+      userId,
+    );
   }
 
   @Post('calculate/trade-metrics')
@@ -450,7 +464,10 @@ export class AnalyticsController {
   @Get('pools/:poolId/fees')
   @Roles(UserRole.ADMIN, UserRole.ANALYST)
   @ApiOperation({ summary: 'Get fee collection analysis' })
-  async getFeeCollectionAnalysis(@Param('poolId') poolId: string, @Query() dto: GetFeeCollectionAnalysisDto) {
+  async getFeeCollectionAnalysis(
+    @Param('poolId') poolId: string,
+    @Query() dto: GetFeeCollectionAnalysisDto,
+  ) {
     return this.poolAnalyticsService.getFeeCollectionAnalysis(
       poolId,
       new Date(dto.dateFrom),
@@ -462,7 +479,10 @@ export class AnalyticsController {
   @Get('pools/:poolId/tvl')
   @Roles(UserRole.ADMIN, UserRole.ANALYST)
   @ApiOperation({ summary: 'Get TVL trends' })
-  async getTvlTrends(@Param('poolId') poolId: string, @Query() dto: GetTvlTrendsDto) {
+  async getTvlTrends(
+    @Param('poolId') poolId: string,
+    @Query() dto: GetTvlTrendsDto,
+  ) {
     return this.poolAnalyticsService.getTvlTrends(
       poolId,
       new Date(dto.dateFrom),
@@ -485,7 +505,10 @@ export class AnalyticsController {
   @Get('pools/:poolId/utilization')
   @Roles(UserRole.ADMIN, UserRole.ANALYST)
   @ApiOperation({ summary: 'Get pool utilization metrics' })
-  async getPoolUtilization(@Param('poolId') poolId: string, @Query() dto: GetPoolUtilizationDto) {
+  async getPoolUtilization(
+    @Param('poolId') poolId: string,
+    @Query() dto: GetPoolUtilizationDto,
+  ) {
     return this.poolAnalyticsService.getPoolUtilization(
       poolId,
       new Date(dto.dateFrom),

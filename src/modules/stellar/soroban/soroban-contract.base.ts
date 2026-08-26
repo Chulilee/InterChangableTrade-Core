@@ -2,14 +2,18 @@ import { Logger } from '@nestjs/common';
 import { ContractInvocationService } from './contract-invocation.service';
 import { ContractRegistryService } from './contract-registry.service';
 import { ContractAbiService } from './contract-abi.service';
-import { SimulationResult, InvocationResult, GasEstimate } from './soroban.types';
+import {
+  SimulationResult,
+  InvocationResult,
+  GasEstimate,
+} from './soroban.types';
 
 /**
  * Decorator that marks a class as a Soroban contract.
  * Automatically registers the contract type and enables type-safe invocations.
- * 
+ *
  * @param contractType Human-readable identifier for the contract type (e.g., "swap-pool")
- * 
+ *
  * @example
  * @Contract('swap-pool')
  * export class SwapPoolContract extends SorobanContract {
@@ -26,7 +30,7 @@ export function Contract(contractType: string): ClassDecorator {
 /**
  * Base abstract class that all specific contract implementations must extend.
  * Provides common functionality for all Soroban contracts with type-safe invocations.
- * 
+ *
  * This abstracts away the complexity of direct contract interactions,
  * providing a clean, object-oriented interface for working with contracts.
  */
@@ -48,7 +52,7 @@ export abstract class SorobanContract {
     if (!this.registry.isRegistered(contractId)) {
       throw new Error(`Cannot initialize unregistered contract: ${contractId}`);
     }
-    
+
     const metadata = this.registry.getMetadata(contractId);
     if (metadata.type !== this.contractType) {
       throw new Error(
@@ -57,7 +61,9 @@ export abstract class SorobanContract {
     }
 
     this.contractId = contractId;
-    this.logger.log(`Initialized ${this.contractType} contract at ${contractId}`);
+    this.logger.log(
+      `Initialized ${this.contractType} contract at ${contractId}`,
+    );
   }
 
   /**

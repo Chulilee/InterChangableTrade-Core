@@ -74,7 +74,9 @@ export class EscrowService {
     userRole: string,
   ): void {
     if (escrow.creatorId !== userId && userRole !== 'admin') {
-      throw new ForbiddenException('Only the creator or an admin can perform this action');
+      throw new ForbiddenException(
+        'Only the creator or an admin can perform this action',
+      );
     }
   }
 
@@ -312,7 +314,12 @@ export class EscrowService {
     }
 
     const [data, total] = await qb.getManyAndCount();
-    return new PaginatedResultDto(data, total, query.page ?? 1, query.limit ?? 20);
+    return new PaginatedResultDto(
+      data,
+      total,
+      query.page ?? 1,
+      query.limit ?? 20,
+    );
   }
 
   // ─── Approve Escrow ──────────────────────────────────────────────────────
@@ -383,12 +390,17 @@ export class EscrowService {
     );
 
     // Return updated escrow
-    return this.escrowRepo.findOne({ where: { id: escrowId } }) as Promise<EscrowAccount>;
+    return this.escrowRepo.findOne({
+      where: { id: escrowId },
+    }) as Promise<EscrowAccount>;
   }
 
   // ─── Revoke Approval ─────────────────────────────────────────────────────
 
-  async revokeApproval(escrowId: string, userId: string): Promise<EscrowAccount> {
+  async revokeApproval(
+    escrowId: string,
+    userId: string,
+  ): Promise<EscrowAccount> {
     const escrow = await this.getEscrowOrThrow(escrowId);
 
     if (escrow.status !== EscrowStatus.FUNDED) {
@@ -420,7 +432,9 @@ export class EscrowService {
     );
 
     this.logger.log(`Escrow ${escrowId} approval revoked by ${userId}`);
-    return this.escrowRepo.findOne({ where: { id: escrowId } }) as Promise<EscrowAccount>;
+    return this.escrowRepo.findOne({
+      where: { id: escrowId },
+    }) as Promise<EscrowAccount>;
   }
 
   // ─── Fund Escrow ─────────────────────────────────────────────────────────
@@ -505,7 +519,8 @@ export class EscrowService {
     }
 
     // Determine release amount
-    const remaining = parseFloat(escrow.amount) - parseFloat(escrow.releasedAmount);
+    const remaining =
+      parseFloat(escrow.amount) - parseFloat(escrow.releasedAmount);
     const releaseAmount = dto.amount ?? remaining;
 
     if (releaseAmount <= 0 || releaseAmount > remaining + 0.0000001) {
@@ -523,7 +538,9 @@ export class EscrowService {
         throw new NotFoundException(`Milestone ${dto.milestoneId} not found`);
       }
       if (!milestone.isCompleted) {
-        throw new BadRequestException('Milestone must be completed before releasing funds');
+        throw new BadRequestException(
+          'Milestone must be completed before releasing funds',
+        );
       }
     }
 
@@ -741,7 +758,8 @@ export class EscrowService {
     }
 
     // Auto-settle: release remaining funds to creator
-    const remaining = parseFloat(escrow.amount) - parseFloat(escrow.releasedAmount);
+    const remaining =
+      parseFloat(escrow.amount) - parseFloat(escrow.releasedAmount);
 
     escrow.releasedAmount = escrow.amount;
     escrow.status = EscrowStatus.SETTLED;
@@ -764,9 +782,7 @@ export class EscrowService {
       autoSettled: true,
     });
 
-    this.logger.log(
-      `Escrow ${escrowId} auto-settled via time-lock expiry`,
-    );
+    this.logger.log(`Escrow ${escrowId} auto-settled via time-lock expiry`);
     return saved;
   }
 
@@ -802,7 +818,9 @@ export class EscrowService {
     });
     const isSignatory = signatories.some((s) => s.userId === userId);
     if (!isSignatory && userRole !== 'admin') {
-      throw new ForbiddenException('Only signatories or admins can update milestones');
+      throw new ForbiddenException(
+        'Only signatories or admins can update milestones',
+      );
     }
 
     const milestone = await this.milestoneRepo.findOne({

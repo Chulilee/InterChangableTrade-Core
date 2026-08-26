@@ -24,7 +24,11 @@ export class EscrowSignatory extends BaseEntity {
   publicKey: string;
 
   /** Role of this signatory in the escrow */
-  @Column({ type: 'enum', enum: SignatoryRole, default: SignatoryRole.COUNTERPARTY })
+  @Column({
+    type: 'enum',
+    enum: SignatoryRole,
+    default: SignatoryRole.COUNTERPARTY,
+  })
   role: SignatoryRole;
 
   /** Whether this signatory has approved the escrow */

@@ -19,9 +19,7 @@ export class EmailNotificationProvider implements NotificationProvider {
       notification.metadata?.subject ?? 'Notification from InterChangableTrade';
     const htmlBody = this.renderHtml(notification);
 
-    this.logger.log(
-      `Sending email to ${notification.recipient}: "${subject}"`,
-    );
+    this.logger.log(`Sending email to ${notification.recipient}: "${subject}"`);
 
     // In production this would call an email transport (SES, SendGrid, etc.)
     // For now we log the structured email for observability.
@@ -45,7 +43,10 @@ export class EmailNotificationProvider implements NotificationProvider {
     if (metadata && Object.keys(metadata).length > 0) {
       const rows = Object.entries(metadata)
         .filter(([k]) => k !== 'subject' && k !== 'htmlTemplate')
-        .map(([key, value]) => `<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;">${key}</td><td style="padding:4px 0;">${String(value)}</td></tr>`)
+        .map(
+          ([key, value]) =>
+            `<tr><td style="padding:4px 12px 4px 0;font-weight:600;color:#555;">${key}</td><td style="padding:4px 0;">${String(value)}</td></tr>`,
+        )
         .join('\n');
       metadataHtml = `
         <table style="border-collapse:collapse;margin-top:16px;">

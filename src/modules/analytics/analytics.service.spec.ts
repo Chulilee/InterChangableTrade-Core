@@ -1,7 +1,16 @@
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
-import { AnalyticsMetric, MetricType, MetricAggregation } from './entities/analytics-metric.entity';
-import { SavedReport, ReportType, ReportFormat, ReportStatus } from './entities/saved-report.entity';
+import {
+  AnalyticsMetric,
+  MetricType,
+  MetricAggregation,
+} from './entities/analytics-metric.entity';
+import {
+  SavedReport,
+  ReportType,
+  ReportFormat,
+  ReportStatus,
+} from './entities/saved-report.entity';
 import { UserSegment, SegmentType } from './entities/user-segment.entity';
 import { MetricsCollectorService } from './services/metrics-collector.service';
 import { MetricsQueryService } from './services/metrics-query.service';
@@ -105,14 +114,22 @@ describe('Analytics Module Services', () => {
   });
 
   beforeEach(() => {
-    metricsCollector = module.get<MetricsCollectorService>(MetricsCollectorService);
+    metricsCollector = module.get<MetricsCollectorService>(
+      MetricsCollectorService,
+    );
     metricsQuery = module.get<MetricsQueryService>(MetricsQueryService);
-    reportGenerator = module.get<ReportGeneratorService>(ReportGeneratorService);
-    userSegmentation = module.get<UserSegmentationService>(UserSegmentationService);
+    reportGenerator = module.get<ReportGeneratorService>(
+      ReportGeneratorService,
+    );
+    userSegmentation = module.get<UserSegmentationService>(
+      UserSegmentationService,
+    );
     jest.clearAllMocks();
   });
 
-  const createMockMetric = (overrides?: Partial<AnalyticsMetric>): AnalyticsMetric => ({
+  const createMockMetric = (
+    overrides?: Partial<AnalyticsMetric>,
+  ): AnalyticsMetric => ({
     id: 'test-uuid',
     metricType: MetricType.TRADE_VOLUME,
     aggregation: MetricAggregation.DAY,
@@ -152,7 +169,9 @@ describe('Analytics Module Services', () => {
     ...overrides,
   });
 
-  const createMockSegment = (overrides?: Partial<UserSegment>): UserSegment => ({
+  const createMockSegment = (
+    overrides?: Partial<UserSegment>,
+  ): UserSegment => ({
     id: 'segment-uuid',
     name: 'Test Segment',
     description: 'Test segment description',
@@ -182,7 +201,7 @@ describe('Analytics Module Services', () => {
       const result = await metricsCollector.recordMetric(
         MetricType.TRADE_VOLUME,
         '1000.00',
-        new Date()
+        new Date(),
       );
 
       expect(mockAnalyticsMetricRepo.create).toHaveBeenCalled();
@@ -208,7 +227,7 @@ describe('Analytics Module Services', () => {
 
       const dateFrom = new Date(Date.now() - 86400000);
       const dateTo = new Date();
-      
+
       await metricsCollector.calculateTradeMetrics(dateFrom, dateTo);
 
       expect(mockTradeRepo.find).toHaveBeenCalled();
@@ -223,12 +242,16 @@ describe('Analytics Module Services', () => {
       };
       mockUserRepo.createQueryBuilder.mockReturnValue(qb);
       mockAnalyticsMetricRepo.findOne.mockResolvedValue(null);
-      mockAnalyticsMetricRepo.create.mockReturnValue(createMockMetric({ metricType: MetricType.USER_NEW }));
-      mockAnalyticsMetricRepo.save.mockResolvedValue(createMockMetric({ metricType: MetricType.USER_NEW }));
+      mockAnalyticsMetricRepo.create.mockReturnValue(
+        createMockMetric({ metricType: MetricType.USER_NEW }),
+      );
+      mockAnalyticsMetricRepo.save.mockResolvedValue(
+        createMockMetric({ metricType: MetricType.USER_NEW }),
+      );
 
       const dateFrom = new Date(Date.now() - 86400000);
       const dateTo = new Date();
-      
+
       await metricsCollector.calculateUserMetrics(dateFrom, dateTo);
 
       expect(mockUserRepo.count).toHaveBeenCalled();
@@ -242,12 +265,16 @@ describe('Analytics Module Services', () => {
       ];
       mockTransactionRepo.find.mockResolvedValue(mockTransactions);
       mockAnalyticsMetricRepo.findOne.mockResolvedValue(null);
-      mockAnalyticsMetricRepo.create.mockReturnValue(createMockMetric({ metricType: MetricType.TRANSACTION_FEE }));
-      mockAnalyticsMetricRepo.save.mockResolvedValue(createMockMetric({ metricType: MetricType.TRANSACTION_FEE }));
+      mockAnalyticsMetricRepo.create.mockReturnValue(
+        createMockMetric({ metricType: MetricType.TRANSACTION_FEE }),
+      );
+      mockAnalyticsMetricRepo.save.mockResolvedValue(
+        createMockMetric({ metricType: MetricType.TRANSACTION_FEE }),
+      );
 
       const dateFrom = new Date(Date.now() - 86400000);
       const dateTo = new Date();
-      
+
       await metricsCollector.calculateRevenueMetrics(dateFrom, dateTo);
 
       expect(mockTransactionRepo.find).toHaveBeenCalled();
@@ -271,7 +298,7 @@ describe('Analytics Module Services', () => {
       mockAnalyticsMetricRepo.createQueryBuilder.mockReturnValue(qb);
 
       const result = await metricsQuery.getDashboardSummary();
-      
+
       expect(result).toHaveProperty('currentDay');
       expect(result).toHaveProperty('previousDay');
       expect(result).toHaveProperty('changes');
@@ -296,7 +323,7 @@ describe('Analytics Module Services', () => {
       mockAnalyticsMetricRepo.createQueryBuilder.mockReturnValue(qb);
 
       const result = await metricsQuery.queryMetrics(queryDto as any);
-      
+
       expect(result.data).toHaveLength(1);
       expect(result.meta.total).toBe(1);
       expect(result.meta.page).toBe(1);
@@ -321,7 +348,7 @@ describe('Analytics Module Services', () => {
       };
 
       const result = await reportGenerator.createReport('user-123', dto);
-      
+
       expect(mockSavedReportRepo.create).toHaveBeenCalled();
       expect(mockSavedReportRepo.save).toHaveBeenCalled();
       expect(result.name).toBe('Test Report');
@@ -331,7 +358,7 @@ describe('Analytics Module Services', () => {
       mockSavedReportRepo.find.mockResolvedValue([createMockReport()]);
 
       const result = await reportGenerator.getUserReports('user-123');
-      
+
       expect(result).toHaveLength(1);
       expect(result[0].userId).toBe('user-123');
     });
@@ -340,7 +367,7 @@ describe('Analytics Module Services', () => {
       mockSavedReportRepo.findOne.mockResolvedValue(createMockReport());
 
       const result = await reportGenerator.getReport('report-uuid');
-      
+
       expect(result).toBeDefined();
       expect(result.id).toBe('report-uuid');
     });
@@ -362,7 +389,7 @@ describe('Analytics Module Services', () => {
       };
 
       const result = await userSegmentation.createSegment('admin-123', dto);
-      
+
       expect(mockUserSegmentRepo.create).toHaveBeenCalled();
       expect(mockUserSegmentRepo.save).toHaveBeenCalled();
       expect(result.userCount).toBe(2);
@@ -372,27 +399,40 @@ describe('Analytics Module Services', () => {
       mockUserSegmentRepo.find.mockResolvedValue([createMockSegment()]);
 
       const result = await userSegmentation.getAllSegments();
-      
+
       expect(result).toHaveLength(1);
       expect(result[0].isActive).toBe(true);
     });
 
     it('should add user to manual segment', async () => {
       mockUserSegmentRepo.findOne.mockResolvedValue(createMockSegment());
-      mockUserSegmentRepo.save.mockResolvedValue(createMockSegment({ userIds: ['user-1', 'user-2', 'user-3'], userCount: 3 }));
+      mockUserSegmentRepo.save.mockResolvedValue(
+        createMockSegment({
+          userIds: ['user-1', 'user-2', 'user-3'],
+          userCount: 3,
+        }),
+      );
 
-      const result = await userSegmentation.addUserToManualSegment('segment-uuid', 'user-3');
-      
+      const result = await userSegmentation.addUserToManualSegment(
+        'segment-uuid',
+        'user-3',
+      );
+
       expect(result.userIds).toContain('user-3');
       expect(result.userCount).toBe(3);
     });
 
     it('should remove user from manual segment', async () => {
       mockUserSegmentRepo.findOne.mockResolvedValue(createMockSegment());
-      mockUserSegmentRepo.save.mockResolvedValue(createMockSegment({ userIds: ['user-1'], userCount: 1 }));
+      mockUserSegmentRepo.save.mockResolvedValue(
+        createMockSegment({ userIds: ['user-1'], userCount: 1 }),
+      );
 
-      const result = await userSegmentation.removeUserFromManualSegment('segment-uuid', 'user-2');
-      
+      const result = await userSegmentation.removeUserFromManualSegment(
+        'segment-uuid',
+        'user-2',
+      );
+
       expect(result.userIds).not.toContain('user-2');
       expect(result.userCount).toBe(1);
     });

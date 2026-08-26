@@ -94,7 +94,10 @@ export class AuthController {
   @HttpCode(HttpStatus.OK)
   @ApiOperation({ summary: 'Exchange a refresh token for a new token pair' })
   refresh(@Body() dto: RefreshTokenDto, @Req() req: Request) {
-    return this.authService.refreshAccessToken(dto.refreshToken, requestContext(req));
+    return this.authService.refreshAccessToken(
+      dto.refreshToken,
+      requestContext(req),
+    );
   }
 
   @Post('logout')
@@ -102,10 +105,7 @@ export class AuthController {
   @UseGuards(JwtAuthGuard)
   @ApiBearerAuth()
   @ApiOperation({ summary: 'Revoke the provided refresh token' })
-  logout(
-    @CurrentUser() user: AuthenticatedUser,
-    @Body() dto: RefreshTokenDto,
-  ) {
+  logout(@CurrentUser() user: AuthenticatedUser, @Body() dto: RefreshTokenDto) {
     return this.authService.logout(user.id, dto.refreshToken);
   }
 
@@ -132,14 +132,16 @@ export class AuthController {
     @Body() dto: StellarChallengeRequestDto,
     @Req() req: Request,
   ) {
-    return this.authService.stellarChallenge(dto.publicKey, requestContext(req));
+    return this.authService.stellarChallenge(
+      dto.publicKey,
+      requestContext(req),
+    );
   }
 
   @Post('stellar/verify')
   @HttpCode(HttpStatus.OK)
   @ApiOperation({
-    summary:
-      'Submit signed challenge to receive a JWT (step 2)',
+    summary: 'Submit signed challenge to receive a JWT (step 2)',
   })
   stellarVerify(@Body() dto: StellarVerifyDto, @Req() req: Request) {
     return this.authService.stellarVerify(
@@ -163,7 +165,10 @@ export class AuthController {
     @Body() dto: RequestPasswordResetDto,
     @Req() req: Request,
   ) {
-    return this.authService.requestPasswordReset(dto.email, requestContext(req));
+    return this.authService.requestPasswordReset(
+      dto.email,
+      requestContext(req),
+    );
   }
 
   @Post('password-reset/confirm')

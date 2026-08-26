@@ -1,9 +1,20 @@
-import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from '@nestjs/common';
-import { HorizonStreamService, LedgerCloseEvent } from './horizon-stream.service';
+import {
+  Injectable,
+  Logger,
+  OnModuleDestroy,
+  OnModuleInit,
+} from '@nestjs/common';
+import {
+  HorizonStreamService,
+  LedgerCloseEvent,
+} from './horizon-stream.service';
 import { EventNormalizer } from './event-normalizer.service';
 import { EventBufferService, BufferedEvent } from './event-buffer.service';
 import { BatchedPersistenceService } from './batched-persistence.service';
-import { SubscriptionManager, NormalizedEventPayload } from './subscription-manager.service';
+import {
+  SubscriptionManager,
+  NormalizedEventPayload,
+} from './subscription-manager.service';
 import { IndexingStateService } from './indexing-state.service';
 import { StellarEventSourceService } from './stellar-event-source.service';
 import { EventStreamService } from './event-stream.service';
@@ -106,7 +117,9 @@ export class LedgerIndexerService implements OnModuleInit, OnModuleDestroy {
    * Fetches all transactions/operations for the ledger, normalizes them,
    * buffers them, and triggers persistence.
    */
-  private async handleLedgerClose(ledgerEvent: LedgerCloseEvent): Promise<void> {
+  private async handleLedgerClose(
+    ledgerEvent: LedgerCloseEvent,
+  ): Promise<void> {
     const ledger = ledgerEvent.sequence;
     this.logger.debug(`Processing ledger close: ${ledger}`);
 
@@ -123,7 +136,9 @@ export class LedgerIndexerService implements OnModuleInit, OnModuleDestroy {
 
         let operations;
         try {
-          operations = await this.eventSource.getOperationsForTransaction(tx.hash);
+          operations = await this.eventSource.getOperationsForTransaction(
+            tx.hash,
+          );
         } catch {
           this.logger.warn(
             `Failed to fetch operations for tx ${tx.hash} in ledger ${ledger}`,
@@ -132,27 +147,33 @@ export class LedgerIndexerService implements OnModuleInit, OnModuleDestroy {
         }
 
         // Normalize operations into IndexedEvent inputs.
-        const normalizedEvents =
-          this.normalizer.normalizeStellarOperations(tx, operations);
+        const normalizedEvents = this.normalizer.normalizeStellarOperations(
+          tx,
+          operations,
+        );
 
         // Assign sequence numbers and convert to buffered events.
-        const bufferedEvents: BufferedEvent[] = normalizedEvents.map((event) => {
-          const withSequence = this.normalizer.assignSequence(event);
-          return {
-            sequenceNumber: Number(withSequence.sequenceNumber),
-            ledgerSequence: withSequence.ledgerSequence,
-            eventType: withSequence.eventType,
-            timestamp: withSequence.timestamp.getTime(),
-            data: withSequence as unknown as Record<string, unknown>,
-            bufferedAt: Date.now(),
-          };
-        });
+        const bufferedEvents: BufferedEvent[] = normalizedEvents.map(
+          (event) => {
+            const withSequence = this.normalizer.assignSequence(event);
+            return {
+              sequenceNumber: Number(withSequence.sequenceNumber),
+              ledgerSequence: withSequence.ledgerSequence,
+              eventType: withSequence.eventType,
+              timestamp: withSequence.timestamp.getTime(),
+              data: withSequence as unknown as Record<string, unknown>,
+              bufferedAt: Date.now(),
+            };
+          },
+        );
 
         // Add to the buffer (deduplication happens here).
         const accepted = this.buffer.pushBatch(bufferedEvents);
         if (accepted > 0) {
           // Drain the buffer and persist.
-          const toPersist = this.buffer.drain(this.buffer.getStats().bufferSize);
+          const toPersist = this.buffer.drain(
+            this.buffer.getStats().bufferSize,
+          );
           await this.persistAndDistribute(toPersist);
         }
       }
@@ -171,7 +192,11 @@ export class LedgerIndexerService implements OnModuleInit, OnModuleDestroy {
    * Called externally when new Soroban events are detected.
    */
   async handleSorobanEvents(
-    events: Array<{ topics: unknown[]; value: unknown; [key: string]: unknown }>,
+    events: Array<{
+      topics: unknown[];
+      value: unknown;
+      [key: string]: unknown;
+    }>,
   ): Promise<void> {
     if (events.length === 0) return;
 
@@ -201,9 +226,7 @@ export class LedgerIndexerService implements OnModuleInit, OnModuleDestroy {
   /**
    * Persists events to the database and distributes them to subscribers.
    */
-  private async persistAndDistribute(
-    events: BufferedEvent[],
-  ): Promise<void> {
+  private async persistAndDistribute(events: BufferedEvent[]): Promise<void> {
     if (events.length === 0) return;
 
     // Enqueue for batched persistence.
@@ -228,16 +251,13 @@ export class LedgerIndexerService implements OnModuleInit, OnModuleDestroy {
         topics: event.data.topics as unknown[] | undefined,
         value: event.data.value as unknown | undefined,
         normalizedData: event.data.normalizedData as
-          | Record<string, unknown>
-          | undefined,
+          Record<string, unknown> | undefined,
       };
 
       this.subscriptionManager.distributeEvent(payload);
 
       // Also publish to the legacy Redis stream for backward compatibility.
-      void this.legacyStreamService.publish(
-        event.data as any,
-      );
+      void this.legacyStreamService.publish(event.data as any);
     }
   }
 

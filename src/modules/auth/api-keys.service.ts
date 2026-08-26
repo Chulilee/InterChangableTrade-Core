@@ -65,7 +65,10 @@ export class ApiKeysService {
 
   /** Lists all API keys for a user (key hashes excluded). */
   async listForUser(userId: string): Promise<ApiKey[]> {
-    return this.apiKeyRepo.find({ where: { userId }, order: { createdAt: 'DESC' } });
+    return this.apiKeyRepo.find({
+      where: { userId },
+      order: { createdAt: 'DESC' },
+    });
   }
 
   /**

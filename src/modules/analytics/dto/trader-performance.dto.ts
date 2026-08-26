@@ -1,4 +1,12 @@
-import { IsOptional, IsString, IsDateString, IsInt, Min, Max, IsUUID } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsDateString,
+  IsInt,
+  Min,
+  Max,
+  IsUUID,
+} from 'class-validator';
 
 export class GetTraderPerformanceDto {
   @IsUUID()

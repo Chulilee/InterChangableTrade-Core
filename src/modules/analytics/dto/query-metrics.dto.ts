@@ -1,6 +1,16 @@
-import { IsOptional, IsString, IsDateString, IsArray, IsEnum, IsUUID } from 'class-validator';
+import {
+  IsOptional,
+  IsString,
+  IsDateString,
+  IsArray,
+  IsEnum,
+  IsUUID,
+} from 'class-validator';
 import { PaginationQueryDto } from '@app/common';
-import { MetricType, MetricAggregation } from '../entities/analytics-metric.entity';
+import {
+  MetricType,
+  MetricAggregation,
+} from '../entities/analytics-metric.entity';
 
 export class QueryMetricsDto extends PaginationQueryDto {
   @IsOptional()

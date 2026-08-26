@@ -1,4 +1,3 @@
-
 import { Injectable, Logger } from '@nestjs/common';
 import { Redis } from 'ioredis';
 import { Inject } from '@nestjs/common';
@@ -13,9 +12,7 @@ export class DeduplicationService {
   private readonly WINDOW_SECONDS = 300; // 5 minute deduplication window
   private readonly EVENT_SIMILARITY_THRESHOLD = 0.9;
 
-  constructor(
-    @Inject(REDIS_CLIENT) private readonly redis: Redis,
-  ) {}
+  constructor(@Inject(REDIS_CLIENT) private readonly redis: Redis) {}
 
   async isDuplicate(event: BlockchainEvent): Promise<boolean> {
     // 1. Check for exact duplicate by uniqueId
@@ -38,7 +35,7 @@ export class DeduplicationService {
   private async isExactDuplicate(uniqueId: string): Promise<boolean> {
     const key = `${this.DEDUPE_KEY_PREFIX}exact:${uniqueId}`;
     const exists = await this.redis.get(key);
-    
+
     if (!exists) {
       return false;
     }
@@ -49,7 +46,7 @@ export class DeduplicationService {
     // Generate a fingerprint for event similarity checking
     const fingerprint = this.generateEventFingerprint(event);
     const key = `${this.DEDUPE_KEY_PREFIX}similar:${fingerprint}`;
-    
+
     const lastSeen = await this.redis.get(key);
     if (!lastSeen) {
       return false;
@@ -57,9 +54,9 @@ export class DeduplicationService {
 
     const lastSeenDate = new Date(lastSeen);
     const timeSinceLastSeen = Date.now() - lastSeenDate.getTime();
-    
+
     // If we've seen a similar event within the window, consider it a duplicate
-    return timeSinceLastSeen < (this.WINDOW_SECONDS * 1000);
+    return timeSinceLastSeen < this.WINDOW_SECONDS * 1000;
   }
 
   private generateEventFingerprint(event: BlockchainEvent): string {
@@ -83,26 +80,29 @@ export class DeduplicationService {
     // Record exact match
     await this.redis.set(
       `${this.DEDUPE_KEY_PREFIX}exact:${event.uniqueId}`,
-      new Date().toISOString()
+      new Date().toISOString(),
     );
     await this.redis.expire(
       `${this.DEDUPE_KEY_PREFIX}exact:${event.uniqueId}`,
-      this.WINDOW_SECONDS
+      this.WINDOW_SECONDS,
     );
 
     // Record similarity match
     const fingerprint = this.generateEventFingerprint(event);
     await this.redis.set(
       `${this.DEDUPE_KEY_PREFIX}similar:${fingerprint}`,
-      new Date().toISOString()
+      new Date().toISOString(),
     );
     await this.redis.expire(
       `${this.DEDUPE_KEY_PREFIX}similar:${fingerprint}`,
-      this.WINDOW_SECONDS
+      this.WINDOW_SECONDS,
     );
   }
 
-  async getDeduplicationStats(): Promise<{ currentWindowSize: number; deduplicated: number }> {
+  async getDeduplicationStats(): Promise<{
+    currentWindowSize: number;
+    deduplicated: number;
+  }> {
     const keys = await this.redis.keys(`${this.DEDUPE_KEY_PREFIX}*`);
     return {
       currentWindowSize: keys.length,

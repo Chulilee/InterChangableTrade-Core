@@ -1,5 +1,14 @@
-import { IsOptional, IsDateString, IsEnum, IsArray, IsUUID } from 'class-validator';
-import { AnomalyType, AnomalySeverity } from '../services/anomaly-detection.service';
+import {
+  IsOptional,
+  IsDateString,
+  IsEnum,
+  IsArray,
+  IsUUID,
+} from 'class-validator';
+import {
+  AnomalyType,
+  AnomalySeverity,
+} from '../services/anomaly-detection.service';
 
 export class DetectAnomaliesDto {
   @IsDateString()
