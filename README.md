@@ -138,6 +138,9 @@ Write invocations and contract deployments require a funded source account via
 
 - [Roadmap](ROADMAP.md) — direction and upcoming milestones
 - [Changelog](CHANGELOG.md) — released changes
+- [Data Persistence & Database](docs/database.md) — pooling, transactions,
+  migrations, constraints
+- [Audit Logging](docs/audit-logging.md) — compliance and audit trail
 - API reference — Swagger UI at `/api/docs` when the app is running
 
 ## Related Repositories

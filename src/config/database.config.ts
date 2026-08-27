@@ -23,6 +23,21 @@ export class DatabaseConfig implements TypeOrmOptionsFactory {
       autoLoadEntities: true,
       synchronize: db.synchronize,
       logging: db.logging,
+      // Version-controlled migrations (see src/database). Never run
+      // automatically on boot — CI/CD applies them explicitly with
+      // `npm run migration:run` before the new app version starts serving
+      // traffic, so a bad migration fails the deploy rather than the app.
+      migrations: [__dirname + '/../database/migrations/*{.ts,.js}'],
+      migrationsRun: false,
+      // Connection pool (forwarded to node-postgres' `pg.Pool`). Reusing
+      // warm connections instead of opening one per request is the single
+      // biggest lever on request latency under load.
+      extra: {
+        max: db.pool.max,
+        min: db.pool.min,
+        idleTimeoutMillis: db.pool.idleTimeoutMs,
+        connectionTimeoutMillis: db.pool.connectionTimeoutMs,
+      },
     };
   }
 }
