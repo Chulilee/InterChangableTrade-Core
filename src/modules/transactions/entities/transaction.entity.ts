@@ -1,4 +1,4 @@
-import { Column, Entity, Index } from 'typeorm';
+import { Check, Column, Entity, Index } from 'typeorm';
 import { BaseEntity } from '@app/common';
 
 export enum TransactionType {
@@ -20,6 +20,12 @@ export enum TransactionStatus {
  * indexer can dedupe replays.
  */
 @Entity('transactions')
+@Check('CHK_transactions_amount_positive', '"amount" > 0')
+@Index('IDX_transactions_user_status_created', [
+  'userId',
+  'status',
+  'createdAt',
+])
 export class Transaction extends BaseEntity {
   @Index({ unique: true, where: '"stellarTxHash" IS NOT NULL' })
   @Column({ type: 'varchar', nullable: true })

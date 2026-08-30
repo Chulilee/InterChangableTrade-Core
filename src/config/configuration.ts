@@ -14,6 +14,22 @@ export default () => ({
     name: process.env.DB_NAME,
     synchronize: process.env.DB_SYNCHRONIZE === 'true',
     logging: process.env.DB_LOGGING === 'true',
+    // Connection pool sizing (node-postgres `pg.Pool` options, passed through
+    // TypeORM's `extra`). Tuned pooling avoids per-request connection setup
+    // cost and caps concurrent connections so the app can't exhaust Postgres'
+    // `max_connections` under load. See docs/database.md.
+    pool: {
+      max: parseInt(process.env.DB_POOL_MAX ?? '20', 10),
+      min: parseInt(process.env.DB_POOL_MIN ?? '5', 10),
+      idleTimeoutMs: parseInt(
+        process.env.DB_POOL_IDLE_TIMEOUT_MS ?? '30000',
+        10,
+      ),
+      connectionTimeoutMs: parseInt(
+        process.env.DB_POOL_CONNECTION_TIMEOUT_MS ?? '5000',
+        10,
+      ),
+    },
   },
 
   redis: {

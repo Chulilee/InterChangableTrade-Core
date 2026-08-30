@@ -17,6 +17,10 @@ export const envValidationSchema = Joi.object({
   DB_NAME: Joi.string().required(),
   DB_SYNCHRONIZE: Joi.boolean().default(false),
   DB_LOGGING: Joi.boolean().default(false),
+  DB_POOL_MAX: Joi.number().integer().min(1).default(20),
+  DB_POOL_MIN: Joi.number().integer().min(0).default(5),
+  DB_POOL_IDLE_TIMEOUT_MS: Joi.number().integer().min(0).default(30000),
+  DB_POOL_CONNECTION_TIMEOUT_MS: Joi.number().integer().min(0).default(5000),
 
   REDIS_HOST: Joi.string().default('localhost'),
   REDIS_PORT: Joi.number().default(6379),
