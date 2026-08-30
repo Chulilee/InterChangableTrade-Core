@@ -28,6 +28,7 @@ import { ComplianceModule } from './modules/compliance/compliance.module';
 import { RateLimitingModule } from './modules/rate-limiting/rate-limiting.module';
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { WebhookModule } from './modules/webhooks/webhook.module';
+import { TransactionCoordinatorModule } from './modules/transaction-coordinator/transaction-coordinator.module';
 
 @Module({
   imports: [
@@ -59,6 +60,7 @@ import { WebhookModule } from './modules/webhooks/webhook.module';
     RateLimitingModule,
     PortfolioModule,
     WebhookModule,
+    TransactionCoordinatorModule,
   ],
   controllers: [AppController],
   providers: [AppService],
