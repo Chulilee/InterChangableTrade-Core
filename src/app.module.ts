@@ -29,6 +29,7 @@ import { RateLimitingModule } from './modules/rate-limiting/rate-limiting.module
 import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { WebhookModule } from './modules/webhooks/webhook.module';
 import { TransactionCoordinatorModule } from './modules/transaction-coordinator/transaction-coordinator.module';
+import { LiquidityAggregatorModule } from './modules/liquidity-aggregator/liquidity-aggregator.module';
 
 @Module({
   imports: [
@@ -61,6 +62,7 @@ import { TransactionCoordinatorModule } from './modules/transaction-coordinator/
     PortfolioModule,
     WebhookModule,
     TransactionCoordinatorModule,
+    LiquidityAggregatorModule,
   ],
   controllers: [AppController],
   providers: [AppService],
