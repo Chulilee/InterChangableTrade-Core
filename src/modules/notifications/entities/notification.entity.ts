@@ -58,10 +58,10 @@ export class Notification {
   @Column({ default: 0 })
   retryCount: number;
 
-  @Column({ nullable: true })
+  @Column({ type: 'timestamp', nullable: true })
   scheduledAt: Date | null;
 
-  @Column({ nullable: true })
+  @Column({ type: 'varchar', nullable: true })
   batchId: string | null;
 
   @CreateDateColumn()

@@ -41,6 +41,7 @@ export class StellarEventSourceService {
   private readonly pollIntervalMs: number;
   private readonly pageLimit: number;
   private readonly includeFailed: boolean;
+  private readonly maxRateLimitRetries = 3;
 
   constructor(private readonly configService: ConfigService) {
     this.horizonUrl =
@@ -102,32 +103,48 @@ export class StellarEventSourceService {
   }
 
   async getOperationsForTransaction(txHash: string): Promise<RawOperation[]> {
-    try {
-      const result = await this.server
-        .operations()
-        .forTransaction(txHash)
-        .limit(200)
-        .call();
-      return result.records.map((op: any) => ({
-        transaction_hash: op.transaction_hash,
-        application_index: op.application_index,
-        type: op.type,
-        asset_code: op.asset_code,
-        asset_issuer: op.asset_issuer,
-        from: op.from,
-        to: op.to,
-        amount: op.amount,
-        path: op.path,
-        price: op.price,
-        offer_id: op.offer_id,
-        starting_balance: op.starting_balance,
-        into: op.into,
-      }));
-    } catch (error) {
-      throw new ServiceUnavailableException(
-        `Failed to fetch operations for ${txHash}: ${(error as Error).message}`,
-      );
+    for (let attempt = 0; attempt <= this.maxRateLimitRetries; attempt++) {
+      try {
+        const result = await this.server
+          .operations()
+          .forTransaction(txHash)
+          .limit(200)
+          .call();
+        return result.records.map((op: any) => ({
+          transaction_hash: op.transaction_hash,
+          application_index: op.application_index,
+          type: op.type,
+          asset_code: op.asset_code,
+          asset_issuer: op.asset_issuer,
+          from: op.from,
+          to: op.to,
+          amount: op.amount,
+          path: op.path,
+          price: op.price,
+          offer_id: op.offer_id,
+          starting_balance: op.starting_balance,
+          into: op.into,
+        }));
+      } catch (error) {
+        const status = (error as { response?: { status?: number } }).response
+          ?.status;
+        if (status !== 429 || attempt === this.maxRateLimitRetries) {
+          throw new ServiceUnavailableException(
+            `Failed to fetch operations for ${txHash}: ${(error as Error).message}`,
+          );
+        }
+
+        const delayMs = 1000 * 2 ** attempt;
+        this.logger.warn(
+          `Horizon rate limit while fetching operations for ${txHash}; retrying in ${delayMs}ms`,
+        );
+        await new Promise((resolve) => setTimeout(resolve, delayMs));
+      }
     }
+
+    throw new ServiceUnavailableException(
+      `Failed to fetch operations for ${txHash}`,
+    );
   }
 
   async getTransactionByHash(txHash: string): Promise<RawTransaction | null> {

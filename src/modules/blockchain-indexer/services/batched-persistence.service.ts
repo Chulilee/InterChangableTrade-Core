@@ -122,8 +122,7 @@ export class BatchedPersistenceService implements OnModuleDestroy {
     if (this.flushing || this.pendingBatch.length === 0) return 0;
     this.flushing = true;
 
-    const batch = this.pendingBatch;
-    this.pendingBatch = [];
+    const batch = this.pendingBatch.splice(0, this.batchMaxSize);
 
     try {
       await this.dataSource.transaction(async (manager) => {
