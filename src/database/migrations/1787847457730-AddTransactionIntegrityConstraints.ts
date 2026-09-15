@@ -13,13 +13,24 @@ export class AddTransactionIntegrityConstraints1787847457730 implements Migratio
   name = 'AddTransactionIntegrityConstraints1787847457730';
 
   public async up(queryRunner: QueryRunner): Promise<void> {
+    const transactionsTable = await queryRunner.getTable('transactions');
+    if (!transactionsTable) {
+      return;
+    }
+
     // Data validation: a transaction moving zero or negative value is an
     // invalid state that should never reach the database, regardless of
     // which application-layer check might have been skipped.
-    await queryRunner.query(`
-      ALTER TABLE "transactions"
-      ADD CONSTRAINT "CHK_transactions_amount_positive" CHECK ("amount" > 0)
-    `);
+    if (
+      !transactionsTable.checks.some(
+        (check) => check.name === 'CHK_transactions_amount_positive',
+      )
+    ) {
+      await queryRunner.query(`
+        ALTER TABLE "transactions"
+        ADD CONSTRAINT "CHK_transactions_amount_positive" CHECK ("amount" > 0)
+      `);
+    }
 
     // Query performance: the transaction-history endpoints page through a
     // single user's transactions filtered by status, most-recent first. The
@@ -27,10 +38,16 @@ export class AddTransactionIntegrityConstraints1787847457730 implements Migratio
     // the search independently; this composite index lets Postgres satisfy
     // that exact filter+sort in one index scan instead of intersecting two
     // bitmap scans and then sorting.
-    await queryRunner.query(`
-      CREATE INDEX "IDX_transactions_user_status_created"
-      ON "transactions" ("userId", "status", "createdAt")
-    `);
+    if (
+      !transactionsTable.indices.some(
+        (index) => index.name === 'IDX_transactions_user_status_created',
+      )
+    ) {
+      await queryRunner.query(`
+        CREATE INDEX "IDX_transactions_user_status_created"
+        ON "transactions" ("userId", "status", "createdAt")
+      `);
+    }
   }
 
   public async down(queryRunner: QueryRunner): Promise<void> {

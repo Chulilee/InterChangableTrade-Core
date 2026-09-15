@@ -27,7 +27,6 @@ export enum AuthEventType {
  */
 @Entity('auth_audit_logs')
 export class AuthAuditLog extends BaseEntity {
-  @Index()
   @ManyToOne(() => User, { nullable: true, onDelete: 'SET NULL' })
   @JoinColumn({ name: 'userId' })
   user?: User;

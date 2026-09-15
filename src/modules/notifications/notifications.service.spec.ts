@@ -12,6 +12,7 @@ import { Channel } from './enums/channel.enum';
 import { NotificationType } from './enums/notification-type.enum';
 import { DeliveryStatus } from './enums/delivery-status.enum';
 import { NotFoundException } from '@nestjs/common';
+import { REDIS_CLIENT } from '../../redis/redis.module';
 
 describe('NotificationsService', () => {
   let service: NotificationsService;
@@ -109,6 +110,10 @@ describe('NotificationsService', () => {
         },
         { provide: NotificationStrategy, useValue: strategy },
         { provide: NotificationGateway, useValue: gateway },
+        {
+          provide: REDIS_CLIENT,
+          useValue: { duplicate: jest.fn(() => ({})) },
+        },
       ],
     }).compile();
 

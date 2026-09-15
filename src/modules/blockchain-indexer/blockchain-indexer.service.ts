@@ -30,7 +30,13 @@ export class BlockchainIndexerService implements OnModuleInit, OnModuleDestroy {
 
   async start(): Promise<void> {
     this.logger.log('Starting blockchain event indexing module');
-    await this.reorgHandler.detectAndHandle();
+    try {
+      await this.reorgHandler.detectAndHandle();
+    } catch (error) {
+      this.logger.warn(
+        `Initial reorg check skipped: ${(error as Error).message}`,
+      );
+    }
     await this.eventIndexer.start();
     this.logger.log('Blockchain event indexing module started');
   }
