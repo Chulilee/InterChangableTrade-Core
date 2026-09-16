@@ -19,7 +19,12 @@ export class AppController {
   }
 
   @Get('health')
-  getHealth(): { status: string; timestamp: string } {
+  async getHealth(): Promise<{
+    status: string;
+    timestamp: string;
+    database: { status: 'up' | 'down'; details?: string };
+    redis: { status: 'up' | 'down'; details?: string };
+  }> {
     return this.appService.getHealth();
   }
 }
