@@ -17,6 +17,9 @@ import { envValidationSchema } from './env.validation';
       validationSchema: envValidationSchema,
       validationOptions: {
         abortEarly: false,
+        // Explicit (it is also @nestjs/config's default): process.env always
+        // carries OS variables. See the policy note in env.validation.ts.
+        allowUnknown: true,
       },
     }),
   ],

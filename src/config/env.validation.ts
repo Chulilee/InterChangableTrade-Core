@@ -3,6 +3,14 @@ import * as Joi from 'joi';
 /**
  * Fail fast at boot if the environment is misconfigured. A missing DB
  * password or JWT secret should stop startup, not surface as a runtime error.
+ *
+ * Unknown-key policy: unknown keys are ALLOWED at boot (`allowUnknown: true`
+ * in `config.module.ts`). The schema is checked against `.env` merged with the
+ * whole `process.env`, which always contains OS variables such as PATH, so a
+ * strict check could never pass there. Drift between this schema and
+ * `.env.example` is caught instead by `env.validation.spec.ts`, which validates
+ * `.env.example` strictly: every key in it must be declared here, and every
+ * key declared here must be listed in it.
  */
 export const envValidationSchema = Joi.object({
   NODE_ENV: Joi.string()
@@ -39,6 +47,21 @@ export const envValidationSchema = Joi.object({
   STELLAR_HORIZON_URL: Joi.string().uri().required(),
   SOROBAN_RPC_URL: Joi.string().uri().required(),
   STELLAR_NETWORK_PASSPHRASE: Joi.string().required(),
+
+  // Stellar API gateway (see `stellar` in configuration.ts)
+  STELLAR_POOL_MIN_CONNECTIONS: Joi.number().integer().min(0).default(2),
+  STELLAR_POOL_MAX_CONNECTIONS: Joi.number().integer().min(1).default(10),
+  STELLAR_POOL_IDLE_TIMEOUT_MS: Joi.number().integer().min(0).default(30000),
+  STELLAR_POOL_CONNECTION_TTL_MS: Joi.number()
+    .integer()
+    .min(0)
+    .default(3600000),
+  STELLAR_RATE_LIMIT_ENABLED: Joi.boolean().default(true),
+  STELLAR_RATE_LIMIT_PER_MINUTE: Joi.number().integer().min(1).default(60),
+  STELLAR_RATE_BURST_LIMIT: Joi.number().integer().min(1).default(10),
+  STELLAR_MAX_QUEUE_SIZE: Joi.number().integer().min(1).default(100),
+  STELLAR_MAX_CONCURRENT_REQUESTS: Joi.number().integer().min(1).default(5),
+  STELLAR_PROCESSING_INTERVAL_MS: Joi.number().integer().min(0).default(50),
 
   // Soroban smart-contract module. All optional with sensible defaults so the
   // module boots in read-only mode without extra configuration.
@@ -79,4 +102,8 @@ export const envValidationSchema = Joi.object({
   TWILIO_AUTH_TOKEN: Joi.string().optional(),
   TWILIO_PHONE_NUMBER: Joi.string().optional(),
   NOTIFICATION_EMAIL_FROM: Joi.string().email().optional(),
+
+  // Notification services (chat). Each provider is a no-op when its key is unset.
+  TELEGRAM_BOT_TOKEN: Joi.string().optional(),
+  DISCORD_WEBHOOK_URL: Joi.string().uri().optional(),
 });
