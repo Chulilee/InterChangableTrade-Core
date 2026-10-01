@@ -107,9 +107,10 @@ export class ContractStateService {
     } while (cursor !== '0');
 
     // Extract just the storage key portion from the full cache key
+    // Key format: soroban:state:{contractId}:{durability}:{keyPart}
     return keys.map((key) => {
       const parts = key.split(':');
-      return parts.length >= 4 ? parts[3] : key;
+      return parts.length >= 5 ? parts.slice(4).join(':') : key;
     });
   }
 
@@ -127,7 +128,11 @@ export class ContractStateService {
         const entry = await this.getState(contractId, key);
         state[key] = entry.value;
       } catch (error) {
-        // Skip keys that fail to load
+        this.logger.warn(
+          `Failed to read state for key "${key}" in contract "${contractId}": ${
+            error instanceof Error ? error.message : String(error)
+          }`,
+        );
       }
     }
 

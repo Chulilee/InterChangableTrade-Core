@@ -108,6 +108,80 @@ describe('ContractStateService', () => {
       category: 'network',
     });
   });
+
+  describe('listStorageKeys', () => {
+    it('returns the actual storage key rather than durability (fixes off-by-one index)', async () => {
+      await service.getState(CONTRACT, 'admin_address', {
+        durability: rpc.Durability.Persistent,
+      });
+      await service.getState(CONTRACT, 'fee_rate', {
+        durability: rpc.Durability.Temporary,
+      });
+
+      const keys = await service.listStorageKeys(CONTRACT);
+      expect(keys).toContain('admin_address');
+      expect(keys).toContain('fee_rate');
+      // Must NOT contain durability names like 'persistent' or 'temporary'
+      expect(keys).not.toContain(rpc.Durability.Persistent);
+      expect(keys).not.toContain(rpc.Durability.Temporary);
+    });
+
+    it('correctly handles storage keys containing colons', async () => {
+      const complexKey = 'user:account:12345';
+      await service.getState(CONTRACT, complexKey, {
+        durability: rpc.Durability.Persistent,
+      });
+
+      const keys = await service.listStorageKeys(CONTRACT);
+      expect(keys).toContain('user:account:12345');
+    });
+
+    it('falls back to full key when key format does not match expected prefix segments', async () => {
+      await redis.set('custom:key:short', 'val');
+      // If a non-conforming key matches scan pattern
+      const scanMock = jest
+        .spyOn(redis, 'scan')
+        .mockResolvedValueOnce(['0', ['custom:short']]);
+      const keys = await service.listStorageKeys(CONTRACT);
+      expect(keys).toContain('custom:short');
+      scanMock.mockRestore();
+    });
+  });
+
+  describe('exportContractState', () => {
+    it('exports all cached state key-value entries for the contract', async () => {
+      getContractData.mockImplementation(async (_contract, key) => {
+        const keyStr = typeof key === 'string' ? key : 'val';
+        return makeEntry(keyStr === 'k1' ? 100 : 200);
+      });
+
+      await service.getState(CONTRACT, 'k1');
+      await service.getState(CONTRACT, 'k2');
+
+      const exported = await service.exportContractState(CONTRACT);
+      expect(exported).toHaveProperty('k1');
+      expect(exported).toHaveProperty('k2');
+    });
+
+    it('logs warning and continues export when an individual key read fails', async () => {
+      await service.getState(CONTRACT, 'good_key');
+      // Inject key that will fail on read
+      await redis.set(
+        `soroban:state:${CONTRACT}:persistent:bad_key`,
+        'corrupt',
+      );
+
+      const warnSpy = jest.spyOn((service as any).logger, 'warn');
+      getContractData.mockRejectedValueOnce(
+        new Error('Contract data not found'),
+      );
+
+      const exported = await service.exportContractState(CONTRACT);
+      expect(warnSpy).toHaveBeenCalled();
+      expect(exported).toHaveProperty('good_key');
+      expect(exported).not.toHaveProperty('bad_key');
+    });
+  });
 });
 
 // scValToNative just needs to unwrap our fake ScVal for these tests.
