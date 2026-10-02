@@ -49,6 +49,42 @@ export default () => ({
     horizonUrl: process.env.STELLAR_HORIZON_URL,
     sorobanRpcUrl: process.env.SOROBAN_RPC_URL,
     networkPassphrase: process.env.STELLAR_NETWORK_PASSPHRASE,
+
+    // API gateway tuning, read by the services in `src/modules/stellar/gateway`.
+    // Connection pool
+    poolMinConnections: parseInt(
+      process.env.STELLAR_POOL_MIN_CONNECTIONS ?? '2',
+      10,
+    ),
+    poolMaxConnections: parseInt(
+      process.env.STELLAR_POOL_MAX_CONNECTIONS ?? '10',
+      10,
+    ),
+    poolIdleTimeoutMs: parseInt(
+      process.env.STELLAR_POOL_IDLE_TIMEOUT_MS ?? '30000',
+      10,
+    ),
+    poolConnectionTtlMs: parseInt(
+      process.env.STELLAR_POOL_CONNECTION_TTL_MS ?? '3600000',
+      10,
+    ),
+    // Rate limiting (enabled unless explicitly set to 'false')
+    rateLimitEnabled: process.env.STELLAR_RATE_LIMIT_ENABLED !== 'false',
+    rateLimitPerMinute: parseInt(
+      process.env.STELLAR_RATE_LIMIT_PER_MINUTE ?? '60',
+      10,
+    ),
+    rateBurstLimit: parseInt(process.env.STELLAR_RATE_BURST_LIMIT ?? '10', 10),
+    // Request queue
+    maxQueueSize: parseInt(process.env.STELLAR_MAX_QUEUE_SIZE ?? '100', 10),
+    maxConcurrentRequests: parseInt(
+      process.env.STELLAR_MAX_CONCURRENT_REQUESTS ?? '5',
+      10,
+    ),
+    processingIntervalMs: parseInt(
+      process.env.STELLAR_PROCESSING_INTERVAL_MS ?? '50',
+      10,
+    ),
   },
 
   soroban: {
