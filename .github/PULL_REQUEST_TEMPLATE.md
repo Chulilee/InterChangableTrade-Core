@@ -35,6 +35,7 @@
       made sense.
 - [ ] Any Stellar/Soroban network access goes through the `stellar` module
       services (no direct Horizon/RPC calls from feature modules).
+- [ ] Any new or modified endpoints adhere to the [API Accessibility Guidelines](../docs/accessibility.md).
 - [ ] I did not commit secrets, private keys, or mainnet credentials.
 
 ## Notes for Reviewers

@@ -84,6 +84,9 @@ the same steps on every push and pull request to `main`.
   unit tests. Mock the network boundary (see
   `src/modules/stellar/soroban/contract-state.service.spec.ts` for the
   pattern) so tests run without a live network.
+- **API Accessibility:** When adding or modifying endpoints, adhere to our
+  [API Accessibility Guidelines](docs/accessibility.md). Review error schemas,
+  ISO timestamps, units, and ensure OpenAPI decorators are complete.
 
 ## Commit Messages
 

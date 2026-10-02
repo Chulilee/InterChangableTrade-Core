@@ -141,6 +141,7 @@ Write invocations and contract deployments require a funded source account via
 - [Data Persistence & Database](docs/database.md) — pooling, transactions,
   migrations, constraints
 - [Audit Logging](docs/audit-logging.md) — compliance and audit trail
+- [API Accessibility Guidelines](docs/accessibility.md) — inclusive API design and semantic contracts
 - API reference — Swagger UI at `/api/docs` when the app is running
 
 ## Related Repositories
