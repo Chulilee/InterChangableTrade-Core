@@ -2,7 +2,7 @@
 
 > Backend services powering the InterChangableTrade ecosystem on Stellar.
 
-[![Build and TypeScript Check](https://github.com/InterChangableTrade/InterChangableTrade-Core/actions/workflows/build-check.yml/badge.svg)](https://github.com/InterChangableTrade/InterChangableTrade-Core/actions/workflows/build-check.yml)
+[![Build and TypeScript Check](https://github.com/Chulilee/InterChangableTrade-Core/actions/workflows/build-check.yml/badge.svg)](https://github.com/Chulilee/InterChangableTrade-Core/actions/workflows/build-check.yml)
 [![License: Apache-2.0](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 ![Status: active development](https://img.shields.io/badge/status-active%20development-brightgreen.svg)
 ![Network: Stellar testnet](https://img.shields.io/badge/network-Stellar%20testnet-7d00ff.svg)
@@ -26,6 +26,9 @@ See the [Roadmap](ROADMAP.md) for what is coming next and the
 - **Authentication** — JWT plus a Stellar wallet challenge-response flow
   (Ed25519 nonce signing with replay protection)
 - **User & wallet management**
+- **[Multisig wallets](src/modules/wallet/services/)** — Stellar signer and
+  threshold configuration, unsigned transaction construction, signature
+  collection, and broadcast through the Stellar service
 - **Marketplace & trade execution engine** — asset trade listings and matching
 - **Stellar integration** — Horizon API gateway with connection pooling, rate
   limiting, and request queuing
@@ -39,6 +42,33 @@ See the [Roadmap](ROADMAP.md) for what is coming next and the
 - **Dispute resolution & arbitration** — filing, evidence, arbitrator
   assignment, resolution enforcement, appeals, and SLA tracking
 - **Analytics & reporting**
+- **[Escrow workflows](src/modules/escrow/escrow.service.ts)** — M-of-N
+  approvals, milestones, time-locks, and a settlement timeline. The current
+  release handler updates database records and records a placeholder settlement
+  hash; it does not submit an on-chain funds transfer.
+- **[Compliance / KYC / AML](src/modules/compliance/compliance.service.ts)** —
+  verification levels, document review, regional configuration, transaction risk
+  scoring, and AML flags. Document storage and encryption are currently
+  placeholders, not a production encrypted-storage integration.
+- **[Webhooks](src/modules/webhooks/)** — subscriptions, signed event delivery,
+  delivery history, retries, and secret rotation
+- **[Portfolio](src/modules/portfolio/portfolio.service.ts)** — holdings,
+  allocation, performance summaries, and historical snapshots. USD valuations
+  currently use a fixed testnet XLM estimate and zero for other assets, rather
+  than a live price feed.
+- **[Liquidity aggregation](src/modules/liquidity-aggregator/README.md)** — pool
+  registration, pricing, route planning, split routes, and arbitrage detection.
+  Route execution results are mathematical simulations; they are not validated
+  on-chain.
+- **[Transaction coordination](src/modules/transaction-coordinator/)** — batch
+  dependency planning, prepare/commit phases, retries, and audit records. Each
+  leg invokes a contract separately; rollback currently changes local status
+  without submitting an inverse transaction, so cross-leg on-chain atomicity is
+  not guaranteed.
+- **[API rate limiting](src/modules/rate-limiting/)** — Redis-backed sliding or
+  fixed windows, tier configuration, and endpoint overrides
+- **[Audit logging](docs/audit-logging.md)** — request interception, audit queries,
+  user exports, retention selection, and report generation
 - **Resilience & error recovery** primitives across modules
 
 ## Technology Stack
@@ -54,24 +84,33 @@ See the [Roadmap](ROADMAP.md) for what is coming next and the
 ```
 src/
   config/                 Typed configuration, env validation, DB config
+  database/               Standalone TypeORM CLI DataSource and migrations
   redis/                  Global Redis (ioredis) provider
   modules/
+    analytics/            Analytics & reporting
+    assets/               Stellar asset indexing
+    audit/                Request audit trail, exports, retention, reports
     auth/                 JWT auth, guards, register/login, Stellar wallet auth
-    users/                User management
-    wallet/               Wallet management
+    blockchain-indexer/   Ledger + contract-event indexing
+    compliance/           KYC workflows, document review, AML risk assessment
+    dispute-resolution/   Disputes, evidence, arbitration, appeals, SLA
+    error-handler/        Centralized error handling
+    escrow/               Approval thresholds, milestones, time-lock workflows
+    liquidity-aggregator/ Pool discovery, pricing, routes, arbitrage simulations
     marketplace/          Asset trade listings
+    notifications/        Event-driven, templated notifications
+    portfolio/            Holdings, allocation, performance, snapshots
+    queue/                Background job queue
+    rate-limiting/        Redis request limits, tiers, endpoint overrides
+    resilience/           Resilience primitives
+    stellar/              Stellar (Horizon) gateway + Soroban integration
     trading/              Trade domain
     trading-engine/       Trade execution
-    assets/               Stellar asset indexing
+    transaction-coordinator/ Batch planning, execution, retry and rollback state
     transactions/         Transaction history
-    stellar/              Stellar (Horizon) gateway + Soroban integration
-    blockchain-indexer/   Ledger + contract-event indexing
-    notifications/        Event-driven, templated notifications
-    dispute-resolution/   Disputes, evidence, arbitration, appeals, SLA
-    analytics/            Analytics & reporting
-    error-handler/        Centralized error handling
-    resilience/           Resilience primitives
-    queue/                Background job queue
+    users/                User management
+    wallet/               Wallet management and Stellar multisig transactions
+    webhooks/             Subscriptions, signed deliveries, retry history
   main.ts                 Bootstrap, Swagger, global pipes/filters
 libs/
   common/                 Shared entities, DTOs, interceptors, filters (@app/common)
@@ -81,11 +120,11 @@ scripts/                  Database init and helper scripts
 ## Getting Started
 
 ```bash
-git clone https://github.com/InterChangableTrade/InterChangableTrade-Core.git
+git clone https://github.com/Chulilee/InterChangableTrade-Core.git
 
 cd InterChangableTrade-Core
 
-npm install
+npm ci
 
 # Configure environment (copy and edit)
 cp .env.example .env
@@ -101,13 +140,41 @@ The API is served under the `/api` prefix, with interactive OpenAPI docs at
 
 ## Scripts
 
-```bash
-npm run start:dev     # Watch-mode development server
-npm run build         # Compile to dist/
-npm run test          # Unit tests
-npm run test:e2e      # End-to-end tests
-npm run lint          # Lint and auto-fix
-```
+The following commands cover every script in [package.json](package.json).
+Install dependencies with `npm ci` before running them.
+
+| Command                                                      | Purpose and prerequisites                                                                                             |
+| ------------------------------------------------------------ | --------------------------------------------------------------------------------------------------------------------- |
+| `npm run prebuild`                                           | Remove `dist/`; npm also runs this automatically before `build`.                                                      |
+| `npm run build`                                              | Compile the NestJS application to `dist/`.                                                                            |
+| `npm run format`                                             | Format TypeScript in `src/` and `test/` in place.                                                                     |
+| `npm start`                                                  | Start the application; requires application configuration, PostgreSQL, and Redis.                                     |
+| `npm run start:dev`                                          | Start with file watching; same services as `start`.                                                                   |
+| `npm run start:debug`                                        | Start with debugging and file watching; same services as `start`.                                                     |
+| `npm run start:prod`                                         | Run the compiled application; requires a successful build and the same services as `start`.                           |
+| `npm run lint`                                               | Run ESLint and auto-fix supported issues in place.                                                                    |
+| `npm test`                                                   | Run the default Jest suite, including service-dependent integration tests; see the note below.                        |
+| `npm run test:watch`                                         | Run the same suite in watch mode; same service requirements as `test`.                                                |
+| `npm run test:cov`                                           | Run the same suite with coverage; same service requirements as `test`; output is written to `coverage/`.              |
+| `npm run test:e2e`                                           | Run the configured end-to-end suite; see `test/` for each suite's service or mock setup.                              |
+| `npm run typeorm -- <command>`                               | Invoke the TypeORM CLI with `src/database/data-source.ts`; database commands need the configured PostgreSQL instance. |
+| `npm run migration:create -- src/database/migrations/Name`   | Create an empty migration file; no database connection is required.                                                   |
+| `npm run migration:generate -- src/database/migrations/Name` | Compare entities with the configured database and generate a migration; requires PostgreSQL.                          |
+| `npm run migration:run`                                      | Apply pending migrations to the configured PostgreSQL database.                                                       |
+| `npm run migration:revert`                                   | Revert the latest applied migration; requires PostgreSQL.                                                             |
+| `npm run migration:show`                                     | Show applied and pending migrations; requires PostgreSQL.                                                             |
+
+The default Jest suite includes
+[`auth.integration.spec.ts`](src/modules/auth/auth.integration.spec.ts), which
+boots the full application and requires application configuration, PostgreSQL,
+and Redis. These requirements also apply to `test:watch` and `test:cov`; suite
+separation is tracked in [#145](https://github.com/Chulilee/InterChangableTrade-Core/issues/145).
+
+After `npm run test:cov`, open `coverage/lcov-report/index.html` to inspect the
+HTML report. The script requests coverage but does not set a minimum threshold.
+Review [Data Persistence & Database](docs/database.md) and the committed
+[migration files](src/database/migrations/) before applying schema changes to an
+existing database.
 
 ## Docker
 
@@ -119,20 +186,15 @@ docker compose up --build    # Build and run app + Postgres + Redis
 
 The service defaults to the Stellar **testnet**:
 
-| Setting                      | Default                                 |
-| ---------------------------- | --------------------------------------- |
-| `STELLAR_NETWORK`            | `testnet`                               |
-| `STELLAR_HORIZON_URL`        | `https://horizon-testnet.stellar.org`   |
-| `SOROBAN_RPC_URL`            | `https://soroban-testnet.stellar.org`   |
+| Setting               | Default                               |
+| --------------------- | ------------------------------------- |
+| `STELLAR_NETWORK`     | `testnet`                             |
+| `STELLAR_HORIZON_URL` | `https://horizon-testnet.stellar.org` |
+| `SOROBAN_RPC_URL`     | `https://soroban-testnet.stellar.org` |
 
 Write invocations and contract deployments require a funded source account via
 `SOROBAN_SOURCE_SECRET`; without it the Soroban client runs in read-only mode.
 **Never commit secrets or mainnet credentials** — see [SECURITY.md](SECURITY.md).
-
-<!-- On-chain proof: once the reference contract is deployed to testnet,
-     publish the contract ID(s) and an example transaction hash here so the
-     integration is independently verifiable on a public block explorer.
-     Tracked in ROADMAP.md (Near term — Q3 2026). -->
 
 ## Documentation
 
@@ -145,12 +207,9 @@ Write invocations and contract deployments require a funded source account via
 
 ## Related Repositories
 
-- InterChangableTrade-Fricks
-- **[InterChangableTrade-Fricks](https://github.com/Chulilee/InterChangableTrade-Fricks)** 
-
-- InterChangableTrade-Protocol
-- **[InterChangableTrade-Protocol](https://github.com/Chulilee/InterChangableTrade-Protocol)** 
-  Soroban smart contracts (access-control, escrow, marketplace, etc.)
+- [InterChangableTrade-Fricks](https://github.com/Chulilee/InterChangableTrade-Fricks)
+- [InterChangableTrade-Protocol](https://github.com/Chulilee/InterChangableTrade-Protocol)
+  — Soroban smart contracts (access-control, escrow, marketplace, etc.)
 
 ## Contributing
 
