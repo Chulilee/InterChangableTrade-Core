@@ -90,6 +90,7 @@ export const envValidationSchema = Joi.object({
   BLOCKCHAIN_INDEXER_BATCH_FLUSH_MS: Joi.number().default(1000),
   BLOCKCHAIN_INDEXER_BATCH_MAX_SIZE: Joi.number().default(1000),
   BLOCKCHAIN_INDEXER_RETENTION_DAYS: Joi.number().default(90),
+BLOCKCHAIN_INDEXER_REORG_CHECK_INTERVAL_MS: Joi.number().default(300000),
 
   // Rate limiting
   RATE_LIMIT_STRATEGY: Joi.string()

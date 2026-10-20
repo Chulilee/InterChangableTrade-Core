@@ -188,8 +188,12 @@ export class BlockchainIndexerController {
   @ApiOperation({
     summary: 'Trigger blockchain reorganization detection and recovery',
   })
+  @ApiResponse({
+    status: HttpStatus.OK,
+    description: 'Reorg check completed; reorgDetected reports the outcome',
+  })
   @HttpCode(HttpStatus.OK)
   async triggerReorgCheck() {
-    return this.blockchainIndexerService.getStatus();
+    return this.blockchainIndexerService.triggerReorgCheck();
   }
 }
