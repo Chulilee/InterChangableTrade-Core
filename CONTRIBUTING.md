@@ -17,7 +17,7 @@ uphold it. Please report unacceptable behaviour as described there.
 2. **Install dependencies:**
 
    ```bash
-   npm install
+   npm ci
    ```
 
 3. **Configure your environment:**
@@ -54,17 +54,24 @@ We use a standard fork-and-pull-request workflow against the `main` branch.
 3. Ensure the project builds, lints, and tests pass locally (see below).
 4. Open a pull request against `main` and fill in the template.
 
-### Before you push — the checklist CI enforces
+### Before you push — the local checklist
 
 ```bash
 npm run lint          # ESLint + Prettier, auto-fixes where it can
 npx tsc --noEmit      # TypeScript type-check
 npm run build         # Compile to dist/
-npm test              # Unit tests (Jest)
+npm test              # Default Jest suite (unit and integration tests)
 ```
 
-All four must pass. The CI pipeline (`.github/workflows/build-check.yml`) runs
-the same steps on every push and pull request to `main`.
+The default Jest suite currently also runs `auth.integration.spec.ts`, which
+boots the full application and requires application configuration, PostgreSQL,
+and Redis. Separating that integration suite is tracked in
+[#145](https://github.com/Chulilee/InterChangableTrade-Core/issues/145).
+
+All four must pass. The current CI pipeline
+(`.github/workflows/build-check.yml`) installs dependencies with `npm ci`, then
+runs the TypeScript check and build on pushes and pull requests to `main`.
+Linting and unit tests remain part of the local checklist above.
 
 ## Coding Standards
 
