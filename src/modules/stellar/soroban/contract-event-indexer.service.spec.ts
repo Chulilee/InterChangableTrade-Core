@@ -147,6 +147,96 @@ describe('ContractEventIndexerService', () => {
     const events = await service.getEvents(CONTRACT);
     expect(events).toHaveLength(1);
   });
+
+  it('follows the cursor across multiple pages and indexes every event once', async () => {
+    getEvents
+      .mockResolvedValueOnce({
+        events: [rawEvent('a', 1000), rawEvent('b', 1000)],
+        latestLedger: 1000,
+        cursor: 'page-1',
+      })
+      .mockResolvedValueOnce({
+        events: [rawEvent('c', 1001)],
+        latestLedger: 1001,
+        cursor: 'page-2',
+      })
+      .mockResolvedValueOnce({
+        events: [rawEvent('d', 1002)],
+        latestLedger: 1002,
+      });
+
+    await service.watch(CONTRACT, 1000);
+    await (service as any).poll();
+
+    const events = await service.getEvents(CONTRACT);
+    expect(events.map((e) => e.id).sort()).toEqual(['a', 'b', 'c', 'd']);
+    expect(getEvents).toHaveBeenCalledTimes(3);
+  });
+
+  it('does not lose events when a full page is followed by a non-null cursor', async () => {
+    // Force the page limit low so two events fill a page.
+    (service as any).pageLimit = 2;
+    getEvents
+      .mockResolvedValueOnce({
+        events: [rawEvent('a', 1000), rawEvent('b', 1000)],
+        latestLedger: 1000,
+        cursor: 'more',
+      })
+      .mockResolvedValueOnce({
+        events: [rawEvent('c', 1000)],
+        latestLedger: 1000,
+      });
+
+    await service.watch(CONTRACT, 1000);
+    await (service as any).poll();
+
+    const events = await service.getEvents(CONTRACT);
+    expect(events.map((e) => e.id).sort()).toEqual(['a', 'b', 'c']);
+  });
+
+  it('logs a warning when a full page has more pages pending', async () => {
+    (service as any).pageLimit = 2;
+    const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation();
+    getEvents
+      .mockResolvedValueOnce({
+        events: [rawEvent('a', 1000), rawEvent('b', 1000)],
+        latestLedger: 1000,
+        cursor: 'more',
+      })
+      .mockResolvedValueOnce({
+        events: [rawEvent('c', 1000)],
+        latestLedger: 1000,
+      });
+
+    await service.watch(CONTRACT, 1000);
+    await (service as any).poll();
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('silent event loss'),
+    );
+  });
+
+  it('keeps per-contract cursors independent', async () => {
+    const OTHER = 'COTHER';
+    getEvents.mockImplementation((_request: unknown) => {
+      const contract = (_request as any).filters[0].contractIds[0];
+      return Promise.resolve({
+        events: [rawEvent(`e-${contract}`, 1000)],
+        latestLedger: 1000,
+      });
+    });
+
+    await service.watch(CONTRACT, 1000);
+    await service.watch(OTHER, 2000);
+    await (service as any).poll();
+
+    const cursors = (service as any).nextStartLedgerByContract as Map<
+      string,
+      number
+    >;
+    expect(cursors.get(CONTRACT)).toBe(1001);
+    expect(cursors.get(OTHER)).toBe(1001);
+  });
 });
 
 jest.mock('@stellar/stellar-sdk', () => {
