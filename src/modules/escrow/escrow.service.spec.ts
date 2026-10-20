@@ -45,6 +45,8 @@ describe('EscrowService', () => {
   let eventEmitter: jest.Mocked<Partial<EventEmitter2>>;
   let dataSource: jest.Mocked<Partial<DataSource>>;
   let queryRunner: jest.Mocked<QueryRunner>;
+  /** Captures the update query builder created inside a transaction. */
+  let lastUpdateBuilder: any;
 
   const userId = 'user-1';
   const adminId = 'admin-1';
@@ -139,6 +141,17 @@ describe('EscrowService', () => {
           ...data,
         })),
         save: jest.fn((v: any) => Promise.resolve(v)),
+        createQueryBuilder: jest.fn(() => {
+          const qb = {
+            update: jest.fn().mockReturnThis(),
+            set: jest.fn().mockReturnThis(),
+            where: jest.fn().mockReturnThis(),
+            andWhere: jest.fn().mockReturnThis(),
+            execute: jest.fn().mockResolvedValue({ affected: 1 }),
+          };
+          lastUpdateBuilder = qb;
+          return qb;
+        }),
       },
     } as unknown as jest.Mocked<QueryRunner>;
 
@@ -596,6 +609,38 @@ describe('EscrowService', () => {
       );
       expect(escrow.status).toBe(EscrowStatus.APPROVED);
     });
+
+    it('drives the full create -> approve -> release flow', async () => {
+      const escrow: any = { ...mockEscrow, status: EscrowStatus.FUNDED };
+      escrowRepo.findOne.mockResolvedValue(escrow);
+      signatoryRepo.find.mockResolvedValue([
+        { ...mockSignatory, hasApproved: false },
+        { ...mockCounterpartySignatory, hasApproved: false },
+      ]);
+
+      // Creator signs.
+      await service.approveEscrow('escrow-1', userId, {});
+      expect(escrow.status).toBe(EscrowStatus.FUNDED);
+
+      // Counterparty signs — threshold of 2 reached, escrow becomes APPROVED.
+      await service.approveEscrow('escrow-1', counterpartyId, {});
+      expect(escrow.status).toBe(EscrowStatus.APPROVED);
+
+      // A non-admin can now release.
+      signatoryRepo.find.mockResolvedValue([
+        { ...mockSignatory, hasApproved: true },
+        { ...mockCounterpartySignatory, hasApproved: true },
+      ]);
+      const released = await service.releaseFunds(
+        'escrow-1',
+        userId,
+        userRole,
+        {},
+      );
+
+      expect(released.status).toBe(EscrowStatus.SETTLED);
+      expect(released.releasedAmount).toBe('1000.0000000');
+    });
   });
 
   // ─── revokeApproval ───────────────────────────────────────────────────
@@ -783,6 +828,102 @@ describe('EscrowService', () => {
       await expect(
         service.releaseFunds('escrow-1', userId, userRole, { amount: 2000 }),
       ).rejects.toThrow(BadRequestException);
+    });
+
+    it('uses integer stroop arithmetic for fractional amounts', async () => {
+      escrowRepo.findOne.mockResolvedValue({
+        ...mockEscrow,
+        status: EscrowStatus.APPROVED,
+        amount: '0.3000000',
+      });
+      signatoryRepo.find.mockResolvedValue([
+        { ...mockSignatory, hasApproved: true },
+        { ...mockCounterpartySignatory, hasApproved: true },
+      ]);
+
+      const result = await service.releaseFunds('escrow-1', userId, userRole, {
+        amount: 0.1,
+      });
+
+      expect(result.releasedAmount).toBe('0.1000000');
+      expect(result.status).toBe(EscrowStatus.PARTIALLY_RELEASED);
+    });
+
+    it('guards the update with the previously read released amount', async () => {
+      escrowRepo.findOne.mockResolvedValue({
+        ...mockEscrow,
+        status: EscrowStatus.APPROVED,
+      });
+      signatoryRepo.find.mockResolvedValue([
+        { ...mockSignatory, hasApproved: true },
+        { ...mockCounterpartySignatory, hasApproved: true },
+      ]);
+
+      await service.releaseFunds('escrow-1', userId, userRole, { amount: 500 });
+
+      expect(lastUpdateBuilder.update).toHaveBeenCalledWith(EscrowAccount);
+      expect(lastUpdateBuilder.andWhere).toHaveBeenCalledWith(
+        'releasedAmount = :expectedReleased',
+        { expectedReleased: '0.0000000' },
+      );
+    });
+
+    it('rejects the release when the escrow was modified concurrently', async () => {
+      escrowRepo.findOne.mockResolvedValue({
+        ...mockEscrow,
+        status: EscrowStatus.APPROVED,
+      });
+      signatoryRepo.find.mockResolvedValue([
+        { ...mockSignatory, hasApproved: true },
+        { ...mockCounterpartySignatory, hasApproved: true },
+      ]);
+      // The optimistic guard did not match — a concurrent release won the race.
+      lastUpdateBuilder.execute.mockResolvedValue({ affected: 0 });
+
+      await expect(
+        service.releaseFunds('escrow-1', userId, userRole, { amount: 500 }),
+      ).rejects.toThrow(ConflictException);
+    });
+
+    it('never releases more than the escrow amount under concurrent releases', async () => {
+      const escrow: any = { ...mockEscrow, status: EscrowStatus.APPROVED };
+      escrowRepo.findOne.mockResolvedValue(escrow);
+      signatoryRepo.find.mockResolvedValue([
+        { ...mockSignatory, hasApproved: true },
+        { ...mockCounterpartySignatory, hasApproved: true },
+      ]);
+
+      // Simulate the stored row: the conditional update only succeeds while
+      // `releasedAmount` still holds the value the caller read.
+      let storedReleased = '0.0000000';
+      lastUpdateBuilder.execute.mockImplementation(async () => {
+        const guard = lastUpdateBuilder.andWhere.mock.calls[0][1]
+          .expectedReleased as string;
+        if (guard !== storedReleased) {
+          return { affected: 0 };
+        }
+        storedReleased = '500.0000000';
+        return { affected: 1 };
+      });
+
+      const results = await Promise.all(
+        [
+          service.releaseFunds('escrow-1', userId, userRole, { amount: 500 }),
+          service.releaseFunds('escrow-1', userId, userRole, { amount: 500 }),
+        ].map((p) =>
+          p.then((v) => ({ ok: true as const, v })).catch((e) => ({
+            ok: false as const,
+            e,
+          })),
+        ),
+      );
+
+      const succeeded = results.filter((r) => r.ok);
+      const failed = results.filter((r) => !r.ok);
+      expect(succeeded).toHaveLength(1);
+      expect(failed).toHaveLength(1);
+      expect(storedReleased).toBe('500.0000000');
+      expect(Number(storedReleased) <= Number(escrow.amount)).toBe(true);
     });
 
     it('allows admin to force release', async () => {
