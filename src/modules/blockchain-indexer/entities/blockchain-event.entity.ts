@@ -18,6 +18,7 @@ export enum BlockchainEventType {
 }
 
 @Entity('blockchain_events')
+@Index(['uniqueId'], { unique: true })
 @Index(['transactionHash', 'createdAt'])
 @Index(['sourceAccount', 'ledger'])
 @Index(['ledger', 'eventType'])
