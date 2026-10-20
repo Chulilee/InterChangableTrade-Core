@@ -165,6 +165,26 @@ Two layers, deliberately overlapping:
   enum-backed status transitions) to other entities is straightforward
   follow-up work once there's a baseline migration to build on.
 
+## Blockchain event idempotency
+
+`blockchain_events.uniqueId` carries a **unique index**
+(`UQ_blockchain_events_unique_id`, added by
+`1789482200000-AddUniqueIdIndexOnBlockchainEvents.ts`). This is what makes the
+indexer's `INSERT ... ON CONFLICT DO NOTHING` actually enforce idempotency: any
+replay of a ledger range — a chain reorg, a Horizon retry, a cursor rewind, or
+a process restart — produces **zero new rows** for an event that was already
+indexed.
+
+The migration de-duplicates any pre-existing rows first (keeping the earliest
+`createdAt` per `uniqueId`), so the unique index can be created even on a table
+that was previously written by the non-idempotent path.
+
+`EventIndexerService.deduplicateAndPersist` no longer runs a full-table
+OR-chain pre-check against `uniqueId`. It inserts with `orIgnore()` and uses
+`returning(['uniqueId'])` to learn which rows were actually inserted, then
+publishes only those to the event stream. This removes a full-table scan per
+Stellar transaction and keeps stream delivery free of duplicate events.
+
 ## Audit trail
 
 Already implemented — see [`docs/audit-logging.md`](audit-logging.md) and
