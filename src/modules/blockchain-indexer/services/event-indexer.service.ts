@@ -84,7 +84,13 @@ export class EventIndexerService {
       const lastTx = transactions[transactions.length - 1];
       if (lastTx) {
         await this.stateService.setLastCursor(lastTx.paging_token);
-        await this.stateService.setLastIndexedLedger(lastTx.ledger);
+        // Store the ledger hash alongside the cursor so reorg detection can
+        // compare the indexed chain against Horizon's canonical chain.
+        const ledger = await this.eventSource.getLedger(lastTx.ledger);
+        await this.stateService.setLastIndexedLedger(
+          lastTx.ledger,
+          ledger?.hash ?? null,
+        );
       }
     } catch (error) {
       this.logger.warn(
