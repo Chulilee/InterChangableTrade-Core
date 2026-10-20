@@ -32,8 +32,15 @@ export class ContractEventIndexerService implements OnModuleDestroy {
   private readonly watched = new Set<string>();
   private timer: NodeJS.Timeout | null = null;
   private polling = false;
-  /** Ledger cursor: we've indexed everything strictly before this. */
-  private nextStartLedger: number | null = null;
+  /**
+   * Per-contract ledger cursor: we've indexed everything strictly before this
+   * ledger for the given contract. Kept per contract so that multiple watched
+   * contracts do not interfere with each other's paging.
+   */
+  private readonly nextStartLedgerByContract = new Map<string, number>();
+
+  /** Upper bound on pages fetched in a single poll cycle (safety valve). */
+  private static readonly MAX_PAGES_PER_POLL = 100;
 
   private static readonly EVENT_PREFIX = 'soroban:event:';
   private static readonly INDEX_PREFIX = 'soroban:events:';
@@ -62,21 +69,22 @@ export class ContractEventIndexerService implements OnModuleDestroy {
    */
   async watch(contractId: string, fromLedger?: number): Promise<void> {
     this.watched.add(contractId);
-    if (this.nextStartLedger === null) {
-      this.nextStartLedger =
-        fromLedger ?? (await this.client.getLatestLedgerSequence());
-    } else if (fromLedger !== undefined) {
-      this.nextStartLedger = Math.min(this.nextStartLedger, fromLedger);
+    const start =
+      fromLedger ?? (await this.client.getLatestLedgerSequence());
+    const current = this.nextStartLedgerByContract.get(contractId);
+    if (current === undefined || start < current) {
+      this.nextStartLedgerByContract.set(contractId, start);
     }
     this.start();
     this.logger.log(
-      `Watching contract ${contractId} for events from ledger ${this.nextStartLedger}.`,
+      `Watching contract ${contractId} for events from ledger ${this.nextStartLedgerByContract.get(contractId)}.`,
     );
   }
 
   /** Stops watching a single contract; leaves already-indexed events in place. */
   unwatch(contractId: string): void {
     this.watched.delete(contractId);
+    this.nextStartLedgerByContract.delete(contractId);
     if (this.watched.size === 0) {
       this.stop();
     }
@@ -133,34 +141,18 @@ export class ContractEventIndexerService implements OnModuleDestroy {
       .map((r) => JSON.parse(r) as ParsedContractEvent);
   }
 
-  /** One poll cycle: fetch new events for all watched contracts and index them. */
+  /** One poll cycle: fetch new events for every watched contract. */
   private async poll(): Promise<void> {
     if (this.polling || this.watched.size === 0) {
       return;
     }
     this.polling = true;
     try {
-      const startLedger =
-        this.nextStartLedger ?? (await this.client.getLatestLedgerSequence());
-
-      const response = await this.client.getServer().getEvents({
-        startLedger,
-        filters: [
-          {
-            type: 'contract',
-            contractIds: Array.from(this.watched),
-          },
-        ],
-        limit: this.pageLimit,
-      });
-
-      for (const event of response.events) {
-        await this.indexEvent(event);
-      }
-
-      // Advance the cursor past the ledgers we've now seen so the next poll
-      // only asks for newer events.
-      this.nextStartLedger = response.latestLedger + 1;
+      await Promise.all(
+        Array.from(this.watched).map((contractId) =>
+          this.pollContract(contractId),
+        ),
+      );
     } catch (error) {
       // Polling is best-effort and self-healing: log and retry next tick rather
       // than tearing down the loop on a transient RPC hiccup.
@@ -169,6 +161,82 @@ export class ContractEventIndexerService implements OnModuleDestroy {
       );
     } finally {
       this.polling = false;
+    }
+  }
+
+  /**
+   * Fetches and indexes all new events for a single contract, following the
+   * RPC cursor until the requested ledger range is exhausted.
+   *
+   * `getEvents` returns at most `limit` events; the remainder of a busy range
+   * is available via `response.cursor`. Advancing to `latestLedger` unconditionally
+   * would skip those events permanently, so we page until the cursor is
+   * exhausted and advance the cursor only past the last **processed** event.
+   */
+  private async pollContract(contractId: string): Promise<void> {
+    try {
+      const startLedger =
+        this.nextStartLedgerByContract.get(contractId) ??
+        (await this.client.getLatestLedgerSequence());
+
+      let currentStart = startLedger;
+      let cursor: string | undefined;
+      let pages = 0;
+      let lastProcessedLedger: number | null = null;
+      let latestLedger = startLedger;
+
+      for (;;) {
+        const response = await this.client.getServer().getEvents({
+          startLedger: currentStart,
+          filters: [{ type: 'contract', contractIds: [contractId] }],
+          limit: this.pageLimit,
+          ...(cursor ? { cursor } : {}),
+        });
+
+        latestLedger = response.latestLedger ?? latestLedger;
+
+        for (const event of response.events) {
+          await this.indexEvent(event);
+          if (lastProcessedLedger === null || event.ledger > lastProcessedLedger) {
+            lastProcessedLedger = event.ledger;
+          }
+        }
+
+        const hasMorePages = Boolean(response.cursor) && response.events.length > 0;
+        if (!hasMorePages) {
+          break;
+        }
+
+        if (response.events.length >= this.pageLimit) {
+          this.logger.warn(
+            `Contract ${contractId}: full page of ${this.pageLimit} events with ` +
+              `more pages pending — paging through to avoid silent event loss.`,
+          );
+        }
+
+        cursor = response.cursor as string;
+        if (lastProcessedLedger !== null) {
+          currentStart = lastProcessedLedger;
+        }
+        pages += 1;
+        if (pages >= ContractEventIndexerService.MAX_PAGES_PER_POLL) {
+          this.logger.warn(
+            `Contract ${contractId}: reached page cap ` +
+              `(${ContractEventIndexerService.MAX_PAGES_PER_POLL}); resuming next cycle.`,
+          );
+          break;
+        }
+      }
+
+      const advanceTo =
+        lastProcessedLedger !== null ? lastProcessedLedger + 1 : latestLedger + 1;
+      this.nextStartLedgerByContract.set(contractId, advanceTo);
+    } catch (error) {
+      // Per-contract failures must not abort the other contracts in this cycle.
+      this.logger.warn(
+        `Event poll for contract ${contractId} failed: ` +
+          `${(error as Error).message}. Retrying next cycle.`,
+      );
     }
   }
 
