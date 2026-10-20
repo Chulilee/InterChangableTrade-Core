@@ -30,6 +30,8 @@ import { PortfolioModule } from './modules/portfolio/portfolio.module';
 import { WebhookModule } from './modules/webhooks/webhook.module';
 import { TransactionCoordinatorModule } from './modules/transaction-coordinator/transaction-coordinator.module';
 import { LiquidityAggregatorModule } from './modules/liquidity-aggregator/liquidity-aggregator.module';
+import { AuthorizationModule } from './modules/authorization/authorization.module';
+import { RiskManagementModule } from './modules/risk-management/risk-management.module';
 
 @Module({
   imports: [
@@ -63,6 +65,8 @@ import { LiquidityAggregatorModule } from './modules/liquidity-aggregator/liquid
     WebhookModule,
     TransactionCoordinatorModule,
     LiquidityAggregatorModule,
+    AuthorizationModule,
+    RiskManagementModule,
   ],
   controllers: [AppController],
   providers: [AppService],

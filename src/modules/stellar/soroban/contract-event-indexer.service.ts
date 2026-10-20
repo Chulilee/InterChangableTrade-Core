@@ -7,6 +7,18 @@ import { SorobanClientService } from './soroban-client.service';
 import { ParsedContractEvent } from './soroban.types';
 
 /**
+ * The `getEvents` response as returned by the Soroban RPC.
+ *
+ * The RPC protocol returns an opaque `cursor` next to the events, but
+ * `stellar-sdk` v12.3.0 does not declare it on `Api.GetEventsResponse` and
+ * its `parseRawEvents` parser drops it before the value reaches us. Reading
+ * it through this widened type keeps the cursor path available (and
+ * compiling) so it activates automatically on an SDK that surfaces it, while
+ * the service falls back to ledger-anchored paging in the meantime.
+ */
+type GetEventsResponse = rpc.Api.GetEventsResponse & { cursor?: string };
+
+/**
  * Contract event parsing and indexing.
  *
  * Soroban emits events per contract call; the RPC `getEvents` endpoint exposes
@@ -32,8 +44,15 @@ export class ContractEventIndexerService implements OnModuleDestroy {
   private readonly watched = new Set<string>();
   private timer: NodeJS.Timeout | null = null;
   private polling = false;
-  /** Ledger cursor: we've indexed everything strictly before this. */
-  private nextStartLedger: number | null = null;
+  /**
+   * Per-contract ledger cursor: we've indexed everything strictly before this
+   * ledger for the given contract. Kept per contract so that multiple watched
+   * contracts do not interfere with each other's paging.
+   */
+  private readonly nextStartLedgerByContract = new Map<string, number>();
+
+  /** Upper bound on pages fetched in a single poll cycle (safety valve). */
+  private static readonly MAX_PAGES_PER_POLL = 100;
 
   private static readonly EVENT_PREFIX = 'soroban:event:';
   private static readonly INDEX_PREFIX = 'soroban:events:';
@@ -62,21 +81,22 @@ export class ContractEventIndexerService implements OnModuleDestroy {
    */
   async watch(contractId: string, fromLedger?: number): Promise<void> {
     this.watched.add(contractId);
-    if (this.nextStartLedger === null) {
-      this.nextStartLedger =
-        fromLedger ?? (await this.client.getLatestLedgerSequence());
-    } else if (fromLedger !== undefined) {
-      this.nextStartLedger = Math.min(this.nextStartLedger, fromLedger);
+    const start =
+      fromLedger ?? (await this.client.getLatestLedgerSequence());
+    const current = this.nextStartLedgerByContract.get(contractId);
+    if (current === undefined || start < current) {
+      this.nextStartLedgerByContract.set(contractId, start);
     }
     this.start();
     this.logger.log(
-      `Watching contract ${contractId} for events from ledger ${this.nextStartLedger}.`,
+      `Watching contract ${contractId} for events from ledger ${this.nextStartLedgerByContract.get(contractId)}.`,
     );
   }
 
   /** Stops watching a single contract; leaves already-indexed events in place. */
   unwatch(contractId: string): void {
     this.watched.delete(contractId);
+    this.nextStartLedgerByContract.delete(contractId);
     if (this.watched.size === 0) {
       this.stop();
     }
@@ -133,34 +153,18 @@ export class ContractEventIndexerService implements OnModuleDestroy {
       .map((r) => JSON.parse(r) as ParsedContractEvent);
   }
 
-  /** One poll cycle: fetch new events for all watched contracts and index them. */
+  /** One poll cycle: fetch new events for every watched contract. */
   private async poll(): Promise<void> {
     if (this.polling || this.watched.size === 0) {
       return;
     }
     this.polling = true;
     try {
-      const startLedger =
-        this.nextStartLedger ?? (await this.client.getLatestLedgerSequence());
-
-      const response = await this.client.getServer().getEvents({
-        startLedger,
-        filters: [
-          {
-            type: 'contract',
-            contractIds: Array.from(this.watched),
-          },
-        ],
-        limit: this.pageLimit,
-      });
-
-      for (const event of response.events) {
-        await this.indexEvent(event);
-      }
-
-      // Advance the cursor past the ledgers we've now seen so the next poll
-      // only asks for newer events.
-      this.nextStartLedger = response.latestLedger + 1;
+      await Promise.all(
+        Array.from(this.watched).map((contractId) =>
+          this.pollContract(contractId),
+        ),
+      );
     } catch (error) {
       // Polling is best-effort and self-healing: log and retry next tick rather
       // than tearing down the loop on a transient RPC hiccup.
@@ -169,6 +173,129 @@ export class ContractEventIndexerService implements OnModuleDestroy {
       );
     } finally {
       this.polling = false;
+    }
+  }
+
+  /**
+   * Fetches and indexes all new events for a single contract, paging through
+   * the requested ledger range until it is exhausted.
+   *
+   * `getEvents` returns at most `limit` events. Advancing to `latestLedger`
+   * unconditionally would skip the remainder permanently, so we never do that:
+   * the cursor is advanced only past the last **processed** event.
+   *
+   * Two paging strategies are used:
+   *
+   * 1. **RPC cursor** — the Soroban RPC returns an opaque `cursor` alongside the
+   *    events. `stellar-sdk` v12.3.0 does not declare it on
+   *    `Api.GetEventsResponse` (and its parser drops it), so it is read
+   *    defensively; the path activates automatically once the SDK surfaces it.
+   * 2. **Ledger anchoring** — the fallback used on SDK v12, where no cursor is
+   *    available. A full page means there may be more events, so the next
+   *    request re-reads from the last ledger that was processed. Events that
+   *    were already indexed are skipped idempotently, so re-reading is safe.
+   */
+  private async pollContract(contractId: string): Promise<void> {
+    try {
+      const startLedger =
+        this.nextStartLedgerByContract.get(contractId) ??
+        (await this.client.getLatestLedgerSequence());
+
+      let currentStart = startLedger;
+      let cursor: string | undefined;
+      let pages = 0;
+      let lastProcessedLedger: number | null = null;
+      let latestLedger = startLedger;
+
+      for (;;) {
+        const response = (await this.client.getServer().getEvents({
+          startLedger: currentStart,
+          filters: [{ type: 'contract', contractIds: [contractId] }],
+          limit: this.pageLimit,
+          ...(cursor ? { cursor } : {}),
+        })) as GetEventsResponse;
+
+        if (typeof response.latestLedger === 'number') {
+          latestLedger = response.latestLedger;
+        }
+
+        for (const event of response.events) {
+          await this.indexEvent(event);
+          if (lastProcessedLedger === null || event.ledger > lastProcessedLedger) {
+            lastProcessedLedger = event.ledger;
+          }
+        }
+
+        const nextCursor = response.cursor;
+        const pageIsFull = response.events.length >= this.pageLimit;
+
+        // 1. The RPC cursor is authoritative when the SDK surfaces it.
+        if (nextCursor && response.events.length > 0) {
+          if (pageIsFull) {
+            this.logger.warn(
+              `Contract ${contractId}: full page of ${this.pageLimit} events with ` +
+                `more pages pending — paging through to avoid silent event loss.`,
+            );
+          }
+          cursor = nextCursor;
+          if (lastProcessedLedger !== null) {
+            currentStart = lastProcessedLedger;
+          }
+          pages += 1;
+          if (pages >= ContractEventIndexerService.MAX_PAGES_PER_POLL) {
+            this.logger.warn(
+              `Contract ${contractId}: reached page cap ` +
+                `(${ContractEventIndexerService.MAX_PAGES_PER_POLL}); resuming next cycle.`,
+            );
+            break;
+          }
+          continue;
+        }
+
+        // 2. No cursor available: a full page means there may be more events
+        //    beyond it. Re-read from the last ledger that was processed so
+        //    nothing is skipped; already-indexed events are deduplicated.
+        if (pageIsFull && lastProcessedLedger !== null) {
+          if (lastProcessedLedger <= currentStart) {
+            // A single ledger holds more events than one page can return and
+            // there is no cursor to page through them.
+            this.logger.warn(
+              `Contract ${contractId}: ledger ${currentStart} holds more than ` +
+                `${this.pageLimit} events and no RPC cursor is available — the ` +
+                `remaining events in that ledger cannot be retrieved. ` +
+                `Raise SOROBAN_EVENT_PAGE_LIMIT to widen the page.`,
+            );
+            break;
+          }
+          this.logger.warn(
+            `Contract ${contractId}: full page of ${this.pageLimit} events and no RPC ` +
+              `cursor — re-reading from ledger ${lastProcessedLedger} to avoid ` +
+              `silent event loss.`,
+          );
+          currentStart = lastProcessedLedger;
+          pages += 1;
+          if (pages >= ContractEventIndexerService.MAX_PAGES_PER_POLL) {
+            this.logger.warn(
+              `Contract ${contractId}: reached page cap ` +
+                `(${ContractEventIndexerService.MAX_PAGES_PER_POLL}); resuming next cycle.`,
+            );
+            break;
+          }
+          continue;
+        }
+
+        break;
+      }
+
+      const advanceTo =
+        lastProcessedLedger !== null ? lastProcessedLedger + 1 : latestLedger + 1;
+      this.nextStartLedgerByContract.set(contractId, advanceTo);
+    } catch (error) {
+      // Per-contract failures must not abort the other contracts in this cycle.
+      this.logger.warn(
+        `Event poll for contract ${contractId} failed: ` +
+          `${(error as Error).message}. Retrying next cycle.`,
+      );
     }
   }
 

@@ -155,17 +155,6 @@ describe('EventQueryService', () => {
     expect(result).toHaveLength(1);
   });
 
-  it('should find events by idempotency keys', async () => {
-    mockEventRepo.find.mockResolvedValue([makeEvent({ uniqueId: 'a' })]);
-
-    const result = await service.findByIdempotencyKeys(['a', 'b']);
-
-    expect(mockEventRepo.find).toHaveBeenCalledWith({
-      where: [{ uniqueId: 'a' }, { uniqueId: 'b' }],
-    });
-    expect(result).toHaveLength(1);
-  });
-
   it('should paginate events correctly', async () => {
     const qb = mockQB();
     qb.getMany.mockResolvedValue([makeEvent()]);

@@ -109,11 +109,4 @@ export class EventQueryService {
       order: { ledger: 'DESC', createdAt: 'DESC' },
     });
   }
-
-  async findByIdempotencyKeys(uniqueIds: string[]): Promise<BlockchainEvent[]> {
-    if (uniqueIds.length === 0) return [];
-    return this.eventRepo.find({
-      where: uniqueIds.map((id) => ({ uniqueId: id })),
-    });
-  }
 }

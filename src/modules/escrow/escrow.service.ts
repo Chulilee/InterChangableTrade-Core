@@ -104,6 +104,29 @@ export class EscrowService {
     };
   }
 
+  /**
+   * Converts an XLM/asset amount (7 decimal places) to integer stroops so that
+   * escrow balance arithmetic never drifts through `parseFloat` rounding.
+   */
+  private static toStroops(amount: string | number): bigint {
+    const normalized =
+      typeof amount === 'number' ? amount.toFixed(7) : amount.trim();
+    const [intPart, fracPart = ''] = normalized.split('.');
+    const frac = (fracPart + '0000000').slice(0, 7);
+    const sign = intPart.startsWith('-') ? -1n : 1n;
+    const absInt = BigInt(intPart.replace('-', '') || '0');
+    return sign * (absInt * 10_000_000n + BigInt(frac || '0'));
+  }
+
+  /** Formats integer stroops back to the canonical 7-decimal string. */
+  private static fromStroops(stroops: bigint): string {
+    const negative = stroops < 0n;
+    const abs = negative ? -stroops : stroops;
+    const intPart = abs / 10_000_000n;
+    const frac = (abs % 10_000_000n).toString().padStart(7, '0');
+    return `${negative ? '-' : ''}${intPart}.${frac}`;
+  }
+
   // ─── Create Escrow ───────────────────────────────────────────────────────
 
   async createEscrow(
@@ -332,8 +355,12 @@ export class EscrowService {
   ): Promise<EscrowAccount> {
     const escrow = await this.getEscrowOrThrow(escrowId);
 
-    // Can only approve funded escrows
-    if (escrow.status !== EscrowStatus.FUNDED) {
+    // Funded escrows can be approved; already-approved escrows may still accept
+    // further signatures (idempotent re-entry).
+    if (
+      escrow.status !== EscrowStatus.FUNDED &&
+      escrow.status !== EscrowStatus.APPROVED
+    ) {
       throw new BadRequestException(
         `Cannot approve escrow in status: ${escrow.status}. Must be in FUNDED status.`,
       );
@@ -350,44 +377,70 @@ export class EscrowService {
       throw new ConflictException('You have already approved this escrow');
     }
 
-    // Record approval
-    signatory.hasApproved = true;
-    signatory.approvedAt = new Date();
-    signatory.approvalIpAddress = ipAddress ?? null;
-    await this.signatoryRepo.save(signatory);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    await this.timelineService.addEvent(
-      escrowId,
-      EscrowTimelineEventType.SIGNATORY_APPROVED,
-      userId,
-      `Signature recorded from ${signatory.role}${dto.note ? ': ' + dto.note : ''}`,
-      { signatoryRole: signatory.role, publicKey: signatory.publicKey },
-    );
+    try {
+      // Record approval inside the transaction so the signature, the status
+      // transition and the timeline event commit together.
+      signatory.hasApproved = true;
+      signatory.approvedAt = new Date();
+      signatory.approvalIpAddress = ipAddress ?? null;
+      await queryRunner.manager.save(signatory);
 
-    // Check if threshold is now met
-    const approvalProgress = this.calculateApprovalProgress(
-      signatories,
-      escrow.requiredSignatures,
-    );
-
-    if (approvalProgress.isThresholdMet) {
       await this.timelineService.addEvent(
         escrowId,
-        EscrowTimelineEventType.SIGNATURE_THRESHOLD_REACHED,
+        EscrowTimelineEventType.SIGNATORY_APPROVED,
         userId,
-        `Signature threshold reached: ${approvalProgress.current}/${approvalProgress.required}`,
+        `Signature recorded from ${signatory.role}${dto.note ? ': ' + dto.note : ''}`,
+        { signatoryRole: signatory.role, publicKey: signatory.publicKey },
+        queryRunner.manager,
       );
 
-      this.eventEmitter.emit(EscrowEvents.SIGNATURE_THRESHOLD_REACHED, {
-        escrowId: escrow.id,
-        currentSignatures: approvalProgress.current,
-        requiredSignatures: approvalProgress.required,
-      });
-    }
+      // Check if threshold is now met
+      const approvalProgress = this.calculateApprovalProgress(
+        signatories,
+        escrow.requiredSignatures,
+      );
 
-    this.logger.log(
-      `Escrow ${escrowId} approved by ${userId} (${approvalProgress.current}/${approvalProgress.required})`,
-    );
+      if (
+        approvalProgress.isThresholdMet &&
+        escrow.status !== EscrowStatus.APPROVED
+      ) {
+        // Transition to APPROVED exactly once — `releaseFunds` gates on this
+        // status, and a repeated or concurrent approval must not re-emit the
+        // threshold event.
+        escrow.status = EscrowStatus.APPROVED;
+        await queryRunner.manager.save(escrow);
+
+        await this.timelineService.addEvent(
+          escrowId,
+          EscrowTimelineEventType.SIGNATURE_THRESHOLD_REACHED,
+          userId,
+          `Signature threshold reached: ${approvalProgress.current}/${approvalProgress.required}`,
+          undefined,
+          queryRunner.manager,
+        );
+
+        this.eventEmitter.emit(EscrowEvents.SIGNATURE_THRESHOLD_REACHED, {
+          escrowId: escrow.id,
+          currentSignatures: approvalProgress.current,
+          requiredSignatures: approvalProgress.required,
+        });
+      }
+
+      await queryRunner.commitTransaction();
+
+      this.logger.log(
+        `Escrow ${escrowId} approved by ${userId} (${approvalProgress.current}/${approvalProgress.required})`,
+      );
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
 
     // Return updated escrow
     return this.escrowRepo.findOne({
@@ -518,17 +571,6 @@ export class EscrowService {
       );
     }
 
-    // Determine release amount
-    const remaining =
-      parseFloat(escrow.amount) - parseFloat(escrow.releasedAmount);
-    const releaseAmount = dto.amount ?? remaining;
-
-    if (releaseAmount <= 0 || releaseAmount > remaining + 0.0000001) {
-      throw new BadRequestException(
-        `Invalid release amount: ${releaseAmount}. Remaining: ${remaining}`,
-      );
-    }
-
     // Milestone-based release
     if (dto.milestoneId) {
       const milestone = await this.milestoneRepo.findOne({
@@ -544,29 +586,76 @@ export class EscrowService {
       }
     }
 
+    // Integer stroop arithmetic — no `parseFloat` drift, no epsilon hack.
+    const totalStroops = EscrowService.toStroops(escrow.amount);
+    const releasedStroops = EscrowService.toStroops(escrow.releasedAmount);
+    const remainingStroops = totalStroops - releasedStroops;
+    const releaseStroops =
+      dto.amount !== undefined ? EscrowService.toStroops(dto.amount) : remainingStroops;
+
+    if (releaseStroops <= 0n || releaseStroops > remainingStroops) {
+      throw new BadRequestException(
+        `Invalid release amount: ${EscrowService.fromStroops(releaseStroops)}. ` +
+          `Remaining: ${EscrowService.fromStroops(remainingStroops)}`,
+      );
+    }
+
+    const newReleasedStroops = releasedStroops + releaseStroops;
+    const isFullySettled = newReleasedStroops === totalStroops;
+    const releaseAmount = EscrowService.fromStroops(releaseStroops);
+
+    escrow.releasedAmount = EscrowService.fromStroops(newReleasedStroops);
+    escrow.status = isFullySettled
+      ? EscrowStatus.SETTLED
+      : EscrowStatus.PARTIALLY_RELEASED;
+    if (isFullySettled) {
+      escrow.settledAt = new Date();
+      escrow.settlementTxHash = `settlement_${Date.now()}`;
+    }
+
     const queryRunner = this.dataSource.createQueryRunner();
     await queryRunner.connect();
     await queryRunner.startTransaction();
 
     try {
-      const newReleasedAmount =
-        parseFloat(escrow.releasedAmount) + releaseAmount;
-      const isFullySettled =
-        Math.abs(newReleasedAmount - parseFloat(escrow.amount)) < 0.0000001;
+      // Optimistic concurrency guard: the update only applies if `releasedAmount`
+      // still holds the value we read. Two concurrent releases cannot both win,
+      // so the total released can never exceed `escrow.amount`.
+      const updateSet: Partial<EscrowAccount> = {
+        releasedAmount: escrow.releasedAmount,
+        status: escrow.status,
+      };
+      if (escrow.settledAt) {
+        updateSet.settledAt = escrow.settledAt;
+      }
+      if (escrow.settlementTxHash) {
+        updateSet.settlementTxHash = escrow.settlementTxHash;
+      }
 
-      escrow.releasedAmount = newReleasedAmount.toFixed(7);
+      const updateResult = await queryRunner.manager
+        .createQueryBuilder()
+        .update(EscrowAccount)
+        .set(updateSet)
+        .where('id = :id', { id: escrowId })
+        .andWhere('releasedAmount = :expectedReleased', {
+          expectedReleased: EscrowService.fromStroops(releasedStroops),
+        })
+        .execute();
+
+      if (!updateResult.affected) {
+        throw new ConflictException(
+          'Escrow was modified concurrently; the release was not applied. Please retry.',
+        );
+      }
 
       if (isFullySettled) {
-        escrow.status = EscrowStatus.SETTLED;
-        escrow.settledAt = new Date();
-        escrow.settlementTxHash = `settlement_${Date.now()}`;
-
         await this.timelineService.addEvent(
           escrowId,
           EscrowTimelineEventType.ESCROW_SETTLED,
           userId,
           `Escrow fully settled: ${escrow.amount} ${escrow.assetCode}`,
           { releasedAmount: escrow.releasedAmount },
+          queryRunner.manager,
         );
 
         this.eventEmitter.emit(EscrowEvents.ESCROW_SETTLED, {
@@ -574,8 +663,6 @@ export class EscrowService {
           totalReleased: escrow.releasedAmount,
         });
       } else {
-        escrow.status = EscrowStatus.PARTIALLY_RELEASED;
-
         await this.timelineService.addEvent(
           escrowId,
           EscrowTimelineEventType.PARTIAL_RELEASE,
@@ -584,8 +671,9 @@ export class EscrowService {
           {
             releaseAmount,
             totalReleased: escrow.releasedAmount,
-            remaining: (remaining - releaseAmount).toFixed(7),
+            remaining: EscrowService.fromStroops(remainingStroops - releaseStroops),
           },
+          queryRunner.manager,
         );
 
         this.eventEmitter.emit(EscrowEvents.PARTIAL_RELEASE, {
@@ -595,13 +683,12 @@ export class EscrowService {
         });
       }
 
-      const saved = await queryRunner.manager.save(escrow);
       await queryRunner.commitTransaction();
 
       this.logger.log(
         `Escrow ${escrowId}: released ${releaseAmount} ${escrow.assetCode} (total: ${escrow.releasedAmount})`,
       );
-      return saved;
+      return escrow;
     } catch (error) {
       await queryRunner.rollbackTransaction();
       throw error;
