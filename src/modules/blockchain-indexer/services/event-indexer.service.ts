@@ -11,7 +11,6 @@ import {
   RawOperation,
   RawTransaction,
 } from './stellar-event-source.service';
-import { EventQueryService } from './event-query.service';
 import { EventStreamService } from './event-stream.service';
 
 const TRADE_RELEVANT_OPERATIONS = new Set([
@@ -36,7 +35,6 @@ export class EventIndexerService {
     private readonly stateService: IndexingStateService,
     @InjectRepository(BlockchainEvent)
     private readonly eventRepo: Repository<BlockchainEvent>,
-    private readonly queryService: EventQueryService,
     private readonly streamService: EventStreamService,
     private readonly dataSource: DataSource,
   ) {}
@@ -184,26 +182,37 @@ export class EventIndexerService {
   ): Promise<void> {
     if (events.length === 0) return;
 
-    const existing = await this.queryService.findByIdempotencyKeys(
-      events.map((e) => e.uniqueId),
-    );
-
-    const existingIds = new Set(existing.map((e) => e.uniqueId));
-    const newEvents = events.filter((e) => !existingIds.has(e.uniqueId));
-
-    if (newEvents.length === 0) return;
+    // The unique index on `uniqueId` (see
+    // AddUniqueIdIndexOnBlockchainEvents migration) makes `ON CONFLICT DO
+    // NOTHING` sufficient for storage-level idempotency. We use `returning`
+    // to learn which rows were actually inserted so we only publish genuinely
+    // new events to the stream — no expensive OR-chain pre-check needed.
+    const insertedEvents: Omit<
+      BlockchainEvent,
+      'id' | 'createdAt' | 'updatedAt'
+    >[] = [];
 
     await this.dataSource.transaction(async (manager) => {
-      await manager
+      const result = await manager
         .createQueryBuilder()
         .insert()
         .into(BlockchainEvent)
-        .values(newEvents)
+        .values(events)
         .orIgnore()
+        .returning(['uniqueId'])
         .execute();
+
+      const insertedIds = new Set(
+        (result.raw as Array<{ uniqueId: string }>).map((row) => row.uniqueId),
+      );
+      for (const event of events) {
+        if (insertedIds.has(event.uniqueId)) {
+          insertedEvents.push(event);
+        }
+      }
     });
 
-    for (const event of newEvents) {
+    for (const event of insertedEvents) {
       await this.streamService.publish(event);
     }
   }
