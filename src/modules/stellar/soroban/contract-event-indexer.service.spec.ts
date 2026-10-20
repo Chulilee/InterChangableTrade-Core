@@ -237,6 +237,47 @@ describe('ContractEventIndexerService', () => {
     expect(cursors.get(CONTRACT)).toBe(1001);
     expect(cursors.get(OTHER)).toBe(1001);
   });
+
+  it('re-reads from the last processed ledger when no RPC cursor is available', async () => {
+    // stellar-sdk v12.3.0 does not surface the RPC cursor on the response, so
+    // the service has to re-read from the last ledger it processed.
+    (service as any).pageLimit = 2;
+    const all = [
+      rawEvent('a', 1000),
+      rawEvent('b', 1001),
+      rawEvent('c', 1002),
+      rawEvent('d', 1003),
+      rawEvent('e', 1004),
+    ];
+    getEvents.mockImplementation((request: unknown) => {
+      const start = (request as any).startLedger ?? 0;
+      const page = all.filter((e) => e.ledger >= start).slice(0, 2);
+      return Promise.resolve({ events: page, latestLedger: 1004 });
+    });
+
+    await service.watch(CONTRACT, 1000);
+    await (service as any).poll();
+
+    const events = await service.getEvents(CONTRACT);
+    expect(events.map((e) => e.id).sort()).toEqual(['a', 'b', 'c', 'd', 'e']);
+  });
+
+  it('warns when a single ledger holds more events than one page', async () => {
+    (service as any).pageLimit = 2;
+    const warn = jest.spyOn((service as any).logger, 'warn').mockImplementation();
+    // Every event lives in the same ledger, so the page can never advance.
+    getEvents.mockResolvedValue({
+      events: [rawEvent('a', 1000), rawEvent('b', 1000)],
+      latestLedger: 1000,
+    });
+
+    await service.watch(CONTRACT, 1000);
+    await (service as any).poll();
+
+    expect(warn).toHaveBeenCalledWith(
+      expect.stringContaining('cannot be retrieved'),
+    );
+  });
 });
 
 jest.mock('@stellar/stellar-sdk', () => {
