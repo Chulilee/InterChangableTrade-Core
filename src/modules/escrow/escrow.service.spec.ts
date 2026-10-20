@@ -486,7 +486,7 @@ describe('EscrowService', () => {
         note: 'Looks good',
       });
 
-      expect(signatoryRepo.save).toHaveBeenCalledWith(
+      expect(queryRunner.manager.save).toHaveBeenCalledWith(
         expect.objectContaining({
           hasApproved: true,
           approvedAt: expect.any(Date),
@@ -497,6 +497,7 @@ describe('EscrowService', () => {
         expect.any(String),
         userId,
         expect.stringContaining('Signature recorded'),
+        expect.anything(),
         expect.anything(),
       );
     });
@@ -549,6 +550,51 @@ describe('EscrowService', () => {
         EscrowEvents.SIGNATURE_THRESHOLD_REACHED,
         expect.anything(),
       );
+    });
+
+    it('transitions the escrow to APPROVED once the threshold is met', async () => {
+      const escrow: any = { ...mockEscrow, status: EscrowStatus.FUNDED };
+      escrowRepo.findOne.mockResolvedValue(escrow);
+      signatoryRepo.find.mockResolvedValue([
+        { ...mockSignatory, hasApproved: true },
+        { ...mockCounterpartySignatory, hasApproved: false },
+      ]);
+
+      const result = await service.approveEscrow('escrow-1', counterpartyId, {});
+
+      expect(result.status).toBe(EscrowStatus.APPROVED);
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        EscrowEvents.SIGNATURE_THRESHOLD_REACHED,
+        expect.anything(),
+      );
+      expect(timelineService.addEvent).toHaveBeenCalledWith(
+        'escrow-1',
+        expect.any(String),
+        userId,
+        expect.stringContaining('Signature threshold reached'),
+        undefined,
+        expect.anything(),
+      );
+    });
+
+    it('does not re-emit the threshold event for an already approved escrow', async () => {
+      const escrow: any = {
+        ...mockEscrow,
+        status: EscrowStatus.APPROVED,
+      };
+      escrowRepo.findOne.mockResolvedValue(escrow);
+      signatoryRepo.find.mockResolvedValue([
+        { ...mockSignatory, hasApproved: false },
+        { ...mockCounterpartySignatory, hasApproved: true },
+      ]);
+
+      await service.approveEscrow('escrow-1', userId, {});
+
+      expect(eventEmitter.emit).not.toHaveBeenCalledWith(
+        EscrowEvents.SIGNATURE_THRESHOLD_REACHED,
+        expect.anything(),
+      );
+      expect(escrow.status).toBe(EscrowStatus.APPROVED);
     });
   });
 

@@ -332,8 +332,12 @@ export class EscrowService {
   ): Promise<EscrowAccount> {
     const escrow = await this.getEscrowOrThrow(escrowId);
 
-    // Can only approve funded escrows
-    if (escrow.status !== EscrowStatus.FUNDED) {
+    // Funded escrows can be approved; already-approved escrows may still accept
+    // further signatures (idempotent re-entry).
+    if (
+      escrow.status !== EscrowStatus.FUNDED &&
+      escrow.status !== EscrowStatus.APPROVED
+    ) {
       throw new BadRequestException(
         `Cannot approve escrow in status: ${escrow.status}. Must be in FUNDED status.`,
       );
@@ -350,44 +354,70 @@ export class EscrowService {
       throw new ConflictException('You have already approved this escrow');
     }
 
-    // Record approval
-    signatory.hasApproved = true;
-    signatory.approvedAt = new Date();
-    signatory.approvalIpAddress = ipAddress ?? null;
-    await this.signatoryRepo.save(signatory);
+    const queryRunner = this.dataSource.createQueryRunner();
+    await queryRunner.connect();
+    await queryRunner.startTransaction();
 
-    await this.timelineService.addEvent(
-      escrowId,
-      EscrowTimelineEventType.SIGNATORY_APPROVED,
-      userId,
-      `Signature recorded from ${signatory.role}${dto.note ? ': ' + dto.note : ''}`,
-      { signatoryRole: signatory.role, publicKey: signatory.publicKey },
-    );
+    try {
+      // Record the approval inside the transaction so the signature, the status
+      // transition and the timeline event commit together.
+      signatory.hasApproved = true;
+      signatory.approvedAt = new Date();
+      signatory.approvalIpAddress = ipAddress ?? null;
+      await queryRunner.manager.save(signatory);
 
-    // Check if threshold is now met
-    const approvalProgress = this.calculateApprovalProgress(
-      signatories,
-      escrow.requiredSignatures,
-    );
-
-    if (approvalProgress.isThresholdMet) {
       await this.timelineService.addEvent(
         escrowId,
-        EscrowTimelineEventType.SIGNATURE_THRESHOLD_REACHED,
+        EscrowTimelineEventType.SIGNATORY_APPROVED,
         userId,
-        `Signature threshold reached: ${approvalProgress.current}/${approvalProgress.required}`,
+        `Signature recorded from ${signatory.role}${dto.note ? ': ' + dto.note : ''}`,
+        { signatoryRole: signatory.role, publicKey: signatory.publicKey },
+        queryRunner.manager,
       );
 
-      this.eventEmitter.emit(EscrowEvents.SIGNATURE_THRESHOLD_REACHED, {
-        escrowId: escrow.id,
-        currentSignatures: approvalProgress.current,
-        requiredSignatures: approvalProgress.required,
-      });
-    }
+      // Check if threshold is now met
+      const approvalProgress = this.calculateApprovalProgress(
+        signatories,
+        escrow.requiredSignatures,
+      );
 
-    this.logger.log(
-      `Escrow ${escrowId} approved by ${userId} (${approvalProgress.current}/${approvalProgress.required})`,
-    );
+      if (
+        approvalProgress.isThresholdMet &&
+        escrow.status !== EscrowStatus.APPROVED
+      ) {
+        // Transition to APPROVED exactly once — `releaseFunds` gates on this
+        // status, and a repeated or concurrent approval must not re-emit the
+        // threshold event.
+        escrow.status = EscrowStatus.APPROVED;
+        await queryRunner.manager.save(escrow);
+
+        await this.timelineService.addEvent(
+          escrowId,
+          EscrowTimelineEventType.SIGNATURE_THRESHOLD_REACHED,
+          userId,
+          `Signature threshold reached: ${approvalProgress.current}/${approvalProgress.required}`,
+          undefined,
+          queryRunner.manager,
+        );
+
+        this.eventEmitter.emit(EscrowEvents.SIGNATURE_THRESHOLD_REACHED, {
+          escrowId: escrow.id,
+          currentSignatures: approvalProgress.current,
+          requiredSignatures: approvalProgress.required,
+        });
+      }
+
+      await queryRunner.commitTransaction();
+
+      this.logger.log(
+        `Escrow ${escrowId} approved by ${userId} (${approvalProgress.current}/${approvalProgress.required})`,
+      );
+    } catch (error) {
+      await queryRunner.rollbackTransaction();
+      throw error;
+    } finally {
+      await queryRunner.release();
+    }
 
     // Return updated escrow
     return this.escrowRepo.findOne({
