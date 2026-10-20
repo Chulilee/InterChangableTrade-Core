@@ -39,8 +39,39 @@ export class IndexingStateService {
     return value ? Number(value) : null;
   }
 
-  async setLastIndexedLedger(ledger: number): Promise<void> {
-    await this.set('last_indexed_ledger', String(ledger));
+  async setLastIndexedLedger(
+    ledger: number,
+    ledgerHash: string | null = null,
+  ): Promise<void> {
+    try {
+      await this.stateRepo.upsert(
+        {
+          key: 'last_indexed_ledger',
+          value: String(ledger),
+          ledgerHash,
+          updatedAt: new Date(),
+        },
+        ['key'],
+      );
+    } catch (error) {
+      this.logger.error(
+        `Failed to persist state last_indexed_ledger: ${(error as Error).message}`,
+      );
+      throw new ServiceUnavailableException('Unable to persist indexing state');
+    }
+  }
+
+  /**
+   * Hash of the ledger recorded by {@link setLastIndexedLedger}. Returns null
+   * when no hash has been stored yet (for example after an upgrade, or after a
+   * reorg rewind), in which case hash-based reorg detection is skipped until
+   * the next ledger close records a fresh hash.
+   */
+  async getLastIndexedLedgerHash(): Promise<string | null> {
+    const record = await this.stateRepo.findOne({
+      where: { key: 'last_indexed_ledger' },
+    });
+    return record?.ledgerHash ?? null;
   }
 
   async getLastCursor(): Promise<string | null> {
@@ -61,6 +92,19 @@ export class IndexingStateService {
 
   async getLastLedgerCursor(): Promise<string | null> {
     return this.get('stream_ledger_cursor');
+  }
+
+  /**
+   * Horizon paging token of the last ledger stream message that was fully
+   * indexed. Unlike a ledger sequence, a paging token is the only value
+   * Horizon's `cursor` parameter accepts when resuming a stream.
+   */
+  async getLedgerPagingToken(): Promise<string | null> {
+    return this.getLedgerCursor();
+  }
+
+  async setLedgerPagingToken(token: string): Promise<void> {
+    await this.setLedgerCursor(token);
   }
 
   async getSequenceCounter(): Promise<bigint> {
