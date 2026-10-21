@@ -107,6 +107,7 @@ export class HorizonStreamService
     if (this.currentController || this.reconnectTimer) return;
     this.stopping = false;
     this.currentReconnectDelay = 0;
+    this.reconnectAttempts = 0;
 
     const [token, lastIndexed] = await Promise.all([
       this.stateService.getLedgerPagingToken(),
@@ -238,8 +239,6 @@ export class HorizonStreamService
       }
 
       this.connected = true;
-      this.currentReconnectDelay = 0;
-      this.reconnectAttempts = 0;
       this.emit('health', {
         status: 'connected',
         lastLedgerSequence: this.lastLedgerSequence,
@@ -359,6 +358,12 @@ export class HorizonStreamService
 
     this.lastLedgerSequence = ledgerEvent.sequence;
     this.cursor = pagingToken;
+
+    // A delivered ledger proves the stream is healthy: reset the backoff so a
+    // flapping connection backs off but a stable one recovers immediately.
+    this.currentReconnectDelay = 0;
+    this.reconnectAttempts = 0;
+
     this.emit('ledger', ledgerEvent);
   }
 
