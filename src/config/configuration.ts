@@ -172,6 +172,11 @@ export default () => ({
       process.env.BLOCKCHAIN_INDEXER_RETENTION_DAYS ?? '90',
       10,
     ),
+    // Reorg detection cadence (milliseconds)
+    reorgCheckIntervalMs: parseInt(
+      process.env.BLOCKCHAIN_INDEXER_REORG_CHECK_INTERVAL_MS ?? '300000',
+      10,
+    ),
   },
 
   rateLimit: {

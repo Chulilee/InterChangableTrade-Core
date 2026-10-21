@@ -76,10 +76,36 @@ describe('BlockchainIndexer Service Tests', () => {
         {
           key: 'last_indexed_ledger',
           value: '15000',
+          ledgerHash: null,
           updatedAt: expect.any(Date),
         },
         ['key'],
       );
+    });
+
+    it('should persist the ledger hash with the last indexed ledger', async () => {
+      mockStateRepo.upsert.mockResolvedValue(undefined);
+      await indexingStateService.setLastIndexedLedger(15000, 'abc123');
+      expect(mockStateRepo.upsert).toHaveBeenCalledWith(
+        {
+          key: 'last_indexed_ledger',
+          value: '15000',
+          ledgerHash: 'abc123',
+          updatedAt: expect.any(Date),
+        },
+        ['key'],
+      );
+    });
+
+    it('should read the persisted ledger hash', async () => {
+      mockStateRepo.findOne.mockResolvedValue({
+        key: 'last_indexed_ledger',
+        value: '15000',
+        ledgerHash: 'abc123',
+      });
+      await expect(
+        indexingStateService.getLastIndexedLedgerHash(),
+      ).resolves.toBe('abc123');
     });
 
     it('should persist cursor state', async () => {

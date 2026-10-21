@@ -33,6 +33,13 @@ export interface RawOperation {
   into?: string;
 }
 
+export interface LedgerSnapshot {
+  sequence: number;
+  hash: string;
+  closedAt?: string;
+  pagingToken?: string;
+}
+
 @Injectable()
 export class StellarEventSourceService {
   private readonly logger = new Logger(StellarEventSourceService.name);
@@ -65,6 +72,53 @@ export class StellarEventSourceService {
     } catch (error) {
       throw new ServiceUnavailableException(
         `Failed to fetch latest ledger: ${(error as Error).message}`,
+      );
+    }
+  }
+
+  /**
+   * Fetches the ledger header for a specific sequence. Used by reorg detection
+   * to compare the on-chain hash against the hash that was persisted when the
+   * ledger was indexed.
+   *
+   * Returns null when Horizon no longer knows about the ledger (404), which is
+   * itself a signal that the local state is ahead of the canonical chain.
+   */
+  async getLedger(sequence: number): Promise<LedgerSnapshot | null> {
+    try {
+      const url = `${this.horizonUrl}/ledgers/${sequence}`;
+      const response = await fetch(url);
+
+      if (response.status === 404) {
+        return null;
+      }
+      if (!response.ok) {
+        throw new Error(`Horizon responded with ${response.status}`);
+      }
+
+      const ledger = (await response.json()) as {
+        sequence?: number;
+        hash?: string;
+        closed_at?: string;
+        paging_token?: string;
+      };
+
+      if (
+        typeof ledger.sequence !== 'number' ||
+        typeof ledger.hash !== 'string'
+      ) {
+        return null;
+      }
+
+      return {
+        sequence: ledger.sequence,
+        hash: ledger.hash,
+        closedAt: ledger.closed_at,
+        pagingToken: ledger.paging_token,
+      };
+    } catch (error) {
+      throw new ServiceUnavailableException(
+        `Failed to fetch ledger ${sequence}: ${(error as Error).message}`,
       );
     }
   }

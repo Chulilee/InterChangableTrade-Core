@@ -185,6 +185,31 @@ OR-chain pre-check against `uniqueId`. It inserts with `orIgnore()` and uses
 publishes only those to the event stream. This removes a full-table scan per
 Stellar transaction and keeps stream delivery free of duplicate events.
 
+## Indexer state and reorg safety
+
+`indexer_state` is a key/value table with one extra column, `ledger_hash`
+(added by `1789482400000-AddIndexerStateLedgerHash.ts`). The
+`last_indexed_ledger` row stores both the ledger sequence and the hash Horizon
+reported for it. Reorg detection compares that hash with the canonical ledger at
+the same sequence: Stellar sequences are strictly monotonic, so a rollback to a
+different ledger at the same sequence is only visible through the hash.
+
+Two invariants keep the indexer recoverable:
+
+- **The sequence counter only advances after commit.** `BatchedPersistenceService`
+  tracks in-flight and committed sequence numbers separately, and writes
+  `sequence_counter` only after the PostgreSQL transaction for the batch
+  resolves. A crash with events still in memory therefore leaves the counter
+  behind and those events are re-derived on restart.
+- **The stream cursor only advances after commit.** `LedgerIndexerService`
+  flushes the ledger's events before persisting the `stream_ledger_cursor`
+  paging token. Horizon resumes from that token, not from a ledger number.
+
+A reorg invalidates rows in both `indexed_events` and `blockchain_events` from
+the fork point, rewinds `last_indexed_ledger`, and re-fetches the affected
+range. Backfilled events are persisted and the cursor is advanced once, instead
+of re-fetching the same gap on every check.
+
 ## Audit trail
 
 Already implemented — see [`docs/audit-logging.md`](audit-logging.md) and

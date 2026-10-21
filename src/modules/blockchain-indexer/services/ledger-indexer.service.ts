@@ -71,7 +71,7 @@ export class LedgerIndexerService implements OnModuleInit, OnModuleDestroy {
     this.normalizer.initializeSequenceCounter(lastSequence);
 
     // Start the persistence flush timer.
-    this.persistence.startFlushTimer();
+    await this.persistence.startFlushTimer();
 
     // Wire up the Horizon SSE stream to process ledger close events.
     this.horizonStream.on('ledger', (event: LedgerCloseEvent) => {
@@ -178,8 +178,28 @@ export class LedgerIndexerService implements OnModuleInit, OnModuleDestroy {
         }
       }
 
-      // Persist the ledger cursor for stream resumption.
-      await this.stateService.setLedgerCursor(String(ledger));
+      // Flush before advancing the cursor: the paging token and ledger hash
+      // must never describe events that are still sitting in the in-memory
+      // batch, otherwise a crash loses them and the stream skips past them.
+      await this.persistence.flush();
+      if (this.persistence.getStats().pendingCount > 0) {
+        this.logger.warn(
+          `Ledger ${ledger} still has uncommitted events; leaving cursor at the previous ledger for replay`,
+        );
+        return;
+      }
+
+      // Persist the high-water mark for both the ledger hash (used for reorg
+      // detection) and Horizon's paging token (used to resume the stream).
+      // Only do this after the ledger has been fully indexed so a crash
+      // replays the ledger instead of skipping it.
+      await this.stateService.setLastIndexedLedger(
+        ledger,
+        ledgerEvent.hash || null,
+      );
+      if (ledgerEvent.pagingToken) {
+        await this.stateService.setLedgerPagingToken(ledgerEvent.pagingToken);
+      }
     } catch (error) {
       this.logger.warn(
         `Failed to process ledger ${ledger}: ${(error as Error).message}`,
@@ -276,6 +296,7 @@ export class LedgerIndexerService implements OnModuleInit, OnModuleDestroy {
       running: this.running,
       horizonConnected,
       lastLedgerSequence: lastLedger,
+      stream: this.horizonStream.getStats(),
       sequenceCounter: Number(this.normalizer.getCurrentSequence()),
       buffer: bufferStats,
       persistence: persistenceStats,
