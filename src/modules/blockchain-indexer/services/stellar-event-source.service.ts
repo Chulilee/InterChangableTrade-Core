@@ -86,7 +86,30 @@ export class StellarEventSourceService {
    */
   async getLedger(sequence: number): Promise<LedgerSnapshot | null> {
     try {
-      const ledger = await this.server.ledgers().ledger(sequence).call();
+      const url = `${this.horizonUrl}/ledgers/${sequence}`;
+      const response = await fetch(url);
+
+      if (response.status === 404) {
+        return null;
+      }
+      if (!response.ok) {
+        throw new Error(`Horizon responded with ${response.status}`);
+      }
+
+      const ledger = (await response.json()) as {
+        sequence?: number;
+        hash?: string;
+        closed_at?: string;
+        paging_token?: string;
+      };
+
+      if (
+        typeof ledger.sequence !== 'number' ||
+        typeof ledger.hash !== 'string'
+      ) {
+        return null;
+      }
+
       return {
         sequence: ledger.sequence,
         hash: ledger.hash,
@@ -94,11 +117,6 @@ export class StellarEventSourceService {
         pagingToken: ledger.paging_token,
       };
     } catch (error) {
-      const status = (error as { response?: { status?: number } }).response
-        ?.status;
-      if (status === 404) {
-        return null;
-      }
       throw new ServiceUnavailableException(
         `Failed to fetch ledger ${sequence}: ${(error as Error).message}`,
       );
