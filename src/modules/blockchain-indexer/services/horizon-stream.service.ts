@@ -262,9 +262,7 @@ export class HorizonStreamService
         if (done) {
           // A normal end-of-stream is still a disconnect: fall through to the
           // shared reconnect path in `finally`.
-          this.logger.warn(
-            'Horizon ledger stream ended; scheduling reconnect',
-          );
+          this.logger.warn('Horizon ledger stream ended; scheduling reconnect');
           break;
         }
 

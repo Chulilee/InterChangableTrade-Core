@@ -165,10 +165,7 @@ describe('ReorgHandlerService', () => {
       101,
       1100,
     );
-    expect(state.setLastIndexedLedger).toHaveBeenCalledWith(
-      1100,
-      'hash-1100',
-    );
+    expect(state.setLastIndexedLedger).toHaveBeenCalledWith(1100, 'hash-1100');
     expect(service.getStats().reorgCount).toBe(0);
   });
 

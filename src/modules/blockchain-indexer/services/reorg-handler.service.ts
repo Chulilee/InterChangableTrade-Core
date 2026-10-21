@@ -197,11 +197,10 @@ export class ReorgHandlerService {
     this.logger.log(`Backfilling ledgers ${fromLedger} through ${toLedger}`);
 
     try {
-      const transactions =
-        await this.eventSource.getTransactionsByLedgerRange(
-          fromLedger,
-          toLedger,
-        );
+      const transactions = await this.eventSource.getTransactionsByLedgerRange(
+        fromLedger,
+        toLedger,
+      );
 
       this.logger.log(
         `Fetched ${transactions.length} transactions for backfill`,

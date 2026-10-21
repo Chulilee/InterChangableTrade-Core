@@ -107,7 +107,9 @@ export class BlockchainIndexerService implements OnModuleInit, OnModuleDestroy {
     try {
       const detected = await this.reorgHandler.detectAndHandle();
       if (detected) {
-        this.logger.warn('Scheduled reorg check detected and recovered a reorg');
+        this.logger.warn(
+          'Scheduled reorg check detected and recovered a reorg',
+        );
       }
     } catch (error) {
       this.logger.warn(

@@ -8,9 +8,7 @@ import { MigrationInterface, QueryRunner } from 'typeorm';
  * same sequence is invisible unless the hash of the last indexed ledger is
  * stored and compared against the hash reported by Horizon.
  */
-export class AddIndexerStateLedgerHash1789482400000
-  implements MigrationInterface
-{
+export class AddIndexerStateLedgerHash1789482400000 implements MigrationInterface {
   name = 'AddIndexerStateLedgerHash1789482400000';
 
   public async up(queryRunner: QueryRunner): Promise<void> {

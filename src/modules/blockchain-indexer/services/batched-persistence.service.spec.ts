@@ -33,7 +33,10 @@ describe('BatchedPersistenceService', () => {
   let transaction: jest.Mock;
   let insertExecute: jest.Mock;
   let queryBuilder: Record<string, jest.Mock>;
-  let stateService: { setSequenceCounter: jest.Mock; getSequenceCounter: jest.Mock };
+  let stateService: {
+    setSequenceCounter: jest.Mock;
+    getSequenceCounter: jest.Mock;
+  };
 
   function createService(): BatchedPersistenceService {
     setSequenceCounter = jest.fn().mockResolvedValue(undefined);

@@ -179,9 +179,7 @@ describe('HorizonStreamService', () => {
     await jest.advanceTimersByTimeAsync(0);
 
     expect(fetchMock).toHaveBeenCalledTimes(1);
-    expect(health).toContainEqual(
-      expect.objectContaining({ status: 'error' }),
-    );
+    expect(health).toContainEqual(expect.objectContaining({ status: 'error' }));
 
     await jest.advanceTimersByTimeAsync(1000);
     expect(fetchMock).toHaveBeenCalledTimes(2);
