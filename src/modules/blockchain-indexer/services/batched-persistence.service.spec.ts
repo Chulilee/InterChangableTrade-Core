@@ -135,8 +135,8 @@ describe('BatchedPersistenceService', () => {
   });
 
   it('does not advance the counter when the insert fails, and requeues the batch', async () => {
-    transaction.mockRejectedValueOnce(new Error('connection reset'));
     const service = createService();
+    transaction.mockRejectedValueOnce(new Error('connection reset'));
 
     service.enqueue(makeEvent(1));
     service.enqueue(makeEvent(2));
