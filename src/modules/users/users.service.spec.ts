@@ -1,4 +1,8 @@
-import { ConflictException, NotFoundException } from '@nestjs/common';
+import {
+  ConflictException,
+  ForbiddenException,
+  NotFoundException,
+} from '@nestjs/common';
 import { UsersService } from './users.service';
 import { User } from './entities/user.entity';
 
@@ -51,5 +55,57 @@ describe('UsersService', () => {
     await expect(service.findOne('missing')).rejects.toBeInstanceOf(
       NotFoundException,
     );
+  });
+
+  // -------------------------------------------------------
+  //  update() — owner vs admin authorization
+  // -------------------------------------------------------
+  describe('update() authorization', () => {
+    const victim: Partial<User> = { id: 'victim', displayName: 'victim' };
+
+    it("rejects an update from a different non-admin user with the user's own record (403)", async () => {
+      repo.findOne.mockResolvedValue(victim);
+      await expect(
+        service.update('victim', { displayName: 'hacked' }, 'attacker'),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('rejects an update when no requester is provided (403)', async () => {
+      repo.findOne.mockResolvedValue(victim);
+      await expect(
+        service.update('victim', { displayName: 'hacked' }),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('rejects an impersonation attempt for an admin requester with missing privilege flag', async () => {
+      repo.findOne.mockResolvedValue(victim);
+      await expect(
+        service.update('victim', { displayName: 'hacked' }, 'attacker', false),
+      ).rejects.toBeInstanceOf(ForbiddenException);
+    });
+
+    it('allows the owner to update their own profile', async () => {
+      repo.findOne.mockResolvedValue(victim);
+      const updated = await service.update(
+        'victim',
+        { displayName: 'renamed' },
+        'victim',
+        false,
+      );
+      expect(updated.displayName).toBe('renamed');
+      expect(repo.save).toHaveBeenCalled();
+    });
+
+    it('allows an admin to update any account', async () => {
+      repo.findOne.mockResolvedValue(victim);
+      const updated = await service.update(
+        'victim',
+        { displayName: 'renamed-by-admin' },
+        'admin-user',
+        true,
+      );
+      expect(updated.displayName).toBe('renamed-by-admin');
+      expect(repo.save).toHaveBeenCalled();
+    });
   });
 });
