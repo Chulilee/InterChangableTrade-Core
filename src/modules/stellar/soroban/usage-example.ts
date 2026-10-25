@@ -91,7 +91,6 @@ async function exampleMultisigUsage(
         { publicKey: 'GKEY3...', signed: false, weight: 1 },
       ],
       timeout: 300,
-      mevProtection: true, // Enable MEV protection
     },
     'GSOURCE...',
   );

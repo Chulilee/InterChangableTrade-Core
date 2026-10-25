@@ -1,15 +1,18 @@
 import { Injectable, Logger } from '@nestjs/common';
 import {
-  Account,
   Transaction,
   TransactionBuilder,
   BASE_FEE,
   Contract,
-  xdr,
-  Signer,
 } from '@stellar/stellar-sdk';
 import { SorobanClientService } from './soroban-client.service';
 import { ContractAbiService } from './contract-abi.service';
+import { SorobanApplicationError } from './soroban.errors';
+
+/**
+ * Stellar caps a transaction at 100 operations.
+ */
+const MAX_OPERATIONS_PER_TX = 100;
 
 /**
  * Represents a signer requirement for a multi-signature transaction
@@ -41,15 +44,13 @@ export interface MultisigConfig {
   signers: SignerRequirement[];
   /** Timeout for the transaction in seconds */
   timeout: number;
-  /** Whether to enable MEV protection (sequential execution) */
-  mevProtection: boolean;
 }
 
 /**
  * Result of building a multi-signature transaction
  */
 export interface MultisigTransaction {
-  /** The built transaction object */
+  /** The prepared (final) transaction object */
   transaction: Transaction;
   /** Base64-encoded transaction envelope for sharing with signers */
   transactionXdr: string;
@@ -67,8 +68,27 @@ export interface MultisigTransaction {
 
 /**
  * Service for building and managing multi-signature transactions.
- * Supports batching multiple contract invocations into a single transaction,
- * MEV protection, and signature threshold management.
+ * Supports batching multiple contract invocations into a single transaction
+ * and threshold-based signature collection.
+ *
+ * Contract of `MultisigTransaction` handling (do not break these invariants):
+ *
+ * 1. **Preparation precedes signing.** `buildTransaction` runs Soroban
+ *    simulation/preparation (resource footprint + fees) and only then exposes
+ *    the finalized envelope. Re-deriving resources after signatures have been
+ *    collected changes the transaction hash and invalidates every signature
+ *    already gathered, so `submitTransaction` never re-prepares.
+ * 2. **The XDR is regenerated on every `addSignature` call.** Signers 2..N
+ *    therefore always receive an envelope that already carries signatures
+ *    1..k-1; persist `transactionXdr` when sharing it.
+ * 3. **`addSignature` mutates in place and returns the same reference.** It is
+ *    safe to ignore the return value — accumulated state is still visible on
+ *    the object you passed in.
+ * 4. **MEV protection is not offered.** The previous implementation had an
+ *    `applyMevProtection` that only logged "MEV protection applied"; a no-op
+ *    that pretends to guarantee ordering is worse than its absence, so the
+ *    flag was removed instead of implemented. Real Soroban ordering can only
+ *    be enforced by contract-level access control (e.g. a sequencer signer).
  */
 @Injectable()
 export class MultisigTransactionBuilder {
@@ -80,13 +100,25 @@ export class MultisigTransactionBuilder {
   ) {}
 
   /**
-   * Build a multi-signature transaction from multiple batched invocations
+   * Build a multi-signature transaction from multiple batched invocations.
+   *
+   * Simulation and preparation happen here, before any signature exists, so
+   * the returned envelope is final and stable for all signers.
    */
   async buildTransaction(
     invocations: BatchedInvocation[],
     config: MultisigConfig,
     sourcePublicKey: string,
   ): Promise<MultisigTransaction> {
+    if (
+      !Number.isInteger(invocations.length) ||
+      invocations.length > MAX_OPERATIONS_PER_TX
+    ) {
+      throw new SorobanApplicationError(
+        `Batched multi-signature transaction contains ${invocations.length} invocation(s), but Stellar transactions are limited to ${MAX_OPERATIONS_PER_TX} operations. Split the batch into multiple transactions.`,
+      );
+    }
+
     // Load source account
     const sourceAccount = await this.client.getAccount(sourcePublicKey);
 
@@ -108,18 +140,18 @@ export class MultisigTransactionBuilder {
       txBuilder.addOperation(contract.call(invocation.method, ...scArgs));
     }
 
-    // Set timeout
-    const transaction = txBuilder.setTimeout(config.timeout).build();
+    // Set timeout and build the envelope
+    const built = txBuilder.setTimeout(config.timeout).build();
 
-    // Simulate to get gas estimate
-    const simulation = await this.client.simulate(transaction);
+    // Simulate to get a gas estimate.
+    const simulation = await this.client.simulate(built);
 
-    // If MEV protection is enabled, add sequential execution constraints
-    if (config.mevProtection) {
-      this.applyMevProtection(transaction);
-    }
+    // Prepare the transaction NOW, while it carries zero signatures. Once
+    // prepared, its fees and footprint are final and its hash is stable, so
+    // every signature collected afterwards remains valid.
+    const transaction = await this.client.prepareTransaction(built);
 
-    // Encode transaction XDR for sharing
+    // Encode the finalized transaction XDR for sharing with signers
     const transactionXdr = transaction.toXDR();
 
     // Calculate current weight (none signed yet)
@@ -127,7 +159,7 @@ export class MultisigTransactionBuilder {
     const isReady = currentWeight >= config.threshold;
 
     this.logger.log(
-      `Built multi-sig transaction with ${invocations.length} invocation(s), threshold ${config.threshold}`,
+      `Built multi-signature transaction with ${invocations.length} invocation(s), threshold ${config.threshold}`,
     );
 
     return {
@@ -144,7 +176,12 @@ export class MultisigTransactionBuilder {
   }
 
   /**
-   * Add a signature to a multi-signature transaction
+   * Add a signature to a multi-signature transaction.
+   *
+   * The supplied `MultisigTransaction` is mutated in place and the same
+   * reference is returned. `transactionXdr` is regenerated from the enlarged
+   * envelope, so each signer receives an XDR that already includes all prior
+   * signatures.
    */
   addSignature(
     multisigTx: MultisigTransaction,
@@ -153,60 +190,55 @@ export class MultisigTransactionBuilder {
   ): MultisigTransaction {
     const signer = multisigTx.signers.find((s) => s.publicKey === publicKey);
     if (!signer) {
-      throw new Error(`Unknown signer: ${publicKey}`);
+      throw new SorobanApplicationError(`Unknown signer: ${publicKey}`);
     }
 
     if (signer.signed) {
-      throw new Error(`Signer ${publicKey} has already signed`);
+      throw new SorobanApplicationError(
+        `Signer ${publicKey} has already signed`,
+      );
     }
 
     // Add the signature to the transaction
     multisigTx.transaction.addSignature(publicKey, signature);
     signer.signed = true;
 
-    // Recalculate current weight
-    const currentWeight = multisigTx.signers
+    // Recalculate accumulated weight
+    multisigTx.currentWeight = multisigTx.signers
       .filter((s) => s.signed)
       .reduce((sum, s) => sum + s.weight, 0);
 
-    const isReady = currentWeight >= multisigTx.requiredThreshold;
+    multisigTx.isReadyToSubmit =
+      multisigTx.currentWeight >= multisigTx.requiredThreshold;
+
+    // Regenerate the envelope XDR so later signers see the accumulated
+    // signatures.
+    multisigTx.transactionXdr = multisigTx.transaction.toXDR();
 
     this.logger.log(
-      `Added signature from ${publicKey}, total weight ${currentWeight}/${multisigTx.requiredThreshold}`,
+      `Added signature from ${publicKey}, total weight ${multisigTx.currentWeight}/${multisigTx.requiredThreshold}`,
     );
 
-    return {
-      ...multisigTx,
-      currentWeight,
-      isReadyToSubmit: isReady,
-    };
+    return multisigTx;
   }
 
   /**
-   * Submit a fully signed multi-signature transaction
+   * Submit a fully signed multi-signature transaction.
+   *
+   * No re-preparation happens here: the transaction was finalized before the
+   * first signature was collected (see the class contract), and preparing
+   * again would invalidate every signature.
    */
   async submitTransaction(multisigTx: MultisigTransaction) {
     if (!multisigTx.isReadyToSubmit) {
-      throw new Error('Transaction does not have enough signatures to submit');
+      throw new SorobanApplicationError(
+        'Transaction does not have enough signatures to submit',
+      );
     }
 
-    // Prepare and send the transaction
-    const prepared = await this.client.prepareTransaction(
-      multisigTx.transaction,
-    );
-    const confirmed = await this.client.sendAndConfirm(prepared);
+    const confirmed = await this.client.sendAndConfirm(multisigTx.transaction);
 
-    this.logger.log(`Submitted multi-sig transaction ${confirmed.txHash}`);
+    this.logger.log(`Submitted multi-signature transaction ${confirmed.txHash}`);
     return confirmed;
-  }
-
-  /**
-   * Apply MEV protection by adding sequential execution constraints
-   * This ensures transactions are processed in order and prevents front-running
-   */
-  private applyMevProtection(transaction: Transaction): void {
-    // Add a sequence number constraint to enforce ordering
-    // In Soroban, this helps prevent reordering that could enable MEV
-    this.logger.debug('Applied MEV protection to transaction');
   }
 }
