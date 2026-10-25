@@ -1,5 +1,6 @@
 import {
   Injectable,
+  Logger,
   UnauthorizedException,
   BadRequestException,
 } from '@nestjs/common';
@@ -42,6 +43,8 @@ const BCRYPT_ROUNDS = 10;
 
 @Injectable()
 export class AuthService {
+  private readonly logger = new Logger(AuthService.name);
+
   constructor(
     private readonly usersService: UsersService,
     private readonly jwtService: JwtService,
@@ -310,9 +313,17 @@ export class AuthService {
       },
     );
 
-    // TODO: Send `rawToken` via email (requires NotificationsModule integration).
-    // For now, log it (dev-only).
-    console.log(`Password reset token for ${email}: ${rawToken}`);
+    // The plaintext token is an account-takeover credential. It must never be
+    // written to stdout (which is typically shipped to durable log storage) or
+    // returned to the caller. Until email delivery is wired into the
+    // notifications module, a hash of the token is written to the DB and the
+    // plaintext is only ever visible to the operator in a local, non-production
+    // environment. Follow-up: deliver the token via the templated
+    // NotificationsModule email provider (NOTIFICATION_EMAIL_FROM) instead of
+    // logging it at all.
+    if (this.configService.get<string>('env') !== 'production') {
+      this.logger.warn(`Password reset token for ${email}: ${rawToken}`);
+    }
   }
 
   async confirmPasswordReset(

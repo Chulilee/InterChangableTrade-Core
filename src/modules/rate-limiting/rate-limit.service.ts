@@ -1,4 +1,10 @@
-import { Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
+import {
+  BadRequestException,
+  Inject,
+  Injectable,
+  Logger,
+  OnModuleInit,
+} from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository } from 'typeorm';
@@ -43,10 +49,25 @@ interface EndpointOverride {
  *   4. If usage >= limit → reject.
  *
  * This avoids the "burst at window boundary" problem of fixed windows.
+ *
+ * Quota contract: the database column is a plain integer, so an "unlimited"
+ * quota is stored as the legacy `-1` sentinel and normalised to
+ * `Number.POSITIVE_INFINITY` on read (both in-memory cache and endpoint
+ * overrides). Fully finite quotas must lie within [1, MAX_REQUESTS_CAP];
+ * anything outside is rejected at the DTO and service boundaries. A previous
+ * contract documented `-1` as "unlimited" but never implemented it — the
+ * sentinel was compared against the request count and silently blocked every
+ * request (`currentCount <= -1` is always false).
  */
 @Injectable()
 export class RateLimitService implements OnModuleInit {
   private readonly logger = new Logger(RateLimitService.name);
+
+  /** Legacy sentinel persisted in the DB for an unlimited quota. */
+  private static readonly UNLIMITED_SENTINEL = -1;
+
+  /** Hard cap for a finite request quota. */
+  private static readonly MAX_REQUESTS_CAP = 1_000_000;
 
   /** In-memory cache of tier quotas, refreshed from DB on init and on admin update. */
   private tierQuotas: Map<
@@ -156,6 +177,13 @@ export class RateLimitService implements OnModuleInit {
 
   /**
    * Create or update a tier configuration. Also updates the in-memory cache.
+   *
+   * An "unlimited" quota is persisted as the `-1` sentinel (the integer column
+   * cannot store Infinity) and normalised back to Infinity on read, which also
+   * heals any legacy `-1` rows that were previously misinterpreted as
+   * "block everything". Disabling a tier requires an explicit confirmation
+   * flag: a disabled tier stores a zero quota and silently blocks every
+   * request to it.
    */
   async upsertConfig(params: {
     tier: RateLimitTier;
@@ -163,13 +191,38 @@ export class RateLimitService implements OnModuleInit {
     windowSizeSeconds?: number;
     endpointPattern?: string;
     enabled?: boolean;
+    unlimited?: boolean;
+    disableConfirmation?: boolean;
   }): Promise<RateLimitConfig> {
+    if (params.enabled === false && params.disableConfirmation !== true) {
+      throw new BadRequestException(
+        'Disabling a tier stores a zero quota and blocks every request to it. Repeat with disableConfirmation: true to confirm.',
+      );
+    }
+
+    let storedMaxRequests: number;
+    if (params.unlimited) {
+      storedMaxRequests = RateLimitService.UNLIMITED_SENTINEL;
+    } else {
+      const { maxRequests } = params;
+      if (
+        !Number.isInteger(maxRequests) ||
+        maxRequests < 1 ||
+        maxRequests > RateLimitService.MAX_REQUESTS_CAP
+      ) {
+        throw new BadRequestException(
+          `maxRequests must be an integer between 1 and ${RateLimitService.MAX_REQUESTS_CAP}; pass unlimited: true for an unlimited quota`,
+        );
+      }
+      storedMaxRequests = maxRequests;
+    }
+
     let config = await this.configRepo.findOne({
       where: { tier: params.tier },
     });
 
     if (config) {
-      config.maxRequests = params.maxRequests;
+      config.maxRequests = storedMaxRequests;
       if (params.windowSizeSeconds !== undefined) {
         config.windowSizeSeconds = params.windowSizeSeconds;
       }
@@ -182,7 +235,7 @@ export class RateLimitService implements OnModuleInit {
     } else {
       config = this.configRepo.create({
         tier: params.tier,
-        maxRequests: params.maxRequests,
+        maxRequests: storedMaxRequests,
         windowSizeSeconds: params.windowSizeSeconds ?? DEFAULT_WINDOW_SIZE_SECS,
         endpointPattern: params.endpointPattern ?? null,
         enabled: params.enabled ?? true,
@@ -192,7 +245,7 @@ export class RateLimitService implements OnModuleInit {
     const saved = await this.configRepo.save(config);
     await this.loadConfigFromDb();
     this.logger.log(
-      `Rate limit config updated for tier ${params.tier}: ${params.maxRequests} reqs/${params.windowSizeSeconds ?? DEFAULT_WINDOW_SIZE_SECS}s`,
+      `Rate limit config updated for tier ${params.tier}: maxRequests=${storedMaxRequests}, windowSizeSeconds=${params.windowSizeSeconds ?? DEFAULT_WINDOW_SIZE_SECS}s`,
     );
     return saved;
   }
@@ -353,7 +406,7 @@ export class RateLimitService implements OnModuleInit {
           });
         } else {
           this.tierQuotas.set(cfg.tier, {
-            maxRequests: cfg.maxRequests,
+            maxRequests: this.normaliseStoredMaxRequests(cfg.maxRequests),
             windowSizeSeconds: cfg.windowSizeSeconds,
           });
         }
@@ -361,7 +414,9 @@ export class RateLimitService implements OnModuleInit {
         if (cfg.endpointPattern) {
           this.endpointOverrides.push({
             endpointPattern: cfg.endpointPattern,
-            maxRequests: cfg.maxRequests,
+            maxRequests: cfg.enabled
+              ? this.normaliseStoredMaxRequests(cfg.maxRequests)
+              : 0,
             windowSizeSeconds: cfg.windowSizeSeconds,
           });
         }
@@ -373,6 +428,17 @@ export class RateLimitService implements OnModuleInit {
         'Failed to load rate limit configs from DB, using defaults',
       );
     }
+  }
+
+  /**
+   * Maps a persisted quota to the in-memory representation. Legacy rows that
+   * stored `-1` for "unlimited" are healed into +Infinity instead of staying
+   * broken (`-1` used to silently block every request).
+   */
+  private normaliseStoredMaxRequests(value: number): number {
+    return value <= RateLimitService.UNLIMITED_SENTINEL
+      ? Number.POSITIVE_INFINITY
+      : value;
   }
 
   private getEffectiveLimits(
