@@ -1,3 +1,4 @@
+import { BadRequestException } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
@@ -243,6 +244,105 @@ describe('RateLimitService', () => {
       (repoMock.find as jest.Mock).mockResolvedValueOnce(configs);
       const result = await service.getAllConfigs();
       expect(result).toHaveLength(2);
+    });
+  });
+
+  // -------------------------------------------------------
+  //  maxRequests: -1 / unlimited contract
+  // -------------------------------------------------------
+  describe('maxRequests: -1 / unlimited contract', () => {
+    it('heals a persisted -1 row into a truly unlimited quota on read', async () => {
+      // A legacy row stored the documented-but-never-implemented -1 sentinel.
+      (repoMock.find as jest.Mock).mockResolvedValueOnce([
+        {
+          tier: RateLimitTier.FREE,
+          maxRequests: -1,
+          windowSizeSeconds: 60,
+          endpointPattern: null,
+          enabled: true,
+        },
+      ]);
+      await service.refreshConfig();
+
+      // 5000 requests in the window still pass an unlimited quota.
+      redisMock.pipeline = jest.fn(() =>
+        createPipelineMock([null, 0], [null, 1], [null, 1], [null, 5000]),
+      );
+
+      const result = await service.check(
+        'ip:1.2.3.4',
+        RateLimitTier.FREE,
+        '/api/test',
+      );
+
+      expect(result.allowed).toBe(true);
+      expect(result.limit).toBe(Infinity);
+      expect(result.remaining).toBe(Infinity);
+    });
+
+    it('stores the -1 sentinel for unlimited:true and exposes Infinity in the cache', async () => {
+      const savedEntity = {
+        tier: RateLimitTier.PREMIUM,
+        maxRequests: -1,
+        windowSizeSeconds: 60,
+        endpointPattern: null,
+        enabled: true,
+      };
+
+      (repoMock.findOne as jest.Mock).mockResolvedValueOnce(null);
+      (repoMock.create as jest.Mock).mockReturnValueOnce(savedEntity);
+      (repoMock.save as jest.Mock).mockResolvedValueOnce(savedEntity);
+      (repoMock.find as jest.Mock).mockResolvedValueOnce([savedEntity]);
+
+      const saved = await service.upsertConfig({
+        tier: RateLimitTier.PREMIUM,
+        maxRequests: 1,
+        unlimited: true,
+      });
+
+      // The integer DB column stores the legacy sentinel; the cache holds the
+      // normalised value.
+      expect(saved.maxRequests).toBe(-1);
+      expect(
+        (service as any).tierQuotas.get(RateLimitTier.PREMIUM),
+      ).toMatchObject({ maxRequests: Infinity });
+    });
+
+    it('rejects maxRequests below 1, non-integers, and values above the cap', async () => {
+      await expect(
+        service.upsertConfig({ tier: RateLimitTier.FREE, maxRequests: 0 }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        service.upsertConfig({ tier: RateLimitTier.FREE, maxRequests: -1 }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        service.upsertConfig({
+          tier: RateLimitTier.FREE,
+          maxRequests: 1_000_001,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+      await expect(
+        service.upsertConfig({ tier: RateLimitTier.FREE, maxRequests: 2.5 }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+    });
+
+    it('requires an explicit confirmation before disabling a tier', async () => {
+      await expect(
+        service.upsertConfig({
+          tier: RateLimitTier.FREE,
+          maxRequests: 100,
+          enabled: false,
+        }),
+      ).rejects.toBeInstanceOf(BadRequestException);
+
+      await expect(
+        service.upsertConfig({
+          tier: RateLimitTier.FREE,
+          maxRequests: 100,
+          enabled: false,
+          disableConfirmation: true,
+        }),
+      ).resolves.toBeDefined();
     });
   });
 
