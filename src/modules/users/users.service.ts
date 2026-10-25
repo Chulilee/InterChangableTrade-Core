@@ -1,5 +1,6 @@
 import {
   ConflictException,
+  ForbiddenException,
   Injectable,
   NotFoundException,
 } from '@nestjs/common';
@@ -65,8 +66,22 @@ export class UsersService {
       .getOne();
   }
 
-  async update(id: string, dto: UpdateUserDto): Promise<User> {
+  /**
+   * Updates a user profile. Callers may update their own account; only admins
+   * may update another user's record. The DTO must not carry privileged fields
+   * (`password`, `stellarPublicKey`, `role`) — public keys can only be set via
+   * the verified Stellar challenge flow.
+   */
+  async update(
+    id: string,
+    dto: UpdateUserDto,
+    requesterId?: string,
+    isPrivileged = false,
+  ): Promise<User> {
     const user = await this.findOne(id);
+    if (!isPrivileged && (requesterId === undefined || requesterId !== id)) {
+      throw new ForbiddenException('You may only update your own account');
+    }
     Object.assign(user, dto);
     return this.usersRepository.save(user);
   }
