@@ -10,6 +10,9 @@ import {
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
 import { RateLimitTier } from '../enums/rate-limit.enum';
 
+/** Hard cap for a finite request quota. */
+export const MAX_REQUESTS_CAP = 1_000_000;
+
 /**
  * Request body to create or update a rate limit configuration for a tier.
  */
@@ -19,12 +22,25 @@ export class UpdateRateLimitDto {
   tier!: RateLimitTier;
 
   @ApiProperty({
-    description: 'Maximum requests per window (use -1 for unlimited)',
+    description:
+      'Maximum requests per window (1..1000000). Pass unlimited: true for an unlimited quota — an explicit boolean instead of the old magic -1, which has caused the service to silently block every request.',
     example: 100,
+    minimum: 1,
+    maximum: MAX_REQUESTS_CAP,
   })
   @IsInt()
-  @Min(-1)
+  @Min(1)
+  @Max(MAX_REQUESTS_CAP)
   maxRequests!: number;
+
+  @ApiPropertyOptional({
+    description:
+      'When true, the tier (or endpoint pattern) has an unlimited quota. Rows may still carry the legacy -1 sentinel in the database; it is normalised back to unlimited on read.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  unlimited?: boolean;
 
   @ApiPropertyOptional({
     description: 'Window size in seconds',
@@ -52,6 +68,15 @@ export class UpdateRateLimitDto {
   @IsOptional()
   @IsBoolean()
   enabled?: boolean;
+
+  @ApiPropertyOptional({
+    description:
+      'Required true confirmation when setting enabled: false. A disabled tier stores a zero quota and blocks every request to it, which previously happened silently and could take an endpoint offline with one unconfirmed request.',
+    default: false,
+  })
+  @IsOptional()
+  @IsBoolean()
+  disableConfirmation?: boolean;
 }
 
 /**

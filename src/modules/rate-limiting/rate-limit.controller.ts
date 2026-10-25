@@ -81,6 +81,8 @@ export class RateLimitController {
       windowSizeSeconds: dto.windowSizeSeconds,
       endpointPattern: dto.endpointPattern,
       enabled: dto.enabled,
+      unlimited: dto.unlimited,
+      disableConfirmation: dto.disableConfirmation,
     });
 
     return {
