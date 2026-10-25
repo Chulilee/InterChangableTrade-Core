@@ -3,7 +3,7 @@
 This roadmap describes the direction of InterChangableTrade-Core. It is a
 living document — dates are targets, not commitments, and priorities may shift
 based on ecosystem needs and contributor feedback. Progress is tracked through
-[GitHub Issues](https://github.com/InterChangableTrade/InterChangableTrade-Core/issues)
+[GitHub Issues](https://github.com/Chulilee/InterChangableTrade-Core/issues)
 and reflected in the [CHANGELOG](CHANGELOG.md).
 
 ## Vision
@@ -48,7 +48,7 @@ Focus: **mainnet readiness and integrations.**
       endpoints suitable for production deployment.
 - [ ] **Rate-limit and resilience tuning** validated under load testing.
 - [ ] **Reference frontend integration** with the related
-      `InterChangableTrade-Fricks` and `InterChangableTrade-Protocol`
+      `InterChangabletrade-fricks` and `InterChangableTrade-Protocol`
       repositories.
 - [ ] **Webhooks / streaming API** for downstream consumers of indexed
       blockchain events.
@@ -66,6 +66,6 @@ Focus: **mainnet readiness and integrations.**
 
 We welcome contributions of all sizes. Good places to start:
 
-- Issues labelled [`good first issue`](https://github.com/InterChangableTrade/InterChangableTrade-Core/labels/good%20first%20issue).
+- Issues labelled [`good first issue`](https://github.com/Chulilee/InterChangableTrade-Core/labels/good%20first%20issue).
 - The near-term items above — comment on the tracking issue to claim one.
 - See [CONTRIBUTING.md](CONTRIBUTING.md) for the development workflow.

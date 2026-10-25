@@ -53,5 +53,5 @@ modules.
 - **Unit tests** — Jest unit tests across core modules, plus an end-to-end
   test suite for dispute resolution.
 
-[Unreleased]: https://github.com/InterChangableTrade/InterChangableTrade-Core/compare/v0.1.0...HEAD
-[0.1.0]: https://github.com/InterChangableTrade/InterChangableTrade-Core/releases/tag/v0.1.0
+[Unreleased]: https://github.com/Chulilee/InterChangableTrade-Core/commits/main
+[0.1.0]: https://github.com/Chulilee/InterChangableTrade-Core/releases

@@ -208,8 +208,9 @@ Write invocations and contract deployments require a funded source account via
 
 ## Related Repositories
 
-- [InterChangableTrade-Fricks](https://github.com/Chulilee/InterChangableTrade-Fricks)
-- [InterChangableTrade-Protocol](https://github.com/Chulilee/InterChangableTrade-Protocol)
+- **[InterChangabletrade-fricks](https://github.com/Chulilee/InterChangabletrade-fricks)**
+  — Next.js frontend for trading tokenized assets on Stellar.
+- **[InterChangableTrade-Protocol](https://github.com/Chulilee/InterChangableTrade-Protocol)**
   — Soroban smart contracts (access-control, escrow, marketplace, etc.)
 
 ## Contributing
