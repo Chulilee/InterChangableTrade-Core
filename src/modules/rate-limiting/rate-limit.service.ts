@@ -200,6 +200,13 @@ export class RateLimitService implements OnModuleInit {
       );
     }
 
+    // Reject the wildcard pattern: it would disable rate limiting globally.
+    if (params.endpointPattern === '*') {
+      throw new BadRequestException(
+        'endpointPattern cannot be "*" (would disable rate limiting globally)',
+      );
+    }
+
     let storedMaxRequests: number;
     if (params.unlimited) {
       storedMaxRequests = RateLimitService.UNLIMITED_SENTINEL;

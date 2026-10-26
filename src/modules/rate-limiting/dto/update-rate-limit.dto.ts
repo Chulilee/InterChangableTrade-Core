@@ -54,11 +54,15 @@ export class UpdateRateLimitDto {
   windowSizeSeconds?: number;
 
   @ApiPropertyOptional({
-    description: 'Endpoint pattern (e.g. /api/trading/*)',
+    description:
+      'Endpoint pattern (e.g. /api/trading/*). The literal "*" is rejected because it would disable rate limiting globally.',
     nullable: true,
   })
   @IsOptional()
   @IsString()
+  @Matches(/^(?!\*$).*/, {
+    message: 'endpointPattern cannot be "*" (would disable rate limiting globally)',
+  })
   endpointPattern?: string;
 
   @ApiPropertyOptional({
