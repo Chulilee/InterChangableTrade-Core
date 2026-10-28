@@ -15,11 +15,10 @@ import { MarketplaceService } from './marketplace.service';
 import { CreateListingDto } from './dto/create-listing.dto';
 import { UpdateListingDto } from './dto/update-listing.dto';
 import { QueryListingDto } from './dto/query-listing.dto';
+import { CreateOrderDto } from './dto/create-order.dto';
+import { QueryOrderDto } from './dto/query-order.dto';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import {
-  CurrentUser,
-  AuthenticatedUser,
-} from '../auth/decorators/current-user.decorator';
+import { CurrentUser, AuthenticatedUser } from '../auth/decorators/current-user.decorator';
 
 @ApiTags('marketplace')
 @Controller('marketplace/listings')
@@ -70,5 +69,41 @@ export class MarketplaceController {
     @CurrentUser() user: AuthenticatedUser,
   ) {
     return this.marketplaceService.cancel(id, user.id);
+  }
+
+  // ----- Order endpoints -----
+
+  @Post('orders')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Create a new order on a listing' })
+  createOrder(
+    @CurrentUser() user: AuthenticatedUser,
+    @Body() dto: CreateOrderDto,
+  ) {
+    return this.marketplaceService.createOrder(user.id, dto);
+  }
+
+  @Get('orders')
+  @ApiOperation({ summary: 'Browse orders (paginated, filterable)' })
+  findAllOrders(@Query() query: QueryOrderDto) {
+    return this.marketplaceService.findAllOrders(query);
+  }
+
+  @Get('orders/:id')
+  @ApiOperation({ summary: 'Get an order by id' })
+  findOneOrder(@Param('id', ParseUUIDPipe) id: string) {
+    return this.marketplaceService.findOneOrder(id);
+  }
+
+  @Delete('orders/:id')
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({ summary: 'Cancel your order' })
+  cancelOrder(
+    @Param('id', ParseUUIDPipe) id: string,
+    @CurrentUser() user: AuthenticatedUser,
+  ) {
+    return this.marketplaceService.cancelOrder(id, user.id);
   }
 }
