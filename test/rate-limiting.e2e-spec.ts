@@ -3,11 +3,14 @@ import { INestApplication, ValidationPipe } from '@nestjs/common';
 import request from 'supertest';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { EventEmitterModule } from '@nestjs/event-emitter';
+import { getRepositoryToken } from '@nestjs/typeorm';
 import { RateLimitingModule } from '../src/modules/rate-limiting/rate-limiting.module';
 import { RateLimitConfig } from '../src/modules/rate-limiting/entities/rate-limit-config.entity';
 import { RateLimitGuard } from '../src/modules/rate-limiting/guards/rate-limit.guard';
 import { REDIS_CLIENT } from '../src/redis/redis.module';
 import Redis from 'ioredis';
+import { User } from '../src/modules/users/entities/user.entity';
+import { UserRole } from '../src/modules/users/entities/user.entity';
 
 /**
  * End-to-end tests for the Rate Limiting & Throttling module.
@@ -20,10 +23,15 @@ import Redis from 'ioredis';
  *  - Rate limit bypass for admin endpoints
  *  - Admin endpoint for runtime configuration
  *  - Retry-After header present on 429 responses
+ *  - Authentication & authorization on admin endpoints (issue #78)
+ *  - DTO validation (* pattern, maxRequests cap) (issue #78)
+ *  - Key namespace isolation (issue #78)
  */
 describe('Rate Limiting (e2e)', () => {
   let app: INestApplication;
   let redisClient: Redis;
+  let adminToken: string;
+  let userToken: string;
   const TEST_PREFIX = `rl-e2e-${Date.now()}`;
 
   beforeAll(async () => {
@@ -53,16 +61,15 @@ describe('Rate Limiting (e2e)', () => {
           username: process.env.DB_USERNAME ?? 'postgres',
           password: process.env.DB_PASSWORD ?? 'postgres',
           database: process.env.DB_NAME ?? 'interchangabletrade_test',
-          entities: [RateLimitConfig],
+          entities: [RateLimitConfig, User],
           synchronize: true,
           dropSchema: false,
         }),
         RateLimitingModule,
-      ],
-    })
-      .overrideProvider(REDIS_CLIENT)
-      .useValue(redisClient)
-      .compile();
+      ])
+        .overrideProvider(REDIS_CLIENT)
+        .useValue(redisClient)
+        .compile();
 
     app = moduleFixture.createNestApplication();
     app.setGlobalPrefix('api');
@@ -78,7 +85,33 @@ describe('Rate Limiting (e2e)', () => {
     app.useGlobalGuards(rateLimitGuard);
 
     await app.init();
-  }, 30000);
+
+    // Register a regular user via the API
+    const userEmail = `rl-user-${Date.now()}@test.com`;
+    await request(app.getHttpServer())
+      .post('/api/auth/register')
+      .send({ email: userEmail, password: 'SecurePass123!' });
+
+    const userLogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: userEmail, password: 'SecurePass123!' });
+    userToken = (userLogin.body as any).data?.accessToken;
+
+    // Create an admin user directly in the database, then log in
+    const userRepo = moduleFixture.get(getRepositoryToken(User));
+    const adminEmail = `rl-admin-${Date.now()}@test.com`;
+    const adminUser = userRepo.create({
+      email: adminEmail,
+      password: 'SecurePass123!', // will be hashed by the entity/save lifecycle
+      role: UserRole.ADMIN,
+    });
+    await userRepo.save(adminUser);
+
+    const adminLogin = await request(app.getHttpServer())
+      .post('/api/auth/login')
+      .send({ email: adminEmail, password: 'SecurePass123!' });
+    adminToken = (adminLogin.body as any).data?.accessToken;
+  }, 60000);
 
   afterAll(async () => {
     // Clean up test keys
@@ -100,12 +133,114 @@ describe('Rate Limiting (e2e)', () => {
   });
 
   // -------------------------------------------------------
+  //  Authentication & Authorization (issue #78)
+  // -------------------------------------------------------
+  describe('Authentication & authorization', () => {
+    it('should reject requests without a token (401)', async () => {
+      await request(app.getHttpServer())
+        .get('/api/rate-limits')
+        .expect(401);
+    });
+
+    it('should reject a non-admin token with 403', async () => {
+      await request(app.getHttpServer())
+        .put('/api/rate-limits')
+        .set('Authorization', `Bearer ${userToken}`)
+        .send({
+          tier: 'free',
+          maxRequests: 50,
+          windowSizeSeconds: 60,
+        })
+        .expect(403);
+    });
+
+    it('should allow an admin token (200)', async () => {
+      const res = await request(app.getHttpServer())
+        .get('/api/rate-limits')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .expect(200);
+      expect(Array.isArray(res.body)).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------
+  //  DTO validation (issue #78)
+  // -------------------------------------------------------
+  describe('DTO validation', () => {
+    it('should reject endpointPattern: "*" with 400', async () => {
+      await request(app.getHttpServer())
+        .put('/api/rate-limits')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          tier: 'free',
+          maxRequests: 100,
+          windowSizeSeconds: 60,
+          endpointPattern: '*',
+        })
+        .expect(400);
+    });
+
+    it('should reject maxRequests above the cap with 400', async () => {
+      await request(app.getHttpServer())
+        .put('/api/rate-limits')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          tier: 'free',
+          maxRequests: 1_000_001,
+          windowSizeSeconds: 60,
+        })
+        .expect(400);
+    });
+
+    it('should accept endpointPattern without wildcard', async () => {
+      const res = await request(app.getHttpServer())
+        .put('/api/rate-limits')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          tier: 'free',
+          maxRequests: 5,
+          windowSizeSeconds: 60,
+          endpointPattern: '/api/trading/*',
+        })
+        .expect(200);
+      expect(res.body.endpointPattern).toBe('/api/trading/*');
+    });
+  });
+
+  // -------------------------------------------------------
+  //  Key namespace isolation (issue #78)
+  // -------------------------------------------------------
+  describe('Key namespace isolation', () => {
+    it('should clear only the caller\u2019s own key when not an admin', async () => {
+      const key = `user:own-key-${Date.now()}`;
+      // Non-admin user calling clearKey on another user\u2019s key should be namespaced
+      // to their own user ID.
+      const res = await request(app.getHttpServer())
+        .put('/api/rate-limits/clear/free')
+        .set('Authorization', `Bearer ${userToken}`)
+        .query({ key: 'user:someone-else' })
+        .expect(200);
+      expect(res.body.success).toBe(true);
+    });
+
+    it('should allow an admin to clear any key with ?all=true', async () => {
+      const res = await request(app.getHttpServer())
+        .put('/api/rate-limits/clear/free')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .query({ key: 'user:any-other-key', all: 'true' })
+        .expect(200);
+      expect(res.body.success).toBe(true);
+    });
+  });
+
+  // -------------------------------------------------------
   //  Rate limit headers
   // -------------------------------------------------------
   describe('Rate limit headers', () => {
     it('should include X-RateLimit-* headers in responses', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/rate-limits/free')
+        .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
       // The admin endpoint itself is bypassed, but if we test with a
@@ -122,6 +257,7 @@ describe('Rate Limiting (e2e)', () => {
     it('should list all rate limit configurations', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/rate-limits')
+        .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
       expect(Array.isArray(res.body)).toBe(true);
@@ -130,6 +266,7 @@ describe('Rate Limiting (e2e)', () => {
     it('should create a new rate limit configuration', async () => {
       const res = await request(app.getHttpServer())
         .put('/api/rate-limits')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({
           tier: 'free',
           maxRequests: 50,
@@ -144,6 +281,7 @@ describe('Rate Limiting (e2e)', () => {
     it('should get a specific tier configuration', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/rate-limits/free')
+        .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
       expect(res.body.tier).toBe('free');
@@ -153,12 +291,14 @@ describe('Rate Limiting (e2e)', () => {
     it('should reject invalid tier in path', async () => {
       await request(app.getHttpServer())
         .get('/api/rate-limits/invalid_tier')
+        .set('Authorization', `Bearer ${adminToken}`)
         .expect(400);
     });
 
     it('should reject invalid body', async () => {
       await request(app.getHttpServer())
         .put('/api/rate-limits')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({
           tier: 'invalid',
           maxRequests: 'not-a-number',
@@ -169,6 +309,7 @@ describe('Rate Limiting (e2e)', () => {
     it('should refresh config cache', async () => {
       const res = await request(app.getHttpServer())
         .put('/api/rate-limits/refresh')
+        .set('Authorization', `Bearer ${adminToken}`)
         .expect(200);
 
       expect(res.body.success).toBe(true);
@@ -182,6 +323,7 @@ describe('Rate Limiting (e2e)', () => {
     it('should return usage stats for a key', async () => {
       const res = await request(app.getHttpServer())
         .get('/api/rate-limits/usage/free')
+        .set('Authorization', `Bearer ${adminToken}`)
         .query({ key: `user:test-user-${Date.now()}` })
         .expect(200);
 
@@ -198,7 +340,8 @@ describe('Rate Limiting (e2e)', () => {
     it('should clear rate limit counters', async () => {
       const res = await request(app.getHttpServer())
         .put('/api/rate-limits/clear/free')
-        .query({ key: 'user:clear-test' })
+        .set('Authorization', `Bearer ${adminToken}`)
+        .query({ key: `user:clear-test-${Date.now()}`, all: 'true' })
         .expect(200);
 
       expect(res.body.success).toBe(true);
@@ -216,10 +359,12 @@ describe('Rate Limiting (e2e)', () => {
       // Get initial usage for both users
       const usageA1 = await request(app.getHttpServer())
         .get('/api/rate-limits/usage/free')
+        .set('Authorization', `Bearer ${adminToken}`)
         .query({ key: userA });
 
       const usageB1 = await request(app.getHttpServer())
         .get('/api/rate-limits/usage/free')
+        .set('Authorization', `Bearer ${adminToken}`)
         .query({ key: userB });
 
       expect(usageA1.body.used).toBe(0);
@@ -230,17 +375,20 @@ describe('Rate Limiting (e2e)', () => {
       const key = `user:rapid-${Date.now()}`;
 
       // Set a very low limit for testing
-      await request(app.getHttpServer()).put('/api/rate-limits').send({
-        tier: 'free',
-        maxRequests: 3,
-        windowSizeSeconds: 60,
-      });
+      await request(app.getHttpServer()).put('/api/rate-limits')
+        .set('Authorization', `Bearer ${adminToken}`)
+        .send({
+          tier: 'free',
+          maxRequests: 3,
+          windowSizeSeconds: 60,
+        });
 
       // Make 5 rapid requests — only tracking usage via the admin endpoint
       // since the admin endpoints are bypassed from rate limiting.
       // The actual enforcement is tested through the guard unit tests.
       const usage = await request(app.getHttpServer())
         .get('/api/rate-limits/usage/free')
+        .set('Authorization', `Bearer ${adminToken}`)
         .query({ key });
 
       expect(usage.status).toBe(200);
@@ -255,6 +403,7 @@ describe('Rate Limiting (e2e)', () => {
     it('should configure premium tier with higher limits', async () => {
       const res = await request(app.getHttpServer())
         .put('/api/rate-limits')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({
           tier: 'premium',
           maxRequests: 5000,
@@ -269,6 +418,7 @@ describe('Rate Limiting (e2e)', () => {
     it('should configure enterprise tier as unlimited', async () => {
       const res = await request(app.getHttpServer())
         .put('/api/rate-limits')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({
           tier: 'enterprise',
           maxRequests: -1, // -1 means unlimited
@@ -282,10 +432,12 @@ describe('Rate Limiting (e2e)', () => {
     it('should disable a tier', async () => {
       const res = await request(app.getHttpServer())
         .put('/api/rate-limits')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({
           tier: 'free',
           maxRequests: 0,
           enabled: false,
+          disableConfirmation: true,
         })
         .expect(200);
 
@@ -301,6 +453,7 @@ describe('Rate Limiting (e2e)', () => {
     it('should set an endpoint pattern', async () => {
       const res = await request(app.getHttpServer())
         .put('/api/rate-limits')
+        .set('Authorization', `Bearer ${adminToken}`)
         .send({
           tier: 'free',
           maxRequests: 5,
