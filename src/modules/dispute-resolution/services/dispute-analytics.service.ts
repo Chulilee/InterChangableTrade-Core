@@ -13,6 +13,8 @@ export interface DisputeMetrics {
   rejectedDisputes: number;
   averageResolutionDays: number;
   slaComplianceRate: number;
+  /** Percentage of resolved disputes that were appealed (0-100). */
+  appealRate: number;
   byClassification: Record<string, number>;
   byStatus: Record<string, number>;
   trends: DisputeTrendPoint[];
@@ -76,6 +78,13 @@ export class DisputeAnalyticsService {
         ? (slaCompliant.length / resolvedDisputes.length) * 100
         : 100;
 
+    const appealRate =
+      resolvedDisputes.length > 0
+        ? (resolvedDisputes.filter((d) => d.appealed).length /
+            resolvedDisputes.length) *
+          100
+        : 0;
+
     const byClassification: Record<string, number> = {};
     for (const cls of Object.values(DisputeClassification)) {
       byClassification[cls] = allDisputes.filter(
@@ -98,6 +107,7 @@ export class DisputeAnalyticsService {
       rejectedDisputes: rejectedDisputes.length,
       averageResolutionDays: Math.round(averageResolutionDays * 100) / 100,
       slaComplianceRate: Math.round(slaComplianceRate * 100) / 100,
+      appealRate: Math.round(appealRate * 100) / 100,
       byClassification,
       byStatus,
       trends,

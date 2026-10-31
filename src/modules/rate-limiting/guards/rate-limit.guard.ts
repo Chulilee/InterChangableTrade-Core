@@ -22,11 +22,6 @@ import {
 const DEFAULT_UNAUTHENTICATED_TIER = RateLimitTier.FREE;
 
 /**
- * Header that may carry the authenticated user's subscription tier.
- */
-const TIER_HEADER = 'x-user-tier';
-
-/**
  * NestJS guard implementing comprehensive rate limiting.
  *
  * Behaviour:
@@ -166,20 +161,18 @@ export class RateLimitGuard implements CanActivate {
 
   /**
    * Determine the user's subscription tier.
-   * Priority: request.user.tier > x-user-tier header > FREE.
+   *
+   * The tier is resolved solely from the authenticated user's persisted record
+   * (`request.user.tier`). The `x-user-tier` header is intentionally ignored:
+   * it is client-supplied and spoofable, which would allow any anonymous caller
+   * to opt into unlimited throughput (ENTERPRISE tier). Because `RateLimitGuard`
+   * is a global guard that runs before authentication populates `request.user`,
+   * unauthenticated requests always fall back to the FREE tier.
    */
   private determineTier(request: Request): RateLimitTier {
     const user = (request as any).user;
     if (user?.tier) {
       return user.tier as RateLimitTier;
-    }
-
-    const headerTier = request.headers[TIER_HEADER] as string | undefined;
-    if (
-      headerTier &&
-      Object.values(RateLimitTier).includes(headerTier as RateLimitTier)
-    ) {
-      return headerTier as RateLimitTier;
     }
 
     return DEFAULT_UNAUTHENTICATED_TIER;

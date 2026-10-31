@@ -8,9 +8,9 @@ import {
   IsNumberString,
   IsOptional,
   IsString,
-  MaxLength,
 } from 'class-validator';
-import { OrderType, OrderSide } from '../entities/order.entity';
+import { PaginationQueryDto } from '@app/common';
+import { OrderType, OrderSide, OrderStatus } from '../entities/order.entity';
 
 /**
  * Request body to create a new order.
@@ -112,7 +112,7 @@ export class OrderResponseDto {
 /**
  * Query parameters for browsing orders, layered on top of shared pagination.
  */
-export class QueryOrderDto {
+export class QueryOrderDto extends PaginationQueryDto {
   @ApiPropertyOptional({ enum: OrderType })
   @IsOptional()
   @IsEnum(OrderType)

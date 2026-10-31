@@ -43,6 +43,8 @@ describe('DisputeAnalyticsService', () => {
     expect(metrics.openDisputes).toBe(1);
     expect(metrics.resolvedDisputes).toBe(1);
     expect(metrics.appealedDisputes).toBe(1);
+    // 1 of 1 resolved dispute was appealed -> 100% appeal rate.
+    expect(metrics.appealRate).toBe(100);
     expect(metrics.byClassification).toBeDefined();
     expect(metrics.byStatus).toBeDefined();
     expect(metrics.trends).toHaveLength(6);
@@ -63,5 +65,6 @@ describe('DisputeAnalyticsService', () => {
 
     expect(metrics.averageResolutionDays).toBe(0);
     expect(metrics.slaComplianceRate).toBe(100);
+    expect(metrics.appealRate).toBe(0);
   });
 });
