@@ -173,7 +173,7 @@ describe('RateLimitGuard', () => {
       );
     });
 
-    it('should use tier from x-user-tier header', async () => {
+    it('should ignore spoofed x-user-tier header and default to free tier', async () => {
       const context = createContext({
         headers: { 'x-user-tier': 'enterprise' },
       });
@@ -182,7 +182,7 @@ describe('RateLimitGuard', () => {
       await guard.canActivate(context);
       expect(rateLimitServiceMock.check).toHaveBeenCalledWith(
         expect.any(String),
-        RateLimitTier.ENTERPRISE,
+        RateLimitTier.FREE,
         expect.any(String),
       );
     });
