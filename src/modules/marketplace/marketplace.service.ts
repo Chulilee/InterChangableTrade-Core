@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   ForbiddenException,
   Injectable,
   NotFoundException,
@@ -161,5 +162,94 @@ export class MarketplaceService {
       throw new BadRequestException('Only pending orders can be cancelled');
     }
     return this.ordersRepository.save({ ...order, status: OrderStatus.CANCELLED });
+  }
+
+  /**
+   * Evaluate whether a pending advanced order should be triggered given the
+   * current market price. Pure function — easy to unit test in isolation.
+   *
+   * Limit orders:
+   *   BUY  → trigger when marketPrice <= limitPrice
+   *   SELL → trigger when marketPrice >= limitPrice
+   *
+   * Stop-loss orders:
+   *   BUY  → trigger when marketPrice >= stopPrice
+   *   SELL → trigger when marketPrice <= stopPrice
+   *
+   * Trailing-stop orders:
+   *   SELL → trigger when marketPrice <= stopPrice (stop price trails the high)
+   *   BUY  → trigger when marketPrice >= stopPrice (stop price trails the low)
+   *
+   * Market orders always return false (they execute immediately at creation).
+   */
+  evaluateOrderTrigger(order: Order, currentPrice: number): boolean {
+    if (order.orderType === OrderType.MARKET) {
+      return false;
+    }
+
+    const price =
+      order.orderType === OrderType.STOP_LOSS ||
+      order.orderType === OrderType.TRAILING_STOP
+        ? parseFloat(order.stopPrice ?? '0')
+        : parseFloat(order.price ?? '0');
+
+    if (!isFinite(price) || price <= 0) {
+      return false;
+    }
+
+    switch (order.orderType) {
+      case OrderType.LIMIT:
+        return order.side === OrderSide.BUY
+          ? currentPrice <= price
+          : currentPrice >= price;
+
+      case OrderType.STOP_LOSS:
+        return order.side === OrderSide.BUY
+          ? currentPrice >= price
+          : currentPrice <= price;
+
+      case OrderType.TRAILING_STOP:
+        return order.side === OrderSide.BUY
+          ? currentPrice >= price
+          : currentPrice <= price;
+
+      default:
+        return false;
+    }
+  }
+
+  /**
+   * Transition a pending order to TRIGGERED state. Only orders in PENDING
+   * status can be triggered.
+   */
+  async triggerOrder(orderId: string): Promise<Order> {
+    const order = await this.findOneOrder(orderId);
+    if (order.status !== OrderStatus.PENDING) {
+      throw new BadRequestException(
+        `Only pending orders can be triggered; current status is ${order.status}`,
+      );
+    }
+    order.status = OrderStatus.TRIGGERED;
+    order.triggeredAt = new Date();
+    return this.ordersRepository.save(order);
+  }
+
+  /**
+   * Scan all pending non-market orders and trigger those whose price
+   * conditions are satisfied by the current market price. Used by the
+   * order-monitoring Bull queue processor.
+   */
+  async monitorAndTriggerOrders(currentPrice: number): Promise<Order[]> {
+    const pendingOrders = await this.ordersRepository.find({
+      where: { status: OrderStatus.PENDING },
+    });
+
+    const triggered: Order[] = [];
+    for (const order of pendingOrders) {
+      if (this.evaluateOrderTrigger(order, currentPrice)) {
+        triggered.push(await this.triggerOrder(order.id));
+      }
+    }
+    return triggered;
   }
 }
