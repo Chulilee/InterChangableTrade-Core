@@ -17,14 +17,14 @@ import {
   RateLimitConfigResponseDto,
 } from './dto/update-rate-limit.dto';
 import { RateLimitTier } from './enums/rate-limit.enum';
-import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
-import { RolesGuard } from '../../auth/guards/roles.guard';
-import { Roles } from '../../auth/decorators/roles.decorator';
-import { UserRole } from '../../users/entities/user.entity';
+import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
+import { RolesGuard } from '../auth/guards/roles.guard';
+import { Roles } from '../auth/decorators/roles.decorator';
+import { UserRole } from '../users/entities/user.entity';
 import {
   CurrentUser,
   AuthenticatedUser,
-} from '../../auth/decorators/current-user.decorator';
+} from '../auth/decorators/current-user.decorator';
 
 /**
  * Admin-only controller for managing rate limit configuration at runtime.
@@ -117,9 +117,9 @@ export class RateLimitController {
   @ApiOperation({ summary: 'Check current rate limit usage for a key' })
   async getUsage(
     @Param('tier', new ParseEnumPipe(RateLimitTier)) tier: RateLimitTier,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('key') key: string,
     @Query('endpoint') endpoint?: string,
-    @CurrentUser() user: AuthenticatedUser,
   ) {
     const effectiveKey = this.resolveKey(key, user);
     return this.rateLimitService.getUsage(effectiveKey, tier, endpoint);
@@ -136,10 +136,10 @@ export class RateLimitController {
   @ApiOperation({ summary: 'Clear rate limit counters for a key' })
   async clearKey(
     @Param('tier', new ParseEnumPipe(RateLimitTier)) tier: RateLimitTier,
+    @CurrentUser() user: AuthenticatedUser,
     @Query('key') key: string,
     @Query('endpoint') endpoint?: string,
     @Query('all') all?: string,
-    @CurrentUser() user: AuthenticatedUser,
   ) {
     const effectiveKey = this.resolveKey(key, user, all === 'true');
     await this.rateLimitService.clearKey(effectiveKey, tier, endpoint);
@@ -167,7 +167,7 @@ export class RateLimitController {
   private resolveKey(
     key: string | undefined,
     user: AuthenticatedUser,
-    allowAny: boolean = false,
+    allowAll: boolean = false,
   ): string {
     if (user.role === UserRole.ADMIN && allowAll) {
       return key ?? `user:${user.id}`;
