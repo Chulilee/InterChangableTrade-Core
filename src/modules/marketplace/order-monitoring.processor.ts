@@ -48,14 +48,16 @@ export class OrderMonitoringProcessor {
    * those whose price conditions are satisfied by the current market price.
    */
   @Process('check-pending-orders')
-  async checkPendingOrders(_job: Job<OrderMonitorJobData>): Promise<void> {
+  async checkPendingOrders(job: Job<OrderMonitorJobData>): Promise<void> {
     const pendingOrders = await this.orderRepository.find({
       where: { status: OrderStatus.PENDING },
       relations: ['listing'],
     });
 
     if (pendingOrders.length === 0) {
-      this.logger.debug('No pending orders to monitor');
+      this.logger.debug(
+        `Order monitor run (job #${job.id}): no pending orders to check`,
+      );
       return;
     }
 
