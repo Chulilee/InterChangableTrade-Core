@@ -13,6 +13,8 @@ import { ApiKeyAuthGuard } from './guards/api-key-auth.guard';
 import { AuthAuditService } from './auth-audit.service';
 import { AuthRateLimiterService } from './auth-rate-limiter.service';
 import { StellarAuthService } from './stellar-auth.service';
+import { AuthTokenLookupService } from './auth-token-lookup.service';
+import { CredentialCleanupService } from './credential-cleanup.service';
 import { ApiKeysService } from './api-keys.service';
 import { RefreshToken } from './entities/refresh-token.entity';
 import { ApiKey } from './entities/api-key.entity';
@@ -52,6 +54,8 @@ import { PasswordResetToken } from './entities/password-reset-token.entity';
     AuthAuditService,
     AuthRateLimiterService,
     StellarAuthService,
+    AuthTokenLookupService,
+    CredentialCleanupService,
     ApiKeysService,
   ],
   exports: [AuthService, AuthAuditService, RolesGuard],
