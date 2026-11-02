@@ -179,6 +179,17 @@ export default () => ({
     ),
   },
 
+  /**
+   * Express's `trust proxy` setting. This is the only supported way for the
+   * application to learn a client's real address behind a reverse proxy:
+   * `req.ip` then resolves `X-Forwarded-For` correctly instead of code reading
+   * the (client-controlled) header directly. `0` disables proxy trust, which is
+   * correct when the app is exposed directly. See docs/rate-limiting.md.
+   */
+  http: {
+    trustProxyHops: process.env.TRUST_PROXY_HOPS ?? '1',
+  },
+
   rateLimit: {
     strategy: process.env.RATE_LIMIT_STRATEGY ?? 'sliding_window',
     defaultWindowSize: parseInt(

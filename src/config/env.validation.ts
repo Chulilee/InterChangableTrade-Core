@@ -92,6 +92,10 @@ export const envValidationSchema = Joi.object({
   BLOCKCHAIN_INDEXER_RETENTION_DAYS: Joi.number().default(90),
   BLOCKCHAIN_INDEXER_REORG_CHECK_INTERVAL_MS: Joi.number().default(300000),
 
+  // Express `trust proxy` hop count (see docs/rate-limiting.md). `0` means the
+  // app is not behind a proxy and `X-Forwarded-For` is ignored entirely.
+  TRUST_PROXY_HOPS: Joi.number().integer().min(0).max(10).default(1),
+
   // Rate limiting
   RATE_LIMIT_STRATEGY: Joi.string()
     .valid('sliding_window', 'fixed_window')

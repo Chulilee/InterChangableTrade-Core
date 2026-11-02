@@ -1,5 +1,7 @@
 import { NestFactory } from '@nestjs/core';
 import { ValidationPipe, Logger } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
+import { NestExpressApplication } from '@nestjs/platform-express';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 import helmet from 'helmet';
 import { AllExceptionsFilter, TransformInterceptor } from '@app/common';
@@ -8,8 +10,25 @@ import { ErrorHandlerService } from './modules/error-handler/error-handler.servi
 import { RateLimitGuard } from './modules/rate-limiting/guards/rate-limit.guard';
 
 async function bootstrap() {
-  const app = await NestFactory.create(AppModule);
+  const app = await NestFactory.create<NestExpressApplication>(AppModule);
   const logger = new Logger('Bootstrap');
+  const configService = app.get(ConfigService);
+
+  // Trust exactly the configured number of reverse-proxy hops. Expected
+  // topology: client → TLS-terminating load balancer / ingress → this app
+  // (`TRUST_PROXY_HOPS=1`). Express then derives `req.ip` from the
+  // X-Forwarded-For entry appended by that trusted hop; application code must
+  // never parse the header itself, because a client can prepend arbitrary
+  // values to it. Deployments with no proxy set `TRUST_PROXY_HOPS=0` so the
+  // header is ignored entirely. See docs/rate-limiting.md.
+  const trustProxySetting =
+    configService.get<string>('http.trustProxyHops') ?? '1';
+  app.set(
+    'trust proxy',
+    /^\d+$/.test(trustProxySetting)
+      ? parseInt(trustProxySetting, 10)
+      : trustProxySetting,
+  );
 
   // Security headers.
   app.use(helmet());
