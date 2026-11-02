@@ -23,6 +23,16 @@ export class ApiKey extends BaseEntity {
   @Column({ select: false })
   keyHash: string;
 
+  /**
+   * Deterministic, unique fingerprint of the raw key:
+   * `HMAC-SHA256(AUTH_TOKEN_PEPPER, rawKey)`. `validate()` looks the key up by
+   * this indexed column and then performs exactly one `bcrypt.compare`,
+   * instead of comparing against every active key in the table.
+   */
+  @Index('UQ_api_keys_lookup_hash', { unique: true })
+  @Column({ type: 'char', length: 64, select: false, nullable: true })
+  lookupHash?: string | null;
+
   /** Optional prefix shown in UI (e.g., last 8 chars of raw key). */
   @Column({ nullable: true })
   keyPreview?: string;
