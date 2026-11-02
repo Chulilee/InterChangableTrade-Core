@@ -7,6 +7,32 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Security
+
+- **Rate-limit keys no longer trust client-supplied identity.** `RateLimitGuard`
+  derives unauthenticated buckets from `request.ip` only (Express `trust proxy`
+  is now configured via `TRUST_PROXY_HOPS` in `src/main.ts`), so rotating
+  `X-Forwarded-For` no longer mints a fresh bucket per request. API keys are
+  reduced to a truncated SHA-256 digest before being used as a Redis key, so the
+  plaintext secret no longer appears in `SCAN`/`MONITOR`/`SLOWLOG`, AOF/RDB
+  files or backups. Direct `X-Forwarded-For` parsing was removed from the auth,
+  audit, escrow and compliance paths. See `docs/rate-limiting.md`.
+- **Credential verification is O(1).** Refresh-token rotation, password-reset
+  confirmation and API-key validation now resolve a single row through an
+  indexed `lookupHash = HMAC-SHA256(AUTH_TOKEN_PEPPER, rawCredential)` column and
+  run exactly one `bcrypt.compare`, instead of scanning every live credential
+  row. Adds migration `1789482500000-AddCredentialLookupHashes.ts` and a
+  scheduled `CredentialCleanupService` for expired rows. See `docs/database.md`.
+
+### Breaking
+
+- **Outstanding refresh tokens and API keys must be re-issued.** The new
+  `lookupHash` column cannot be backfilled because the raw credentials are not
+  recoverable from their bcrypt hashes. Tokens issued before this migration
+  return `401`, so clients re-authenticate and API-key holders create a new key.
+  Password-reset links issued before the migration are likewise invalid.
+  Set `AUTH_TOKEN_PEPPER` (falls back to `JWT_SECRET` with a warning).
+
 ### Planned
 
 See the [ROADMAP](ROADMAP.md) for what is coming next. The immediate focus is

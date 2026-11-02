@@ -45,9 +45,10 @@ import { UserRole } from '../users/entities/user.entity';
 /** Extracts a best-effort RequestContext from the Express request. */
 function requestContext(req: Request) {
   return {
-    ipAddress:
-      (req.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ??
-      req.socket?.remoteAddress,
+    // `req.ip` already accounts for the configured number of trusted proxy
+    // hops (see `main.ts`); parsing X-Forwarded-For here would trust a
+    // client-controlled value.
+    ipAddress: req.ip ?? req.socket?.remoteAddress,
     userAgent: req.headers['user-agent'],
     deviceHint: req.headers['x-device-hint'] as string | undefined,
   };

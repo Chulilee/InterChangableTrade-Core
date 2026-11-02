@@ -20,6 +20,17 @@ export class RefreshToken extends BaseEntity {
   @Column()
   tokenHash: string;
 
+  /**
+   * Deterministic, unique fingerprint of the raw token:
+   * `HMAC-SHA256(AUTH_TOKEN_PEPPER, rawToken)`. bcrypt hashes are salted and
+   * cannot be queried by equality, so this column is what lets
+   * `refreshAccessToken` resolve a single row with one indexed lookup instead
+   * of running `bcrypt.compare` against every live session.
+   */
+  @Index('UQ_refresh_tokens_lookup_hash', { unique: true })
+  @Column({ type: 'char', length: 64, select: false, nullable: true })
+  lookupHash?: string | null;
+
   /** Human-readable hint for the client (browser, mobile, api-client, …). */
   @Column({ nullable: true })
   deviceHint?: string;

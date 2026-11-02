@@ -279,12 +279,7 @@ export class ComplianceController {
   async assessTransactionRisk(
     @CurrentUser() user: AuthenticatedUser,
     @Body() dto: AssessTransactionRiskDto,
-    @Req() req: Request,
   ) {
-    const ipAddress =
-      (req.headers['x-forwarded-for'] as string) ??
-      req.socket.remoteAddress ??
-      undefined;
     const result = await this.complianceService.assessTransactionRisk(
       user.id,
       dto,
@@ -359,10 +354,7 @@ export class ComplianceController {
     @Body() dto: ReviewAmlFlagDto,
     @Req() req: Request,
   ) {
-    const ipAddress =
-      (req.headers['x-forwarded-for'] as string) ??
-      req.socket.remoteAddress ??
-      undefined;
+    const ipAddress = req.ip ?? req.socket.remoteAddress ?? undefined;
     const flag = await this.complianceService.reviewFlag(
       flagId,
       user.id,

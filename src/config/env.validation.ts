@@ -38,6 +38,18 @@ export const envValidationSchema = Joi.object({
   JWT_EXPIRES_IN: Joi.string().default('3600s'),
   JWT_REFRESH_EXPIRES_IN: Joi.number().default(2592000), // 30 days in seconds
 
+  // Pepper for the deterministic credential lookup hashes (HMAC-SHA256 over
+  // refresh tokens, password-reset tokens and API keys). Optional: when unset
+  // the value of JWT_SECRET is used. Rotating it invalidates every outstanding
+  // credential, exactly like rotating JWT_SECRET. See docs/database.md.
+  AUTH_TOKEN_PEPPER: Joi.string().min(16).allow('').optional(),
+  // Interval for purging expired refresh tokens, reset tokens and Stellar
+  // auth challenges (milliseconds). Default: hourly.
+  AUTH_CREDENTIAL_CLEANUP_INTERVAL_MS: Joi.number()
+    .integer()
+    .min(60000)
+    .default(3600000),
+
   // Secret for the AES-256-GCM key that encrypts wallet secret keys at rest.
   // WalletService already refuses to start without it; validate here so the
   // failure is a clear boot-time message rather than a constructor throw.
@@ -91,6 +103,10 @@ export const envValidationSchema = Joi.object({
   BLOCKCHAIN_INDEXER_BATCH_MAX_SIZE: Joi.number().default(1000),
   BLOCKCHAIN_INDEXER_RETENTION_DAYS: Joi.number().default(90),
   BLOCKCHAIN_INDEXER_REORG_CHECK_INTERVAL_MS: Joi.number().default(300000),
+
+  // Express `trust proxy` hop count (see docs/rate-limiting.md). `0` means the
+  // app is not behind a proxy and `X-Forwarded-For` is ignored entirely.
+  TRUST_PROXY_HOPS: Joi.number().integer().min(0).max(10).default(1),
 
   // Rate limiting
   RATE_LIMIT_STRATEGY: Joi.string()

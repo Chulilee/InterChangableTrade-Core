@@ -10,6 +10,7 @@ import { randomBytes } from 'crypto';
 import * as bcrypt from 'bcryptjs';
 import { ApiKey } from './entities/api-key.entity';
 import { CreateApiKeyDto } from './dto/create-api-key.dto';
+import { AuthTokenLookupService } from './auth-token-lookup.service';
 
 const KEY_PREFIX = 'ict_';
 const KEY_BYTES = 32; // 256-bit entropy
@@ -20,13 +21,16 @@ const PREVIEW_LENGTH = 8; // tail chars shown in UI
  * Manages API key lifecycle: creation, verification, listing, and revocation.
  *
  * The raw key is returned exactly once on creation and is never stored.
- * Only a bcrypt hash is persisted.
+ * Only a bcrypt hash is persisted, alongside an indexed HMAC-SHA256 digest used
+ * to resolve the correct row in O(1) so verification runs exactly one bcrypt
+ * compare.
  */
 @Injectable()
 export class ApiKeysService {
   constructor(
     @InjectRepository(ApiKey)
     private readonly apiKeyRepo: Repository<ApiKey>,
+    private readonly tokenLookup: AuthTokenLookupService,
   ) {}
 
   /**
@@ -48,12 +52,14 @@ export class ApiKeysService {
 
     const rawKey = `${KEY_PREFIX}${randomBytes(KEY_BYTES).toString('hex')}`;
     const keyHash = await bcrypt.hash(rawKey, BCRYPT_ROUNDS);
+    const lookupHash = this.tokenLookup.digest(rawKey);
     const keyPreview = rawKey.slice(-PREVIEW_LENGTH);
 
     const apiKey = this.apiKeyRepo.create({
       userId,
       name: dto.name,
       keyHash,
+      lookupHash,
       keyPreview,
       scopes: dto.scopes,
       expiresAt: dto.expiresAt ? new Date(dto.expiresAt) : undefined,
@@ -80,31 +86,36 @@ export class ApiKeysService {
       throw new UnauthorizedException('Invalid API key format');
     }
 
-    // Load all active, non-expired keys to compare hashes.
-    // In practice, production systems often add a fast-path lookup using a
-    // deterministic prefix/lookup-token stored in plain text. For this
-    // implementation we keep it simple with a full-table scan bounded by
-    // `isActive` and index on userId.
-    const candidates = await this.apiKeyRepo
+    // Resolve exactly one row through the indexed deterministic digest. bcrypt
+    // hashes are salted, so the previous implementation loaded every active key
+    // and compared them one by one — on the authenticated hot path that is an
+    // O(N) CPU cost per request and a trivial DoS lever.
+    const lookupHash = this.tokenLookup.digest(rawKey);
+    const candidate = await this.apiKeyRepo
       .createQueryBuilder('k')
       .addSelect('k.keyHash')
       .leftJoinAndSelect('k.user', 'user')
-      .where('k.isActive = true')
+      .where('k.lookupHash = :lookupHash', { lookupHash })
+      .andWhere('k.isActive = true')
       .andWhere('(k.expiresAt IS NULL OR k.expiresAt > NOW())')
-      .getMany();
+      .getOne();
 
-    for (const candidate of candidates) {
-      const matches = await bcrypt.compare(rawKey, candidate.keyHash);
-      if (matches) {
-        // Update last-used timestamp asynchronously (best-effort).
-        this.apiKeyRepo
-          .update(candidate.id, { lastUsedAt: new Date() })
-          .catch(() => undefined);
-        return candidate;
-      }
+    if (!candidate) {
+      throw new UnauthorizedException('Invalid or expired API key');
     }
 
-    throw new UnauthorizedException('Invalid or expired API key');
+    // The digest only locates the row; bcrypt decides whether it is genuine.
+    const matches = await bcrypt.compare(rawKey, candidate.keyHash);
+    if (!matches) {
+      throw new UnauthorizedException('Invalid or expired API key');
+    }
+
+    // Update last-used timestamp asynchronously (best-effort).
+    this.apiKeyRepo
+      .update(candidate.id, { lastUsedAt: new Date() })
+      .catch(() => undefined);
+
+    return candidate;
   }
 
   /** Revokes (soft-deletes) a specific API key owned by the user. */

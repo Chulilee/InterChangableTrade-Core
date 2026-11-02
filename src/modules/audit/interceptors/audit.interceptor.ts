@@ -51,7 +51,10 @@ export class AuditInterceptor implements NestInterceptor {
     const path = req.originalUrl ?? req.url ?? req.route?.path ?? '';
     const user = req.user;
     const requestId = this.headerValue(req, 'x-request-id');
-    const ipAddress = this.headerValue(req, 'x-forwarded-for') ?? req.ip;
+    // Trust Express's resolved peer address. The raw X-Forwarded-For header is
+    // client-controlled, so reading it here would let a caller forge the IP
+    // recorded in the audit trail.
+    const ipAddress = req.ip;
     const userAgent = this.headerValue(req, 'user-agent');
     const { resourceType, resourceId } = this.deriveResource(path, req.params);
 

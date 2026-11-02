@@ -19,6 +19,15 @@ export class PasswordResetToken extends BaseEntity {
   @Column()
   tokenHash: string;
 
+  /**
+   * Deterministic, unique fingerprint of the raw reset token:
+   * `HMAC-SHA256(AUTH_TOKEN_PEPPER, rawToken)`. Lets confirmation resolve one
+   * row with an indexed lookup before the single bcrypt verification.
+   */
+  @Index('UQ_password_reset_tokens_lookup_hash', { unique: true })
+  @Column({ type: 'char', length: 64, select: false, nullable: true })
+  lookupHash?: string | null;
+
   @Column({ type: 'timestamptz' })
   expiresAt: Date;
 

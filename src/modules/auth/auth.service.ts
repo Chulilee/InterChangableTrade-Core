@@ -20,6 +20,7 @@ import { AuthAuditService } from './auth-audit.service';
 import { AuthEventType } from './entities/auth-audit-log.entity';
 import { AuthRateLimiterService } from './auth-rate-limiter.service';
 import { StellarAuthService } from './stellar-auth.service';
+import { AuthTokenLookupService } from './auth-token-lookup.service';
 import { User } from '../users/entities/user.entity';
 
 export interface AuthResult {
@@ -52,6 +53,7 @@ export class AuthService {
     private readonly auditService: AuthAuditService,
     private readonly rateLimiter: AuthRateLimiterService,
     private readonly stellarAuth: StellarAuthService,
+    private readonly tokenLookup: AuthTokenLookupService,
     @InjectRepository(RefreshToken)
     private readonly refreshTokenRepo: Repository<RefreshToken>,
     @InjectRepository(PasswordResetToken)
@@ -201,24 +203,28 @@ export class AuthService {
     rawRefreshToken: string,
     ctx: RequestContext,
   ): Promise<AuthResult> {
-    const tokenRecord = await this.refreshTokenRepo
+    // Resolve the single candidate row by its indexed deterministic digest.
+    // bcrypt hashes are salted, so they cannot be queried by equality; scanning
+    // every live session and running bcrypt per row was an unauthenticated CPU
+    // exhaustion vector.
+    const lookupHash = this.tokenLookup.digest(rawRefreshToken);
+    const match = await this.refreshTokenRepo
       .createQueryBuilder('rt')
       .addSelect('rt.tokenHash')
       .leftJoinAndSelect('rt.user', 'user')
-      .where('rt.isRevoked = false')
+      .where('rt.lookupHash = :lookupHash', { lookupHash })
+      .andWhere('rt.isRevoked = false')
       .andWhere('rt.expiresAt > NOW()')
-      .getMany();
-
-    let match: RefreshToken | null = null;
-    for (const candidate of tokenRecord) {
-      const valid = await bcrypt.compare(rawRefreshToken, candidate.tokenHash);
-      if (valid) {
-        match = candidate;
-        break;
-      }
-    }
+      .getOne();
 
     if (!match || !match.user) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    // The digest is only an index; bcrypt remains the source of truth. Exactly
+    // one compare is performed regardless of how many sessions exist.
+    const tokenMatches = await bcrypt.compare(rawRefreshToken, match.tokenHash);
+    if (!tokenMatches) {
       throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
@@ -237,25 +243,24 @@ export class AuthService {
   }
 
   async logout(userId: string, rawRefreshToken: string): Promise<void> {
-    const tokens = await this.refreshTokenRepo
+    const lookupHash = this.tokenLookup.digest(rawRefreshToken);
+    const token = await this.refreshTokenRepo
       .createQueryBuilder('rt')
       .addSelect('rt.tokenHash')
       .where('rt.userId = :userId', { userId })
+      .andWhere('rt.lookupHash = :lookupHash', { lookupHash })
       .andWhere('rt.isRevoked = false')
-      .getMany();
+      .getOne();
 
-    for (const token of tokens) {
-      const matches = await bcrypt.compare(rawRefreshToken, token.tokenHash);
-      if (matches) {
-        token.isRevoked = true;
-        token.revokedAt = new Date();
-        await this.refreshTokenRepo.save(token);
+    if (token && (await bcrypt.compare(rawRefreshToken, token.tokenHash))) {
+      token.isRevoked = true;
+      token.revokedAt = new Date();
+      await this.refreshTokenRepo.save(token);
 
-        await this.auditService.recordSuccess(AuthEventType.LOGOUT, {
-          userId,
-        });
-        return;
-      }
+      await this.auditService.recordSuccess(AuthEventType.LOGOUT, {
+        userId,
+      });
+      return;
     }
 
     // If the token wasn't found, still return success (idempotent logout).
@@ -295,11 +300,13 @@ export class AuthService {
 
     const rawToken = randomBytes(32).toString('hex');
     const tokenHash = await bcrypt.hash(rawToken, BCRYPT_ROUNDS);
+    const lookupHash = this.tokenLookup.digest(rawToken);
     const expiresAt = new Date(Date.now() + 3600_000); // 1 hour
 
     const resetToken = this.resetTokenRepo.create({
       userId: user.id,
       tokenHash,
+      lookupHash,
       expiresAt,
     });
     await this.resetTokenRepo.save(resetToken);
@@ -331,24 +338,23 @@ export class AuthService {
     newPassword: string,
     ctx: RequestContext,
   ): Promise<void> {
-    const candidates = await this.resetTokenRepo
+    const lookupHash = this.tokenLookup.digest(rawToken);
+    const match = await this.resetTokenRepo
       .createQueryBuilder('rt')
       .addSelect('rt.tokenHash')
       .leftJoinAndSelect('rt.user', 'user')
-      .where('rt.isUsed = false')
+      .where('rt.lookupHash = :lookupHash', { lookupHash })
+      .andWhere('rt.isUsed = false')
       .andWhere('rt.expiresAt > NOW()')
-      .getMany();
-
-    let match: PasswordResetToken | null = null;
-    for (const candidate of candidates) {
-      const valid = await bcrypt.compare(rawToken, candidate.tokenHash);
-      if (valid) {
-        match = candidate;
-        break;
-      }
-    }
+      .getOne();
 
     if (!match || !match.user) {
+      throw new BadRequestException('Invalid or expired reset token');
+    }
+
+    // Single bcrypt verification against the row the digest resolved.
+    const tokenMatches = await bcrypt.compare(rawToken, match.tokenHash);
+    if (!tokenMatches) {
       throw new BadRequestException('Invalid or expired reset token');
     }
 
@@ -390,6 +396,7 @@ export class AuthService {
 
     const rawRefreshToken = randomBytes(REFRESH_TOKEN_BYTES).toString('hex');
     const tokenHash = await bcrypt.hash(rawRefreshToken, BCRYPT_ROUNDS);
+    const lookupHash = this.tokenLookup.digest(rawRefreshToken);
 
     const refreshTokenTtlSecs = parseInt(
       this.configService.get<string>('jwt.refreshExpiresIn') ?? '2592000',
@@ -400,6 +407,7 @@ export class AuthService {
     const refreshToken = this.refreshTokenRepo.create({
       userId: user.id,
       tokenHash,
+      lookupHash,
       deviceHint: ctx.deviceHint,
       ipAddress: ctx.ipAddress,
       userAgent: ctx.userAgent,
