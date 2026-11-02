@@ -8,6 +8,7 @@ import {
 } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
 import { Request, Response } from 'express';
+import { createHash } from 'crypto';
 import { RateLimitService } from '../rate-limit.service';
 import { RateLimitTier, RATE_LIMIT_HEADERS } from '../enums/rate-limit.enum';
 import { RATE_LIMIT_BYPASS_KEY } from '../decorators/bypass-rate-limit.decorator';
@@ -20,6 +21,18 @@ import {
  * Default tier for unauthenticated requests.
  */
 const DEFAULT_UNAUTHENTICATED_TIER = RateLimitTier.FREE;
+
+/**
+ * Stable, non-reversible identifier for an API key.
+ *
+ * Rate-limit buckets must not embed the bearer secret itself: Redis key names
+ * show up in `SCAN`/`MONITOR`/`SLOWLOG`, persist in AOF/RDB files and end up in
+ * backups. 32 hex characters (128 bits) of SHA-256 is far beyond any realistic
+ * collision risk while making the key unusable if it leaks.
+ */
+export function hashApiKey(rawKey: string): string {
+  return createHash('sha256').update(rawKey).digest('hex').slice(0, 32);
+}
 
 /**
  * NestJS guard implementing comprehensive rate limiting.
@@ -134,7 +147,13 @@ export class RateLimitGuard implements CanActivate {
 
   /**
    * Extract the rate limit identifier from the request.
-   * Priority: userId > API key > IP address.
+   * Priority: userId > resolved API key id > hashed API key > IP address.
+   *
+   * The raw `X-Api-Key` value and the raw `X-Forwarded-For` header are never
+   * used as bucket names: the former is a bearer secret that must not leak into
+   * Redis keys, the latter is client-controlled and would let a caller mint a
+   * fresh bucket per request. Client addresses come from `request.ip`, which
+   * Express resolves using the `trust proxy` configuration in `main.ts`.
    */
   private extractKey(request: Request): string {
     // Authenticated user
@@ -143,18 +162,21 @@ export class RateLimitGuard implements CanActivate {
       return `user:${user.id}`;
     }
 
-    // API key from header
-    const apiKey = request.headers['x-api-key'] as string | undefined;
-    if (apiKey) {
-      return `apikey:${apiKey}`;
+    // A guard that ran after API-key authentication may already know the key id.
+    if (user?.apiKeyId) {
+      return `apikey:${user.apiKeyId}`;
     }
 
-    // IP address (supports proxied requests)
-    const ip =
-      (request.headers['x-forwarded-for'] as string)?.split(',')[0]?.trim() ||
-      request.ip ||
-      request.socket?.remoteAddress ||
-      'unknown';
+    // Pre-authentication window: bucket on a non-reversible fingerprint so the
+    // plaintext secret never becomes a Redis key.
+    const apiKey = request.headers['x-api-key'];
+    if (typeof apiKey === 'string' && apiKey.length > 0) {
+      return `apikey:${hashApiKey(apiKey)}`;
+    }
+
+    // `request.ip` is the only trusted source: Express derives it from
+    // X-Forwarded-For using the configured number of trusted proxy hops.
+    const ip = request.ip || request.socket?.remoteAddress || 'unknown';
 
     return `ip:${ip}`;
   }
