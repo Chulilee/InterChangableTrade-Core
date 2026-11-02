@@ -210,6 +210,57 @@ the fork point, rewinds `last_indexed_ledger`, and re-fetches the affected
 range. Backfilled events are persisted and the cursor is advanced once, instead
 of re-fetching the same gap on every check.
 
+## Credential lookup hashes & cleanup
+
+Opaque bearer credentials — refresh tokens (`refresh_tokens`), password-reset
+tokens (`password_reset_tokens`) and API keys (`api_keys`) — are stored as
+salted bcrypt hashes. bcrypt hashes cannot be matched by equality, so the
+original implementation loaded **every** live row and ran one
+`bcrypt.compare` per row (60–100 ms of CPU each). On unauthenticated endpoints
+(`POST /api/auth/refresh`, `POST /api/auth/confirm-password-reset`) that was a
+trivial CPU-exhaustion DoS, and it made response time a function of a row's
+position in the table.
+
+Migration `1789482500000-AddCredentialLookupHashes.ts` adds a second,
+deterministic column to each table:
+
+| Column       | Type          | Constraint                                     |
+| ------------ | ------------- | ---------------------------------------------- |
+| `lookupHash` | `char(64)`    | unique index (`UQ_*_lookup_hash`), nullable     |
+
+`lookupHash = HMAC-SHA256(AUTH_TOKEN_PEPPER, rawCredential)`, computed by
+`AuthTokenLookupService` (`src/modules/auth/auth-token-lookup.service.ts`):
+
+- **Lookup is O(1).** Verification is one `SELECT ... WHERE "lookupHash" = $1`
+  followed by **exactly one** `bcrypt.compare` against that row. bcrypt is still
+  the source of truth; the digest is only an index, and it is keyed so a database
+  reader cannot use it without the server-side pepper.
+- **`AUTH_TOKEN_PEPPER`** (env) supplies the pepper. When unset the app falls
+  back to `JWT_SECRET` and logs a warning; a dedicated value is recommended.
+  Rotating it invalidates every outstanding credential, exactly like rotating
+  `JWT_SECRET`.
+- **`stellar_auth_challenges`** already stores its `nonce` in clear text under a
+  unique index, which is an equivalent O(1) lookup, so it needs no new column.
+- **Existing rows are not backfilled.** The raw credentials are not recoverable
+  from their bcrypt hashes, so the column stays `NULL` for pre-migration rows and
+  those credentials stop validating. This breaking change is recorded in
+  `CHANGELOG.md`; affected users re-authenticate (and clients re-issue API keys).
+  Postgres unique indexes allow multiple `NULL`s, so the constraint can exist
+  during that transition.
+
+`CredentialCleanupService` (`src/modules/auth/credential-cleanup.service.ts`)
+purges rows that can no longer authenticate anyone, on the interval set by
+`AUTH_CREDENTIAL_CLEANUP_INTERVAL_MS` (default hourly):
+
+- expired refresh tokens, plus revoked tokens older than a 7-day retention
+  window;
+- expired or already-used password-reset tokens;
+- expired or already-used Stellar auth challenges.
+
+The timer is `unref`'d and cleared in `onModuleDestroy`, so it never keeps a
+short-lived process alive. The migration also indexes `expiresAt` on all three
+tables so each cleanup pass is an index range delete rather than a table scan.
+
 ## Audit trail
 
 Already implemented — see [`docs/audit-logging.md`](audit-logging.md) and
