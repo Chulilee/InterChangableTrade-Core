@@ -44,6 +44,24 @@ export default () => ({
     refreshExpiresIn: process.env.JWT_REFRESH_EXPIRES_IN ?? '2592000', // 30 days in seconds
   },
 
+  /**
+   * Credential lookup configuration. Opaque bearer credentials (refresh tokens,
+   * password-reset tokens, API keys) are stored as bcrypt hashes, which cannot
+   * be looked up by equality. A keyed HMAC of the raw value is therefore
+   * persisted alongside the bcrypt hash as an indexed `lookupHash`, so
+   * verification resolves exactly one row instead of scanning the table.
+   * See docs/database.md.
+   */
+  auth: {
+    // Optional dedicated pepper; falls back to JWT_SECRET when unset.
+    tokenPepper: process.env.AUTH_TOKEN_PEPPER,
+    // How often expired credential rows are purged (milliseconds).
+    cleanupIntervalMs: parseInt(
+      process.env.AUTH_CREDENTIAL_CLEANUP_INTERVAL_MS ?? '3600000',
+      10,
+    ),
+  },
+
   stellar: {
     network: process.env.STELLAR_NETWORK ?? 'testnet',
     horizonUrl: process.env.STELLAR_HORIZON_URL,
