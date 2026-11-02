@@ -123,10 +123,7 @@ export class EscrowController {
     @Body() dto: ApproveEscrowDto,
     @Req() req: Request,
   ): Promise<EscrowAccount> {
-    const ipAddress =
-      (req.headers['x-forwarded-for'] as string) ??
-      req.socket.remoteAddress ??
-      undefined;
+    const ipAddress = req.ip ?? req.socket.remoteAddress ?? undefined;
     return this.escrowService.approveEscrow(id, user.id, dto, ipAddress);
   }
 
