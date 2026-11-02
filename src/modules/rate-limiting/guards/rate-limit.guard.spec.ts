@@ -1,6 +1,7 @@
 import { ExecutionContext, HttpException, HttpStatus } from '@nestjs/common';
 import { Reflector } from '@nestjs/core';
-import { RateLimitGuard } from './rate-limit.guard';
+import { createHash } from 'crypto';
+import { RateLimitGuard, hashApiKey } from './rate-limit.guard';
 import { RATE_LIMIT_BYPASS_KEY } from '../decorators/bypass-rate-limit.decorator';
 import { RATE_LIMIT_CONFIG_KEY } from '../decorators/rate-limit-config.decorator';
 import { RateLimitTier } from '../enums/rate-limit.enum';
@@ -126,29 +127,107 @@ describe('RateLimitGuard', () => {
       );
     });
 
-    it('should extract API key from header', async () => {
+    it('should hash the API key instead of embedding the raw secret', async () => {
+      const rawKey = 'ict_super-secret-key-value';
       const context = createContext({
-        headers: { 'x-api-key': 'abc-123' },
+        headers: { 'x-api-key': rawKey },
       });
       jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(undefined);
 
       await guard.canActivate(context);
+
+      const expected = createHash('sha256')
+        .update(rawKey)
+        .digest('hex')
+        .slice(0, 32);
       expect(rateLimitServiceMock.check).toHaveBeenCalledWith(
-        'apikey:abc-123',
+        `apikey:${expected}`,
+        RateLimitTier.FREE,
+        '/api/test',
+      );
+      expect(rateLimitServiceMock.check).not.toHaveBeenCalledWith(
+        `apikey:${rawKey}`,
+        expect.anything(),
+        expect.anything(),
+      );
+    });
+
+    it('should expose hashApiKey as a stable, one-way 32-char digest', () => {
+      const rawKey = 'ict_another-secret';
+      const first = hashApiKey(rawKey);
+
+      expect(first).toHaveLength(32);
+      expect(first).toBe(hashApiKey(rawKey));
+      expect(first).not.toContain(rawKey);
+      expect(first).toMatch(/^[0-9a-f]{32}$/);
+    });
+
+    it('should prefer the authenticated user id over the x-api-key header', async () => {
+      const context = createContext({
+        user: { id: 'user-42' },
+        headers: { 'x-api-key': 'ict_should-be-ignored' },
+      });
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(undefined);
+
+      await guard.canActivate(context);
+
+      expect(rateLimitServiceMock.check).toHaveBeenCalledWith(
+        'user:user-42',
         RateLimitTier.FREE,
         '/api/test',
       );
     });
 
-    it('should use x-forwarded-for IP when present', async () => {
+    it('should prefer the resolved apiKeyId over hashing the header', async () => {
       const context = createContext({
-        headers: { 'x-forwarded-for': '10.0.0.1, 10.0.0.2' },
+        user: { apiKeyId: 'key-7' },
+        headers: { 'x-api-key': 'ict_should-be-ignored' },
       });
       jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(undefined);
 
       await guard.canActivate(context);
+
       expect(rateLimitServiceMock.check).toHaveBeenCalledWith(
-        'ip:10.0.0.1',
+        'apikey:key-7',
+        RateLimitTier.FREE,
+        '/api/test',
+      );
+    });
+
+    it('should ignore a rotating X-Forwarded-For header (same req.ip keeps one bucket)', async () => {
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(undefined);
+
+      const first = createContext({
+        ip: '203.0.113.9',
+        headers: { 'x-forwarded-for': '10.0.0.1' },
+      });
+      const second = createContext({
+        ip: '203.0.113.9',
+        headers: { 'x-forwarded-for': '10.0.0.2' },
+      });
+
+      await guard.canActivate(first);
+      await guard.canActivate(second);
+
+      const keys = (rateLimitServiceMock.check.mock.calls as unknown[][]).map(
+        (call) => call[0],
+      );
+      // Both requests resolve to the same bucket even though the header rotated.
+      expect(keys).toEqual(['ip:203.0.113.9', 'ip:203.0.113.9']);
+    });
+
+    it('should fall back to the socket address when req.ip is unavailable', async () => {
+      const context = createContext({
+        ip: undefined,
+        socket: { remoteAddress: '198.51.100.4' },
+        headers: {},
+      });
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(undefined);
+
+      await guard.canActivate(context);
+
+      expect(rateLimitServiceMock.check).toHaveBeenCalledWith(
+        'ip:198.51.100.4',
         RateLimitTier.FREE,
         '/api/test',
       );
