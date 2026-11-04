@@ -361,12 +361,11 @@ export class WalletService {
       );
     }
 
+    const passphrase = this.getNetworkPassphrase();
+
     let parsed: Transaction | FeeBumpTransaction;
     try {
-      parsed = TransactionBuilder.fromXDR(
-        unsignedXdr,
-        this.getNetworkPassphrase(),
-      );
+      parsed = TransactionBuilder.fromXDR(unsignedXdr, passphrase);
     } catch {
       throw new BadRequestException(
         'Invalid unsigned XDR transaction envelope',
