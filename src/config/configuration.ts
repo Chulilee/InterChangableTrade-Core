@@ -62,6 +62,23 @@ export default () => ({
     ),
   },
 
+  /**
+   * Wallet signing policy. The operation allowlist is configurable so it can
+   * be rolled out gradually: the default accepts only classic payments, and
+   * operators can add operation names (e.g. `payment,pathPaymentStrictSend`)
+   * without a deploy. `setOptions` and `accountMerge` additionally require an
+   * admin role plus a step-up token regardless of this list.
+   */
+  wallet: {
+    signing: {
+      allowedOperations: (process.env.WALLET_SIGNING_ALLOWED_OPERATIONS ??
+        'payment')
+        .split(',')
+        .map((operation) => operation.trim())
+        .filter((operation) => operation.length > 0),
+    },
+  },
+
   stellar: {
     network: process.env.STELLAR_NETWORK ?? 'testnet',
     horizonUrl: process.env.STELLAR_HORIZON_URL,

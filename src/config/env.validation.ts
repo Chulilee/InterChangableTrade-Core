@@ -54,6 +54,10 @@ export const envValidationSchema = Joi.object({
   // WalletService already refuses to start without it; validate here so the
   // failure is a clear boot-time message rather than a constructor throw.
   WALLET_ENCRYPTION_KEY: Joi.string().min(32).required(),
+  // Comma-separated operation types WalletService may sign. Defaults to
+  // classic payments only; setOptions/accountMerge still require admin +
+  // step-up auth even when listed here.
+  WALLET_SIGNING_ALLOWED_OPERATIONS: Joi.string().default('payment'),
 
   STELLAR_NETWORK: Joi.string().valid('testnet', 'public').default('testnet'),
   STELLAR_HORIZON_URL: Joi.string().uri().required(),
