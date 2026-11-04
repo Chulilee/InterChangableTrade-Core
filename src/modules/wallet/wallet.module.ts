@@ -10,12 +10,16 @@ import { WalletController } from './wallet.controller';
 import { MultisigController } from './multisig.controller';
 import { StellarModule } from '../stellar/stellar.module';
 import { TransactionsModule } from '../transactions/transactions.module';
+import { AuthModule } from '../auth/auth.module';
+import { AuditModule } from '../audit/audit.module';
 
 @Module({
   imports: [
     TypeOrmModule.forFeature([Wallet, MultisigTransaction, MultisigSignature]),
     StellarModule,
     TransactionsModule,
+    AuthModule,
+    AuditModule,
   ],
   controllers: [WalletController, MultisigController],
   providers: [

@@ -5,7 +5,7 @@ import {
   UnauthorizedException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { DataSource, Repository } from 'typeorm';
 import { randomBytes } from 'crypto';
 import * as StellarSdk from '@stellar/stellar-sdk';
 import { StellarAuthChallenge } from './entities/stellar-auth-challenge.entity';
@@ -26,19 +26,23 @@ export class StellarAuthService {
   constructor(
     @InjectRepository(StellarAuthChallenge)
     private readonly challengeRepo: Repository<StellarAuthChallenge>,
+    private readonly dataSource: DataSource,
   ) {}
 
   /**
    * Issues a new nonce for the given Stellar public key.
-   * Any previous unused challenges for that key are invalidated first.
+   *
+   * Older challenges are **superseded**, not deleted. Deleting them allowed an
+   * unauthenticated attacker to cancel a victim's in-flight login by calling
+   * this endpoint in a loop (the previous implementation removed every unused
+   * challenge for the key). Verification instead accepts only the newest
+   * unused challenge, so an old nonce is unusable without mutating state that
+   * another concurrent login may depend on.
    */
   async createChallenge(
     publicKey: string,
   ): Promise<{ nonce: string; expiresAt: Date }> {
     this.validatePublicKey(publicKey);
-
-    // Invalidate any existing challenge for this key to prevent reuse.
-    await this.challengeRepo.delete({ publicKey, isUsed: false });
 
     const nonce = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + CHALLENGE_TTL_SECONDS * 1000);
@@ -78,20 +82,66 @@ export class StellarAuthService {
       throw new UnauthorizedException('Challenge has expired');
     }
 
-    const signatureValid = this.verifySignature(
-      publicKey,
-      nonce,
-      signatureBase64,
-    );
-    if (!signatureValid) {
-      throw new UnauthorizedException('Signature verification failed');
-    }
+    // Signature verification and consumption happen in one transaction. The
+    // row is locked with SELECT ... FOR UPDATE so two concurrent requests for
+    // the same signed nonce are serialised: the winner marks it consumed and
+    // the loser observes `isUsed = true`. Throwing before the commit rolls the
+    // transaction back, so an invalid signature does not burn a valid nonce.
+    return this.dataSource.transaction(async (manager) => {
+      const repo = manager.getRepository(StellarAuthChallenge);
+      const locked = await repo.findOne({
+        where: { id: challenge.id },
+        lock: { mode: 'pessimistic_write' },
+      });
 
-    // Mark as consumed so replay attacks fail.
-    challenge.isUsed = true;
-    await this.challengeRepo.save(challenge);
+      if (!locked) {
+        throw new UnauthorizedException('Invalid or expired challenge');
+      }
+      if (locked.isUsed) {
+        throw new UnauthorizedException('Challenge already used');
+      }
+      if (new Date() > locked.expiresAt) {
+        throw new UnauthorizedException('Challenge has expired');
+      }
 
-    return publicKey;
+      // Only the newest unused challenge for this key is valid. This replaces
+      // the old "delete every other challenge" behaviour, which let anyone
+      // cancel a victim's login by requesting a fresh challenge repeatedly.
+      const newest = await repo.findOne({
+        where: { publicKey, isUsed: false },
+        order: { createdAt: 'DESC' },
+      });
+      if (!newest || newest.id !== locked.id) {
+        throw new UnauthorizedException(
+          'Challenge has been superseded by a newer challenge',
+        );
+      }
+
+      const signatureValid = this.verifySignature(
+        publicKey,
+        nonce,
+        signatureBase64,
+      );
+      if (!signatureValid) {
+        throw new UnauthorizedException('Signature verification failed');
+      }
+
+      // A single conditional UPDATE is the consumption point. Even if a
+      // provider does not honour the row lock, the database guarantees only
+      // one writer can flip `isUsed` from false to true.
+      const result = await repo
+        .createQueryBuilder()
+        .update(StellarAuthChallenge)
+        .set({ isUsed: true })
+        .where('id = :id AND "isUsed" = false', { id: locked.id })
+        .execute();
+
+      if (result.affected !== 1) {
+        throw new UnauthorizedException('Challenge already used');
+      }
+
+      return publicKey;
+    });
   }
 
   // --------------------------------------------------------------------------

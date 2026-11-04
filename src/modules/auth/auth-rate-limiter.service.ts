@@ -1,9 +1,24 @@
-import { Inject, Injectable, Logger } from '@nestjs/common';
+import {
+  HttpException,
+  HttpStatus,
+  Inject,
+  Injectable,
+  Logger,
+} from '@nestjs/common';
 import Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.module';
 
 const FAILED_ATTEMPT_PREFIX = 'auth:fail:';
 const LOCKOUT_PREFIX = 'auth:lock:';
+const CHALLENGE_IP_PREFIX = 'auth:stellar-challenge:ip:';
+const CHALLENGE_KEY_PREFIX = 'auth:stellar-challenge:key:';
+
+/** Challenge-creation window. */
+const CHALLENGE_WINDOW_SECS = 60;
+/** Maximum challenge requests per source IP within the window. */
+const CHALLENGE_MAX_PER_IP = 20;
+/** Maximum challenge requests per public key within the window. */
+const CHALLENGE_MAX_PER_KEY = 5;
 
 /** Maximum consecutive failures before an account/IP is locked. */
 const MAX_FAILURES = 5;
@@ -67,6 +82,64 @@ export class AuthRateLimiterService {
     }
 
     return undefined;
+  }
+
+  /**
+   * Enforces the challenge-creation quota for Stellar wallet login.
+   *
+   * Challenge creation is unauthenticated and writes a row, so it needs its
+   * own limiter independent of failed password attempts. Both dimensions are
+   * checked: a single IP cannot mass-create challenges, and a single public
+   * key cannot be spammed (which would otherwise push out the legitimate
+   * newest challenge under the supersession rule).
+   *
+   * Redis failures fail open, matching the rest of this service: a cache
+   * outage must not make wallet login impossible.
+   */
+  async assertStellarChallengeAllowed(
+    ipAddress: string | undefined,
+    publicKey: string,
+  ): Promise<void> {
+    const checks: Array<{ key: string; limit: number }> = [];
+    if (ipAddress) {
+      checks.push({
+        key: `${CHALLENGE_IP_PREFIX}${ipAddress}`,
+        limit: CHALLENGE_MAX_PER_IP,
+      });
+    }
+    checks.push({
+      key: `${CHALLENGE_KEY_PREFIX}${publicKey}`,
+      limit: CHALLENGE_MAX_PER_KEY,
+    });
+
+    for (const check of checks) {
+      try {
+        const count = await this.redis.incr(check.key);
+        if (count === 1) {
+          await this.redis.expire(check.key, CHALLENGE_WINDOW_SECS);
+        }
+        if (count > check.limit) {
+          const ttl = await this.redis
+            .ttl(check.key)
+            .catch(() => CHALLENGE_WINDOW_SECS);
+          throw new HttpException(
+            `Too many Stellar challenge requests. Try again in ${Math.max(
+              ttl,
+              0,
+            )} seconds.`,
+            HttpStatus.TOO_MANY_REQUESTS,
+          );
+        }
+      } catch (err) {
+        if (
+          err instanceof HttpException &&
+          err.getStatus() === HttpStatus.TOO_MANY_REQUESTS
+        ) {
+          throw err;
+        }
+        this.logger.error('Challenge rate limiter Redis error', err);
+      }
+    }
   }
 
   /**

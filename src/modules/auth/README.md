@@ -9,12 +9,14 @@ Comprehensive auth module providing secure authentication, authorization, and au
 ### 1. **Multiple Authentication Strategies**
 
 #### Email/Password Authentication
+
 - **Registration** (`POST /api/auth/register`)
 - **Login** (`POST /api/auth/login`)
 - Password hashing with bcrypt (10 rounds)
 - Returns both access token (JWT) and refresh token on success
 
 #### Stellar Wallet Authentication
+
 - **Challenge Request** (`POST /api/auth/stellar/challenge`)  
   Client requests a nonce for their Stellar public key
 - **Verify Signature** (`POST /api/auth/stellar/verify`)  
@@ -22,7 +24,32 @@ Comprehensive auth module providing secure authentication, authorization, and au
 - Automatically creates user account on first successful authentication
 - No password required for wallet-only accounts
 
+##### Challenge lifecycle and replay protection
+
+- Challenges are **single-use**. Verification locks the challenge row
+  (`SELECT ... FOR UPDATE`) and marks it consumed with one conditional
+  `UPDATE ... WHERE "isUsed" = false` inside the same transaction that checks
+  the signature. Concurrent requests bearing the same signed nonce therefore
+  produce exactly one JWT.
+- A failed signature rolls the transaction back, so it does not burn a still
+  valid challenge.
+- Requesting a new challenge **supersedes** older ones instead of deleting
+  them. Verification accepts only the newest unused challenge for the key, so
+  an unauthenticated caller cannot cancel a victim's in-flight login.
+- Challenge creation is rate limited per source IP (20/minute) and per public
+  key (5/minute); exceeding either returns `429`.
+
+#### Step-up authentication
+
+- **Issue Step-up Token** (`POST /api/auth/step-up`)
+  Exchanges a live refresh token for a five-minute token scoped to high-risk
+  wallet signing. Send it as `x-step-up-token` when signing `setOptions` or
+  `accountMerge`. Step-up tokens are rejected by `JwtStrategy` if used as
+  ordinary bearer credentials. See
+  [Wallet Signing Policy](../../../docs/wallet-signing.md).
+
 #### API Key Authentication
+
 - **Create Key** (`POST /api/auth/api-keys`)  
   Returns plain key **once** — never stored in DB
 - **Authenticate** via `X-Api-Key` header (use `ApiKeyAuthGuard`)
@@ -34,6 +61,7 @@ Comprehensive auth module providing secure authentication, authorization, and au
 ### 2. **Session Management**
 
 #### Refresh Token Flow
+
 - **Refresh** (`POST /api/auth/refresh`)  
   Exchanges refresh token for a new access + refresh token pair
 - **Rotation on refresh**: old token is automatically revoked
@@ -41,12 +69,14 @@ Comprehensive auth module providing secure authentication, authorization, and au
 - Tracks device, IP, and user-agent for audit purposes
 
 #### Logout
+
 - **Single Logout** (`POST /api/auth/logout`)  
   Revokes a specific refresh token
 - **Logout All** (`POST /api/auth/logout-all`)  
   Revokes all tokens for the current user (forces re-login everywhere)
 
 #### Token Expiry
+
 - **Access Token**: `JWT_EXPIRES_IN` (default: 1 hour)
 - **Refresh Token**: `JWT_REFRESH_EXPIRES_IN` (default: 30 days)
 
@@ -55,10 +85,12 @@ Comprehensive auth module providing secure authentication, authorization, and au
 ### 3. **Role-Based Access Control (RBAC)**
 
 #### Available Roles
+
 - `UserRole.USER` (default)
 - `UserRole.ADMIN`
 
 #### Usage
+
 ```typescript
 @UseGuards(JwtAuthGuard, RolesGuard)
 @Roles(UserRole.ADMIN)
@@ -67,6 +99,7 @@ async adminDashboard() { ... }
 ```
 
 #### Guards
+
 - **`JwtAuthGuard`**: Validates access token (JWT)
 - **`ApiKeyAuthGuard`**: Validates API key from `X-Api-Key` header
 - **`RolesGuard`**: Enforces `@Roles(...)` metadata
@@ -76,17 +109,21 @@ async adminDashboard() { ... }
 ### 4. **Rate Limiting**
 
 Prevents brute-force attacks by tracking failed login attempts in Redis:
+
 - **Max Failures**: 5 within a 5-minute window
 - **Lockout Duration**: 15 minutes
 - **Lockout Scope**: Per email address
 - Failed attempts are cleared on successful authentication
+- Stellar challenge creation has a separate window: 20/minute per IP and
+  5/minute per public key
 
 ---
 
 ### 5. **Audit Logging**
 
 Every authentication event is recorded in `auth_audit_logs`:
-- Event types include `register`, `login_success`, `login_failed`, `logout`, `token_refresh`, `stellar_auth_success`, `api_key_created`, etc.
+
+- Event types include `register`, `login_success`, `login_failed`, `logout`, `token_refresh`, `stellar_auth_success`, `step_up_token_issued`, `api_key_created`, etc.
 - Captures user ID, IP address, user agent, and custom metadata
 - Failures never interrupt auth flows (logged only)
 
@@ -95,6 +132,7 @@ Every authentication event is recorded in `auth_audit_logs`:
 ### 6. **Password Reset**
 
 #### Flow
+
 1. **Request Reset** (`POST /api/auth/password-reset/request`)  
    Server generates single-use token, sends via email (TODO: integrate with NotificationsModule)
 2. **Confirm Reset** (`POST /api/auth/password-reset/confirm`)  
@@ -102,6 +140,7 @@ Every authentication event is recorded in `auth_audit_logs`:
 3. All refresh tokens are revoked after successful password reset
 
 #### Security
+
 - Tokens are bcrypt-hashed and expire after 1 hour
 - Tokens are single-use (marked as `isUsed` after redemption)
 - Old tokens are invalidated when a new reset is requested
@@ -123,13 +162,13 @@ JWT_REFRESH_EXPIRES_IN=2592000  # 30 days in seconds
 
 ## Database Entities
 
-| Entity | Purpose |
-|--------|---------|
-| `RefreshToken` | Stores hashed refresh tokens with device/IP metadata |
-| `ApiKey` | Stores hashed API keys with scopes and expiry |
-| `AuthAuditLog` | Immutable audit records for all auth events |
+| Entity                 | Purpose                                                  |
+| ---------------------- | -------------------------------------------------------- |
+| `RefreshToken`         | Stores hashed refresh tokens with device/IP metadata     |
+| `ApiKey`               | Stores hashed API keys with scopes and expiry            |
+| `AuthAuditLog`         | Immutable audit records for all auth events              |
 | `StellarAuthChallenge` | Short-lived nonces for Stellar wallet challenge-response |
-| `PasswordResetToken` | Single-use password reset tokens |
+| `PasswordResetToken`   | Single-use password reset tokens                         |
 
 All entities extend `BaseEntity` (UUID + timestamps).
 
@@ -139,33 +178,35 @@ All entities extend `BaseEntity` (UUID + timestamps).
 
 ### Public Endpoints
 
-| Method | Path | Description |
-|--------|------|-------------|
-| `POST` | `/api/auth/register` | Register a new user |
-| `POST` | `/api/auth/login` | Login with email/password |
-| `POST` | `/api/auth/refresh` | Refresh access token |
-| `POST` | `/api/auth/stellar/challenge` | Request Stellar wallet challenge |
-| `POST` | `/api/auth/stellar/verify` | Verify Stellar signature |
-| `POST` | `/api/auth/password-reset/request` | Request password reset |
-| `POST` | `/api/auth/password-reset/confirm` | Confirm password reset |
+| Method | Path                               | Description                      |
+| ------ | ---------------------------------- | -------------------------------- |
+| `POST` | `/api/auth/register`               | Register a new user              |
+| `POST` | `/api/auth/login`                  | Login with email/password        |
+| `POST` | `/api/auth/refresh`                | Refresh access token             |
+| `POST` | `/api/auth/stellar/challenge`      | Request Stellar wallet challenge |
+| `POST` | `/api/auth/stellar/verify`         | Verify Stellar signature         |
+| `POST` | `/api/auth/password-reset/request` | Request password reset           |
+| `POST` | `/api/auth/password-reset/confirm` | Confirm password reset           |
 
 ### Protected Endpoints (require JWT)
 
-| Method | Path | Description | Guard |
-|--------|------|-------------|-------|
-| `GET` | `/api/auth/me` | Get current user | `JwtAuthGuard` |
-| `POST` | `/api/auth/logout` | Logout (revoke token) | `JwtAuthGuard` |
-| `POST` | `/api/auth/logout-all` | Logout all sessions | `JwtAuthGuard` |
-| `POST` | `/api/auth/api-keys` | Create API key | `JwtAuthGuard` |
-| `GET` | `/api/auth/api-keys` | List API keys | `JwtAuthGuard` |
-| `DELETE` | `/api/auth/api-keys/:id` | Revoke API key | `JwtAuthGuard` |
-| `GET` | `/api/auth/api-key/verify` | Verify API key | `ApiKeyAuthGuard` |
+| Method   | Path                       | Description                                         | Guard             |
+| -------- | -------------------------- | --------------------------------------------------- | ----------------- |
+| `GET`    | `/api/auth/me`             | Get current user                                    | `JwtAuthGuard`    |
+| `POST`   | `/api/auth/step-up`        | Exchange a refresh token for a scoped step-up token | `JwtAuthGuard`    |
+| `POST`   | `/api/auth/logout`         | Logout (revoke token)                               | `JwtAuthGuard`    |
+| `POST`   | `/api/auth/logout-all`     | Logout all sessions                                 | `JwtAuthGuard`    |
+| `POST`   | `/api/auth/api-keys`       | Create API key                                      | `JwtAuthGuard`    |
+| `GET`    | `/api/auth/api-keys`       | List API keys                                       | `JwtAuthGuard`    |
+| `DELETE` | `/api/auth/api-keys/:id`   | Revoke API key                                      | `JwtAuthGuard`    |
+| `GET`    | `/api/auth/api-key/verify` | Verify API key                                      | `ApiKeyAuthGuard` |
 
 ---
 
 ## Security Best Practices
 
 ✅ **Implemented:**
+
 - Password hashing with bcrypt (10 rounds)
 - Refresh token rotation on use
 - Token storage as bcrypt hashes (not plaintext)
@@ -176,6 +217,7 @@ All entities extend `BaseEntity` (UUID + timestamps).
 - API keys never stored in plaintext
 
 ⚠️ **Additional Recommendations:**
+
 - Use HTTPS in production (enforced via Helmet middleware)
 - Rotate `JWT_SECRET` periodically
 - Set strong `JWT_SECRET` (>= 32 chars)
@@ -195,6 +237,7 @@ npm run test:e2e -- auth.integration.spec
 ```
 
 Test coverage includes:
+
 - Registration & login
 - Refresh token flow (issuance + rotation)
 - Logout & logout-all
@@ -219,18 +262,18 @@ Test coverage includes:
 
 ## Acceptance Criteria Status
 
-| Requirement | Status |
-|-------------|--------|
-| Stellar wallet authentication integrates seamlessly | ✅ Implemented |
-| OAuth flow follows industry standards | ⏳ Pending |
-| API key management is secure and auditable | ✅ Implemented |
-| Sessions timeout correctly after inactivity | ✅ Implemented (via token expiry) |
-| RBAC prevents unauthorized operations | ✅ Implemented |
-| Failed auth attempts trigger rate limits | ✅ Implemented |
-| Token expiration is handled gracefully | ✅ Implemented (refresh flow) |
-| All auth events are audited with user context | ✅ Implemented |
-| Cross-platform sessions remain consistent | ✅ Implemented (refresh tokens) |
-| Security testing confirms no common vulnerabilities | ⏳ Pending comprehensive audit |
+| Requirement                                         | Status                            |
+| --------------------------------------------------- | --------------------------------- |
+| Stellar wallet authentication integrates seamlessly | ✅ Implemented                    |
+| OAuth flow follows industry standards               | ⏳ Pending                        |
+| API key management is secure and auditable          | ✅ Implemented                    |
+| Sessions timeout correctly after inactivity         | ✅ Implemented (via token expiry) |
+| RBAC prevents unauthorized operations               | ✅ Implemented                    |
+| Failed auth attempts trigger rate limits            | ✅ Implemented                    |
+| Token expiration is handled gracefully              | ✅ Implemented (refresh flow)     |
+| All auth events are audited with user context       | ✅ Implemented                    |
+| Cross-platform sessions remain consistent           | ✅ Implemented (refresh tokens)   |
+| Security testing confirms no common vulnerabilities | ⏳ Pending comprehensive audit    |
 
 ---
 

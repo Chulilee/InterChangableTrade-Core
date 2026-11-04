@@ -58,6 +58,7 @@ describe('AuthService.requestPasswordReset', () => {
       { digest: jest.fn((raw: string) => `digest:${raw}`) } as never,
       {} as never,
       resetTokenRepo as never,
+      { issue: jest.fn() } as never,
     );
 
     loggerWarn = jest
@@ -205,6 +206,9 @@ function buildService(overrides: {
     { digest: jest.fn((raw: string) => `digest:${raw}`) } as never,
     overrides.refreshTokenRepo ?? {},
     overrides.resetTokenRepo ?? {},
+    {
+      issue: jest.fn(() => ({ stepUpToken: 'step-up', expiresAt: new Date() })),
+    } as never,
   );
 
   return { service, usersService, auditService };

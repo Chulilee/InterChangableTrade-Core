@@ -3,24 +3,60 @@ import {
   ConflictException,
   ForbiddenException,
   Injectable,
+  InternalServerErrorException,
   Logger,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, DataSource } from 'typeorm';
 import * as crypto from 'crypto';
-import { Keypair, TransactionBuilder } from '@stellar/stellar-sdk';
+import {
+  FeeBumpTransaction,
+  Keypair,
+  Transaction,
+  TransactionBuilder,
+} from '@stellar/stellar-sdk';
 import { ConfigService } from '@nestjs/config';
 import { PaginatedResultDto, PaginationQueryDto } from '@app/common';
 import { StellarService } from '../stellar/stellar.service';
+import { AuditService } from '../audit/audit.service';
+import {
+  AuditCategory,
+  AuditOutcome,
+} from '../audit/entities/audit-log.entity';
+import { StepUpTokenService } from '../auth/step-up-token.service';
+import { UserRole } from '../users/entities/user.entity';
 import { Wallet, WalletStatus } from './entities/wallet.entity';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
-import { SignTransactionDto } from './dto/sign-transaction.dto';
+import {
+  MAX_UNSIGNED_XDR_LENGTH,
+  SignTransactionDto,
+} from './dto/sign-transaction.dto';
 import { MultisigConfigDto } from './dto/multisig-config.dto';
 
 const ALGORITHM = 'aes-256-gcm';
 const IV_LENGTH = 16;
+
+/** Operations that can hand over or drain an account. */
+const HIGH_RISK_OPERATIONS = new Set(['setOptions', 'accountMerge']);
+
+/** Conservative fallback if configuration is unavailable. */
+const DEFAULT_ALLOWED_OPERATIONS = ['payment'];
+
+/** Optional actor context supplied by the HTTP layer. */
+export interface WalletSigningOptions {
+  role?: string;
+  stepUpToken?: string;
+}
+
+/** Shape we rely on when describing classic operations for the audit trail. */
+interface DescribedOperation {
+  type: string;
+  amount?: string;
+  destination?: string;
+  asset?: string | { code?: string; issuer?: string };
+}
 
 /**
  * Wallet Management Service
@@ -39,6 +75,8 @@ export class WalletService {
     private readonly stellarService: StellarService,
     private readonly configService: ConfigService,
     private readonly dataSource: DataSource,
+    private readonly stepUpTokens: StepUpTokenService,
+    private readonly auditService: AuditService,
   ) {
     const secret = this.configService.get<string>('WALLET_ENCRYPTION_KEY');
     if (!secret || secret.length < 32) {
@@ -239,11 +277,18 @@ export class WalletService {
   /**
    * Signs an unsigned XDR transaction envelope with the wallet's secret key.
    * Signing completes synchronously — well within the 100 ms SLA.
+   *
+   * The envelope is validated before the secret key is ever decrypted:
+   *  - its source account must be the wallet itself;
+   *  - every operation must be on the configured allowlist;
+   *  - `setOptions`/`accountMerge` additionally require an admin role and a
+   *    live step-up token.
    */
   async signTransaction(
     id: string,
     userId: string,
     dto: SignTransactionDto,
+    options: WalletSigningOptions = {},
   ): Promise<{ signedXdr: string }> {
     const wallet = await this.walletRepository.findOne({
       where: { id },
@@ -262,20 +307,187 @@ export class WalletService {
       );
     }
 
+    const transaction = this.parseSigningTransaction(dto.unsignedXdr, wallet);
+    this.assertSigningPolicy(
+      transaction,
+      userId,
+      options.role,
+      options.stepUpToken,
+    );
+
+    const transactionHash = transaction.hash().toString('hex');
+    const operations = this.describeOperations(transaction);
+
     const secretKey = this.decrypt(wallet.encryptedSecretKey);
     const keypair = Keypair.fromSecret(secretKey);
-
-    const transaction = TransactionBuilder.fromXDR(
-      dto.unsignedXdr,
-      this.configService.get<string>('stellar.networkPassphrase') ??
-        'Test SDF Network ; September 2015',
-    );
 
     transaction.sign(keypair);
     const signedXdr = transaction.toEnvelope().toXDR('base64');
 
-    this.logger.log(`Transaction signed by wallet ${id}`);
+    // Persist the compliance record before the signed envelope leaves the
+    // process. `record` is fire-and-forget, so this does not add latency to
+    // the signing SLA.
+    this.auditService.record({
+      category: AuditCategory.USER_ACTION,
+      action: 'wallet.sign_transaction',
+      outcome: AuditOutcome.SUCCESS,
+      userId,
+      userRole: options.role,
+      resourceType: 'wallet',
+      resourceId: id,
+      metadata: {
+        transactionHash,
+        operationTypes: operations.map((operation) => operation.type),
+        operations,
+      },
+    });
+
+    this.logger.log(`Transaction ${transactionHash} signed by wallet ${id}`);
     return { signedXdr };
+  }
+
+  /**
+   * Parses and validates a classic transaction envelope without decrypting any
+   * key material. Fee-bump envelopes are rejected because their fee source is
+   * not necessarily the wallet account the operation is bound to.
+   */
+  private parseSigningTransaction(
+    unsignedXdr: string,
+    wallet: Wallet,
+  ): Transaction {
+    if (unsignedXdr.length > MAX_UNSIGNED_XDR_LENGTH) {
+      throw new BadRequestException(
+        `unsignedXdr must not exceed ${MAX_UNSIGNED_XDR_LENGTH} characters`,
+      );
+    }
+
+    const passphrase = this.getNetworkPassphrase();
+
+    let parsed: Transaction | FeeBumpTransaction;
+    try {
+      parsed = TransactionBuilder.fromXDR(unsignedXdr, passphrase);
+    } catch {
+      throw new BadRequestException(
+        'Invalid unsigned XDR transaction envelope',
+      );
+    }
+
+    if (parsed instanceof FeeBumpTransaction) {
+      throw new BadRequestException(
+        'Fee-bump transactions are not supported by the custodial signer',
+      );
+    }
+
+    if (parsed.source !== wallet.publicKey) {
+      throw new ForbiddenException(
+        'Transaction source account does not match the wallet',
+      );
+    }
+
+    return parsed;
+  }
+
+  /**
+   * Enforces the operation allowlist and, for account-takeover operations,
+   * the admin-role and step-up requirements.
+   */
+  private assertSigningPolicy(
+    transaction: Transaction,
+    userId: string,
+    role: string | undefined,
+    stepUpToken: string | undefined,
+  ): void {
+    const allowed = this.getAllowedOperations();
+    const operationTypes = [
+      ...new Set(
+        transaction.operations.map(
+          (operation) =>
+            (operation as unknown as { type: string }).type ?? 'unknown',
+        ),
+      ),
+    ];
+
+    const disallowed = operationTypes.filter((type) => !allowed.has(type));
+    if (disallowed.length > 0) {
+      throw new BadRequestException(
+        `Operation type(s) ${disallowed.join(
+          ', ',
+        )} are not allowed by the wallet signing policy. Allowed operations: ${
+          [...allowed].join(', ') || '(none)'
+        }`,
+      );
+    }
+
+    const highRisk = operationTypes.filter((type) =>
+      HIGH_RISK_OPERATIONS.has(type),
+    );
+    if (highRisk.length === 0) {
+      return;
+    }
+
+    if (role !== UserRole.ADMIN) {
+      throw new ForbiddenException(
+        `Operation type(s) ${highRisk.join(
+          ', ',
+        )} require the ${UserRole.ADMIN} role`,
+      );
+    }
+
+    this.stepUpTokens.verify(stepUpToken, userId);
+  }
+
+  private getAllowedOperations(): Set<string> {
+    const configured = this.configService.get<string[] | string>(
+      'wallet.signing.allowedOperations',
+    );
+
+    const values = Array.isArray(configured)
+      ? configured
+      : typeof configured === 'string'
+        ? configured.split(',')
+        : DEFAULT_ALLOWED_OPERATIONS;
+
+    return new Set(
+      values
+        .map((operation) => operation.trim())
+        .filter((operation) => operation.length > 0),
+    );
+  }
+
+  private describeOperations(transaction: Transaction): DescribedOperation[] {
+    return transaction.operations.map((operation) => {
+      const source = operation as unknown as DescribedOperation;
+      const described: DescribedOperation = { type: source.type ?? 'unknown' };
+      if (source.amount) described.amount = source.amount;
+      if (source.destination) described.destination = source.destination;
+      if (source.asset) {
+        described.asset =
+          typeof source.asset === 'string'
+            ? source.asset
+            : {
+                code: source.asset.code,
+                issuer: source.asset.issuer,
+              };
+      }
+      return described;
+    });
+  }
+
+  /**
+   * Reads the configured passphrase and fails closed. There is deliberately no
+   * testnet fallback: silently signing testnet envelopes because production
+   * configuration is missing is worse than refusing to sign.
+   */
+  private getNetworkPassphrase(): string {
+    const passphrase = this.configService.get<string>(
+      'stellar.networkPassphrase',
+    );
+    if (!passphrase || passphrase.trim().length === 0) {
+      throw new InternalServerErrorException(
+        'STELLAR_NETWORK_PASSPHRASE is not configured',
+      );
+    }
+    return passphrase;
   }
 
   /**
@@ -309,18 +521,36 @@ export class WalletService {
       );
     }
 
+    // Same source binding and fail-closed network handling as the direct
+    // signing path. Multisig authority is enforced separately by the pooled
+    // transaction's threshold, so the single-signature allowlist does not
+    // apply here.
+    const transaction = this.parseSigningTransaction(unsignedXdr, wallet);
+    const transactionHash = transaction.hash().toString('hex');
+    const operations = this.describeOperations(transaction);
+
     const secretKey = this.decrypt(wallet.encryptedSecretKey);
     const keypair = Keypair.fromSecret(secretKey);
 
-    const transaction = TransactionBuilder.fromXDR(
-      unsignedXdr,
-      this.configService.get<string>('stellar.networkPassphrase') ??
-        'Test SDF Network ; September 2015',
-    );
-
     const decorated = keypair.signDecorated(transaction.hash());
 
-    this.logger.log(`Decorated signature created by wallet ${walletId}`);
+    this.auditService.record({
+      category: AuditCategory.USER_ACTION,
+      action: 'wallet.create_decorated_signature',
+      outcome: AuditOutcome.SUCCESS,
+      userId,
+      resourceType: 'wallet',
+      resourceId: walletId,
+      metadata: {
+        transactionHash,
+        operationTypes: operations.map((operation) => operation.type),
+        operations,
+      },
+    });
+
+    this.logger.log(
+      `Decorated signature ${transactionHash} created by wallet ${walletId}`,
+    );
     return {
       signerPublicKey: keypair.publicKey(),
       signatureXdr: decorated.toXDR('base64'),

@@ -21,6 +21,7 @@ import { AuthEventType } from './entities/auth-audit-log.entity';
 import { AuthRateLimiterService } from './auth-rate-limiter.service';
 import { StellarAuthService } from './stellar-auth.service';
 import { AuthTokenLookupService } from './auth-token-lookup.service';
+import { StepUpTokenService, IssuedStepUpToken } from './step-up-token.service';
 import { User } from '../users/entities/user.entity';
 
 export interface AuthResult {
@@ -58,6 +59,7 @@ export class AuthService {
     private readonly refreshTokenRepo: Repository<RefreshToken>,
     @InjectRepository(PasswordResetToken)
     private readonly resetTokenRepo: Repository<PasswordResetToken>,
+    private readonly stepUpTokens: StepUpTokenService,
   ) {}
 
   // --------------------------------------------------------------------------
@@ -143,6 +145,13 @@ export class AuthService {
     publicKey: string,
     ctx: RequestContext,
   ): Promise<{ nonce: string; expiresAt: Date }> {
+    // Challenge creation is unauthenticated: rate-limit it per source IP and
+    // per public key before touching the database or writing an audit row.
+    await this.rateLimiter.assertStellarChallengeAllowed(
+      ctx.ipAddress,
+      publicKey,
+    );
+
     await this.auditService.recordSuccess(
       AuthEventType.STELLAR_AUTH_CHALLENGE,
       {
@@ -240,6 +249,38 @@ export class AuthService {
     });
 
     return this.issueTokenPair(match.user, ctx);
+  }
+
+  /**
+   * Exchanges a live refresh token for a short-lived step-up token.
+   *
+   * This is the re-authentication step for sensitive wallet operations. A
+   * refresh token is used rather than a password so Stellar-only accounts
+   * (which have no password hash) can step up too.
+   */
+  async issueStepUpToken(
+    userId: string,
+    rawRefreshToken: string,
+  ): Promise<IssuedStepUpToken> {
+    const lookupHash = this.tokenLookup.digest(rawRefreshToken);
+    const match = await this.refreshTokenRepo
+      .createQueryBuilder('rt')
+      .addSelect('rt.tokenHash')
+      .where('rt.userId = :userId', { userId })
+      .andWhere('rt.lookupHash = :lookupHash', { lookupHash })
+      .andWhere('rt.isRevoked = false')
+      .andWhere('rt.expiresAt > NOW()')
+      .getOne();
+
+    if (!match || !(await bcrypt.compare(rawRefreshToken, match.tokenHash))) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
+    }
+
+    await this.auditService.recordSuccess(AuthEventType.STEP_UP_TOKEN_ISSUED, {
+      userId,
+    });
+
+    return this.stepUpTokens.issue(userId);
   }
 
   async logout(userId: string, rawRefreshToken: string): Promise<void> {
