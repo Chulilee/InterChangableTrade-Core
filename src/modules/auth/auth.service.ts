@@ -143,6 +143,13 @@ export class AuthService {
     publicKey: string,
     ctx: RequestContext,
   ): Promise<{ nonce: string; expiresAt: Date }> {
+    // Challenge creation is unauthenticated: rate-limit it per source IP and
+    // per public key before touching the database or writing an audit row.
+    await this.rateLimiter.assertStellarChallengeAllowed(
+      ctx.ipAddress,
+      publicKey,
+    );
+
     await this.auditService.recordSuccess(
       AuthEventType.STELLAR_AUTH_CHALLENGE,
       {
