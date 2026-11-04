@@ -75,11 +75,11 @@ not blocked by the admin gate.
 
 ## Failure responses
 
-| Condition | Status |
-| --- | --- |
-| Envelope source is another account | `403` |
-| Operation outside the allowlist | `400` |
-| High-risk operation without admin role | `403` |
-| High-risk operation without a valid step-up token | `401` |
-| `unsignedXdr` over 4096 characters | `400` |
-| Missing network passphrase | `500` (refuses to sign) |
+| Condition                                         | Status                  |
+| ------------------------------------------------- | ----------------------- |
+| Envelope source is another account                | `403`                   |
+| Operation outside the allowlist                   | `400`                   |
+| High-risk operation without admin role            | `403`                   |
+| High-risk operation without a valid step-up token | `401`                   |
+| `unsignedXdr` over 4096 characters                | `400`                   |
+| Missing network passphrase                        | `500` (refuses to sign) |

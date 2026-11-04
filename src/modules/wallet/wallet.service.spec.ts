@@ -257,9 +257,13 @@ describe('WalletService', () => {
     it('signs an allowed payment and writes an audit record with hash and operations', async () => {
       const unsignedXdr = buildUnsignedXdr([paymentOperation()]);
 
-      const result = await service.signTransaction(MOCK_WALLET_ID, MOCK_USER_ID, {
-        unsignedXdr,
-      });
+      const result = await service.signTransaction(
+        MOCK_WALLET_ID,
+        MOCK_USER_ID,
+        {
+          unsignedXdr,
+        },
+      );
 
       expect(result.signedXdr).toEqual(expect.any(String));
       expect(mockAuditService.record).toHaveBeenCalledWith(
@@ -323,7 +327,9 @@ describe('WalletService', () => {
     it('rejects an admin high-risk operation without a step-up token', async () => {
       signingAllowedOperations = ['payment', 'accountMerge'];
       const unsignedXdr = buildUnsignedXdr([
-        Operation.accountMerge({ destination: DESTINATION_KEYPAIR.publicKey() }),
+        Operation.accountMerge({
+          destination: DESTINATION_KEYPAIR.publicKey(),
+        }),
       ]);
 
       await expect(
@@ -337,7 +343,9 @@ describe('WalletService', () => {
     it('allows an admin high-risk operation with a step-up token', async () => {
       signingAllowedOperations = ['payment', 'accountMerge'];
       const unsignedXdr = buildUnsignedXdr([
-        Operation.accountMerge({ destination: DESTINATION_KEYPAIR.publicKey() }),
+        Operation.accountMerge({
+          destination: DESTINATION_KEYPAIR.publicKey(),
+        }),
       ]);
 
       await service.signTransaction(MOCK_WALLET_ID, MOCK_USER_ID, {

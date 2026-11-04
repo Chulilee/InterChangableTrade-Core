@@ -54,9 +54,7 @@ function createHarness(options: HarnessOptions = {}) {
 
   const challengeRepo = {
     findOne: jest.fn(async () =>
-      initialChallenge
-        ? { ...initialChallenge, isUsed: state.used }
-        : null,
+      initialChallenge ? { ...initialChallenge, isUsed: state.used } : null,
     ),
     create: jest.fn((value: Partial<StellarAuthChallenge>) => ({ ...value })),
     save: jest.fn(async (value: StellarAuthChallenge) => {

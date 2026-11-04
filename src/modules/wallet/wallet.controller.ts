@@ -13,7 +13,12 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiHeader,
+  ApiOperation,
+  ApiTags,
+} from '@nestjs/swagger';
 import { PaginationQueryDto } from '@app/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import {

@@ -21,10 +21,7 @@ import { AuthEventType } from './entities/auth-audit-log.entity';
 import { AuthRateLimiterService } from './auth-rate-limiter.service';
 import { StellarAuthService } from './stellar-auth.service';
 import { AuthTokenLookupService } from './auth-token-lookup.service';
-import {
-  StepUpTokenService,
-  IssuedStepUpToken,
-} from './step-up-token.service';
+import { StepUpTokenService, IssuedStepUpToken } from './step-up-token.service';
 import { User } from '../users/entities/user.entity';
 
 export interface AuthResult {
@@ -275,13 +272,8 @@ export class AuthService {
       .andWhere('rt.expiresAt > NOW()')
       .getOne();
 
-    if (
-      !match ||
-      !(await bcrypt.compare(rawRefreshToken, match.tokenHash))
-    ) {
-      throw new UnauthorizedException(
-        'Invalid or expired refresh token',
-      );
+    if (!match || !(await bcrypt.compare(rawRefreshToken, match.tokenHash))) {
+      throw new UnauthorizedException('Invalid or expired refresh token');
     }
 
     await this.auditService.recordSuccess(AuthEventType.STEP_UP_TOKEN_ISSUED, {

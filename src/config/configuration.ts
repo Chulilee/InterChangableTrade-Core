@@ -71,8 +71,9 @@ export default () => ({
    */
   wallet: {
     signing: {
-      allowedOperations: (process.env.WALLET_SIGNING_ALLOWED_OPERATIONS ??
-        'payment')
+      allowedOperations: (
+        process.env.WALLET_SIGNING_ALLOWED_OPERATIONS ?? 'payment'
+      )
         .split(',')
         .map((operation) => operation.trim())
         .filter((operation) => operation.length > 0),
