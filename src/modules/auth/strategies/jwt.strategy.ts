@@ -8,6 +8,8 @@ export interface JwtPayload {
   sub: string;
   email: string;
   role: string;
+  /** Present on narrowly-scoped step-up tokens; never a valid access token. */
+  purpose?: string;
 }
 
 /**
@@ -28,6 +30,12 @@ export class JwtStrategy extends PassportStrategy(Strategy) {
   }
 
   async validate(payload: JwtPayload) {
+    // A step-up token is scoped to one class of sensitive operation. It must
+    // never be accepted as a general bearer credential for the API.
+    if (payload.purpose) {
+      throw new UnauthorizedException('Not a valid access token');
+    }
+
     const user = await this.usersService.findOne(payload.sub).catch(() => null);
     if (!user || !user.isActive) {
       throw new UnauthorizedException('Account is inactive or missing');

@@ -22,6 +22,7 @@ import { AuthService } from './auth.service';
 import { RegisterDto } from './dto/register.dto';
 import { LoginDto } from './dto/login.dto';
 import { RefreshTokenDto } from './dto/refresh-token.dto';
+import { StepUpDto } from './dto/step-up.dto';
 import {
   StellarChallengeRequestDto,
   StellarVerifyDto,
@@ -99,6 +100,18 @@ export class AuthController {
       dto.refreshToken,
       requestContext(req),
     );
+  }
+
+  @Post('step-up')
+  @HttpCode(HttpStatus.OK)
+  @UseGuards(JwtAuthGuard)
+  @ApiBearerAuth()
+  @ApiOperation({
+    summary:
+      'Exchange a refresh token for a short-lived step-up token for high-risk wallet signing',
+  })
+  stepUp(@CurrentUser() user: AuthenticatedUser, @Body() dto: StepUpDto) {
+    return this.authService.issueStepUpToken(user.id, dto.refreshToken);
   }
 
   @Post('logout')

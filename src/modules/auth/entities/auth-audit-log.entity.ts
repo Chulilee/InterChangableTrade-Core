@@ -16,6 +16,7 @@ export enum AuthEventType {
   STELLAR_AUTH_CHALLENGE = 'stellar_auth_challenge',
   STELLAR_AUTH_SUCCESS = 'stellar_auth_success',
   STELLAR_AUTH_FAILED = 'stellar_auth_failed',
+  STEP_UP_TOKEN_ISSUED = 'step_up_token_issued',
   OAUTH_LOGIN_SUCCESS = 'oauth_login_success',
   ACCOUNT_LOCKED = 'account_locked',
 }

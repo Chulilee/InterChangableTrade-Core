@@ -14,6 +14,7 @@ import { AuthAuditService } from './auth-audit.service';
 import { AuthRateLimiterService } from './auth-rate-limiter.service';
 import { StellarAuthService } from './stellar-auth.service';
 import { AuthTokenLookupService } from './auth-token-lookup.service';
+import { StepUpTokenService } from './step-up-token.service';
 import { CredentialCleanupService } from './credential-cleanup.service';
 import { ApiKeysService } from './api-keys.service';
 import { RefreshToken } from './entities/refresh-token.entity';
@@ -55,9 +56,10 @@ import { PasswordResetToken } from './entities/password-reset-token.entity';
     AuthRateLimiterService,
     StellarAuthService,
     AuthTokenLookupService,
+    StepUpTokenService,
     CredentialCleanupService,
     ApiKeysService,
   ],
-  exports: [AuthService, AuthAuditService, RolesGuard],
+  exports: [AuthService, AuthAuditService, RolesGuard, StepUpTokenService],
 })
 export class AuthModule {}
