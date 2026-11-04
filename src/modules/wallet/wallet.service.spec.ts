@@ -309,18 +309,16 @@ describe('WalletService', () => {
       ]);
 
       await expect(
-        service.signTransaction(MOCK_WALLET_ID, MOCK_USER_ID, {
-          unsignedXdr,
-          role: undefined,
-        }),
+        service.signTransaction(MOCK_WALLET_ID, MOCK_USER_ID, { unsignedXdr }),
       ).rejects.toThrow(ForbiddenException);
 
       await expect(
-        service.signTransaction(MOCK_WALLET_ID, MOCK_USER_ID, {
-          unsignedXdr,
-          role: UserRole.USER,
-          stepUpToken: 'step-up',
-        }),
+        service.signTransaction(
+          MOCK_WALLET_ID,
+          MOCK_USER_ID,
+          { unsignedXdr },
+          { role: UserRole.USER, stepUpToken: 'step-up' },
+        ),
       ).rejects.toThrow(ForbiddenException);
     });
 
@@ -333,10 +331,12 @@ describe('WalletService', () => {
       ]);
 
       await expect(
-        service.signTransaction(MOCK_WALLET_ID, MOCK_USER_ID, {
-          unsignedXdr,
-          role: UserRole.ADMIN,
-        }),
+        service.signTransaction(
+          MOCK_WALLET_ID,
+          MOCK_USER_ID,
+          { unsignedXdr },
+          { role: UserRole.ADMIN },
+        ),
       ).rejects.toThrow(UnauthorizedException);
     });
 
@@ -348,11 +348,12 @@ describe('WalletService', () => {
         }),
       ]);
 
-      await service.signTransaction(MOCK_WALLET_ID, MOCK_USER_ID, {
-        unsignedXdr,
-        role: UserRole.ADMIN,
-        stepUpToken: 'valid-step-up-token',
-      });
+      await service.signTransaction(
+        MOCK_WALLET_ID,
+        MOCK_USER_ID,
+        { unsignedXdr },
+        { role: UserRole.ADMIN, stepUpToken: 'valid-step-up-token' },
+      );
 
       expect(mockStepUpTokenService.verify).toHaveBeenCalledWith(
         'valid-step-up-token',

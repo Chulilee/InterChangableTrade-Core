@@ -1,8 +1,9 @@
 import {
+  HttpException,
+  HttpStatus,
   Inject,
   Injectable,
   Logger,
-  TooManyRequestsException,
 } from '@nestjs/common';
 import Redis from 'ioredis';
 import { REDIS_CLIENT } from '../../redis/redis.module';
@@ -121,15 +122,19 @@ export class AuthRateLimiterService {
           const ttl = await this.redis
             .ttl(check.key)
             .catch(() => CHALLENGE_WINDOW_SECS);
-          throw new TooManyRequestsException(
+          throw new HttpException(
             `Too many Stellar challenge requests. Try again in ${Math.max(
               ttl,
               0,
             )} seconds.`,
+            HttpStatus.TOO_MANY_REQUESTS,
           );
         }
       } catch (err) {
-        if (err instanceof TooManyRequestsException) {
+        if (
+          err instanceof HttpException &&
+          err.getStatus() === HttpStatus.TOO_MANY_REQUESTS
+        ) {
           throw err;
         }
         this.logger.error('Challenge rate limiter Redis error', err);
