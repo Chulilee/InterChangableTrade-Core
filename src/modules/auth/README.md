@@ -22,6 +22,29 @@ Comprehensive auth module providing secure authentication, authorization, and au
 - Automatically creates user account on first successful authentication
 - No password required for wallet-only accounts
 
+##### Challenge lifecycle and replay protection
+
+- Challenges are **single-use**. Verification locks the challenge row
+  (`SELECT ... FOR UPDATE`) and marks it consumed with one conditional
+  `UPDATE ... WHERE "isUsed" = false` inside the same transaction that checks
+  the signature. Concurrent requests bearing the same signed nonce therefore
+  produce exactly one JWT.
+- A failed signature rolls the transaction back, so it does not burn a still
+  valid challenge.
+- Requesting a new challenge **supersedes** older ones instead of deleting
+  them. Verification accepts only the newest unused challenge for the key, so
+  an unauthenticated caller cannot cancel a victim's in-flight login.
+- Challenge creation is rate limited per source IP (20/minute) and per public
+  key (5/minute); exceeding either returns `429`.
+
+#### Step-up authentication
+- **Issue Step-up Token** (`POST /api/auth/step-up`)  
+  Exchanges a live refresh token for a five-minute token scoped to high-risk
+  wallet signing. Send it as `x-step-up-token` when signing `setOptions` or
+  `accountMerge`. Step-up tokens are rejected by `JwtStrategy` if used as
+  ordinary bearer credentials. See
+  [Wallet Signing Policy](../../../docs/wallet-signing.md).
+
 #### API Key Authentication
 - **Create Key** (`POST /api/auth/api-keys`)  
   Returns plain key **once** — never stored in DB
@@ -80,13 +103,15 @@ Prevents brute-force attacks by tracking failed login attempts in Redis:
 - **Lockout Duration**: 15 minutes
 - **Lockout Scope**: Per email address
 - Failed attempts are cleared on successful authentication
+- Stellar challenge creation has a separate window: 20/minute per IP and
+  5/minute per public key
 
 ---
 
 ### 5. **Audit Logging**
 
 Every authentication event is recorded in `auth_audit_logs`:
-- Event types include `register`, `login_success`, `login_failed`, `logout`, `token_refresh`, `stellar_auth_success`, `api_key_created`, etc.
+- Event types include `register`, `login_success`, `login_failed`, `logout`, `token_refresh`, `stellar_auth_success`, `step_up_token_issued`, `api_key_created`, etc.
 - Captures user ID, IP address, user agent, and custom metadata
 - Failures never interrupt auth flows (logged only)
 
@@ -154,6 +179,7 @@ All entities extend `BaseEntity` (UUID + timestamps).
 | Method | Path | Description | Guard |
 |--------|------|-------------|-------|
 | `GET` | `/api/auth/me` | Get current user | `JwtAuthGuard` |
+| `POST` | `/api/auth/step-up` | Exchange a refresh token for a scoped step-up token | `JwtAuthGuard` |
 | `POST` | `/api/auth/logout` | Logout (revoke token) | `JwtAuthGuard` |
 | `POST` | `/api/auth/logout-all` | Logout all sessions | `JwtAuthGuard` |
 | `POST` | `/api/auth/api-keys` | Create API key | `JwtAuthGuard` |
