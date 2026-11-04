@@ -10,6 +10,8 @@ import {
 import { WalletService } from './wallet.service';
 import { Wallet, WalletStatus } from './entities/wallet.entity';
 import { StellarService } from '../stellar/stellar.service';
+import { StepUpTokenService } from '../auth/step-up-token.service';
+import { AuditService } from '../audit/audit.service';
 
 const MOCK_USER_ID = 'user-uuid-1234';
 const MOCK_WALLET_ID = 'wallet-uuid-5678';
@@ -59,12 +61,21 @@ const mockStellarService = {
 
 const mockConfigService = {
   get: jest.fn((key: string) => {
-    const config: Record<string, string> = {
+    const config: Record<string, unknown> = {
       WALLET_ENCRYPTION_KEY: 'test-encryption-key-that-is-32chars!!',
       'stellar.networkPassphrase': 'Test SDF Network ; September 2015',
+      'wallet.signing.allowedOperations': ['payment'],
     };
     return config[key];
   }),
+};
+
+const mockStepUpTokenService = {
+  verify: jest.fn(),
+};
+
+const mockAuditService = {
+  record: jest.fn(),
 };
 
 describe('WalletService', () => {
@@ -78,6 +89,8 @@ describe('WalletService', () => {
         { provide: StellarService, useValue: mockStellarService },
         { provide: ConfigService, useValue: mockConfigService },
         { provide: DataSource, useValue: mockDataSource },
+        { provide: StepUpTokenService, useValue: mockStepUpTokenService },
+        { provide: AuditService, useValue: mockAuditService },
       ],
     }).compile();
 

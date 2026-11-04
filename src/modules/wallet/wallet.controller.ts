@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  Headers,
   HttpCode,
   HttpStatus,
   Param,
@@ -12,10 +13,13 @@ import {
   Query,
   UseGuards,
 } from '@nestjs/common';
-import { ApiBearerAuth, ApiOperation, ApiTags } from '@nestjs/swagger';
+import { ApiBearerAuth, ApiHeader, ApiOperation, ApiTags } from '@nestjs/swagger';
 import { PaginationQueryDto } from '@app/common';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
-import { CurrentUser } from '../auth/decorators/current-user.decorator';
+import {
+  CurrentUser,
+  AuthenticatedUser,
+} from '../auth/decorators/current-user.decorator';
 import { WalletService } from './wallet.service';
 import { CreateWalletDto } from './dto/create-wallet.dto';
 import { UpdateWalletDto } from './dto/update-wallet.dto';
@@ -91,13 +95,25 @@ export class WalletController {
   @Post(':id/sign-transaction')
   @ApiOperation({
     summary: 'Sign an XDR transaction envelope with this wallet',
+    description:
+      'Only operations on the configured allowlist are signed. setOptions and accountMerge additionally require the admin role and a step-up token from POST /auth/step-up, supplied in the x-step-up-token header.',
+  })
+  @ApiHeader({
+    name: 'x-step-up-token',
+    description:
+      'Short-lived step-up token, required when the envelope contains setOptions or accountMerge',
+    required: false,
   })
   signTransaction(
     @Param('id', ParseUUIDPipe) id: string,
-    @CurrentUser('id') userId: string,
+    @CurrentUser() user: AuthenticatedUser,
     @Body() dto: SignTransactionDto,
+    @Headers('x-step-up-token') stepUpToken?: string,
   ) {
-    return this.walletService.signTransaction(id, userId, dto);
+    return this.walletService.signTransaction(id, user.id, dto, {
+      role: user.role,
+      stepUpToken,
+    });
   }
 
   @Get(':id/public-key')
