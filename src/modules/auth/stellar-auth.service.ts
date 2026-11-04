@@ -30,15 +30,18 @@ export class StellarAuthService {
 
   /**
    * Issues a new nonce for the given Stellar public key.
-   * Any previous unused challenges for that key are invalidated first.
+   *
+   * Older challenges are **superseded**, not deleted. Deleting them allowed an
+   * unauthenticated attacker to cancel a victim's in-flight login by calling
+   * this endpoint in a loop (the previous implementation removed every unused
+   * challenge for the key). Verification instead accepts only the newest
+   * unused challenge, so an old nonce is unusable without mutating state that
+   * another concurrent login may depend on.
    */
   async createChallenge(
     publicKey: string,
   ): Promise<{ nonce: string; expiresAt: Date }> {
     this.validatePublicKey(publicKey);
-
-    // Invalidate any existing challenge for this key to prevent reuse.
-    await this.challengeRepo.delete({ publicKey, isUsed: false });
 
     const nonce = randomBytes(32).toString('hex');
     const expiresAt = new Date(Date.now() + CHALLENGE_TTL_SECONDS * 1000);
@@ -76,6 +79,19 @@ export class StellarAuthService {
     }
     if (new Date() > challenge.expiresAt) {
       throw new UnauthorizedException('Challenge has expired');
+    }
+
+    // Only the newest unused challenge for this key is valid. This replaces
+    // the old "delete every other challenge" behaviour, which let anyone
+    // cancel a victim's login by requesting a fresh challenge repeatedly.
+    const newest = await this.challengeRepo.findOne({
+      where: { publicKey, isUsed: false },
+      order: { createdAt: 'DESC' },
+    });
+    if (!newest || newest.id !== challenge.id) {
+      throw new UnauthorizedException(
+        'Challenge has been superseded by a newer challenge',
+      );
     }
 
     const signatureValid = this.verifySignature(
