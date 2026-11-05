@@ -493,19 +493,26 @@ describe('ComplianceService', () => {
 
     it('does not reveal existence: missing and foreign documents match', async () => {
       documentRepo.findOne.mockResolvedValue(null);
-      const missingError = await service
+      const missingMessage = await service
         .getDocument('doc-1', userId)
-        .catch((error: Error) => error);
+        .then(
+          () => '',
+          (error: Error) => error.message,
+        );
 
       documentRepo.findOne.mockResolvedValue({
         id: 'doc-1',
         userId: 'other-user',
       });
-      const foreignError = await service
+      const foreignMessage = await service
         .getDocument('doc-1', userId)
-        .catch((error: Error) => error);
+        .then(
+          () => '',
+          (error: Error) => error.message,
+        );
 
-      expect(missingError.message).toBe(foreignError.message);
+      expect(missingMessage).toBe(foreignMessage);
+      expect(missingMessage).not.toBe('');
     });
 
     it('lets privileged requesters read any document', async () => {
