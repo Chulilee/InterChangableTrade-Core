@@ -209,7 +209,11 @@ export class ComplianceController {
     @CurrentUser() user: AuthenticatedUser,
     @Param('documentId', ParseUUIDPipe) documentId: string,
   ) {
-    const document = await this.complianceService.getDocument(documentId);
+    const document = await this.complianceService.getDocument(
+      documentId,
+      user.id,
+      user.role === UserRole.ADMIN || user.role === UserRole.ANALYST,
+    );
     return { success: true, data: document };
   }
 
@@ -335,8 +339,15 @@ export class ComplianceController {
   @UseGuards(RolesGuard)
   @Roles(UserRole.ADMIN, UserRole.ANALYST)
   @ApiOperation({ summary: 'Get a specific AML flag' })
-  async getFlag(@Param('flagId', ParseUUIDPipe) flagId: string) {
-    const flag = await this.complianceService.getFlag(flagId);
+  async getFlag(
+    @CurrentUser() user: AuthenticatedUser,
+    @Param('flagId', ParseUUIDPipe) flagId: string,
+  ) {
+    const flag = await this.complianceService.getFlag(
+      flagId,
+      user.id,
+      user.role === UserRole.ADMIN || user.role === UserRole.ANALYST,
+    );
     return { success: true, data: flag };
   }
 
