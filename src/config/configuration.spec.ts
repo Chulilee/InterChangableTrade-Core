@@ -72,3 +72,64 @@ describe('configuration: stellar gateway', () => {
     });
   });
 });
+
+describe('configuration: cors', () => {
+  const keys = ['CORS_ALLOWED_ORIGINS', 'NODE_ENV'];
+  const saved: Record<string, string | undefined> = {};
+
+  beforeEach(() => {
+    for (const key of keys) {
+      saved[key] = process.env[key];
+      delete process.env[key];
+    }
+  });
+
+  afterEach(() => {
+    for (const key of keys) {
+      if (saved[key] === undefined) delete process.env[key];
+      else process.env[key] = saved[key];
+    }
+  });
+
+  it('parses the comma-separated allowlist', () => {
+    Object.assign(process.env, {
+      NODE_ENV: 'production',
+      CORS_ALLOWED_ORIGINS:
+        'https://app.example.com, https://admin.example.com ,',
+    });
+
+    expect(configuration().cors.allowedOrigins).toEqual([
+      'https://app.example.com',
+      'https://admin.example.com',
+    ]);
+  });
+
+  it('falls back to localhost origins outside production', () => {
+    process.env.NODE_ENV = 'development';
+
+    expect(configuration().cors.allowedOrigins).toEqual([
+      'http://localhost:3000',
+      'http://127.0.0.1:3000',
+    ]);
+  });
+
+  it('allows no origins in production when the variable is unset', () => {
+    process.env.NODE_ENV = 'production';
+
+    expect(configuration().cors.allowedOrigins).toEqual([]);
+  });
+
+  it('keeps credentials enabled with closed lists', () => {
+    expect(configuration().cors).toMatchObject({
+      credentials: true,
+      methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+      allowedHeaders: [
+        'Content-Type',
+        'Authorization',
+        'X-Api-Key',
+        'X-Request-Id',
+      ],
+      maxAge: 600,
+    });
+  });
+});

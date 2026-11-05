@@ -18,6 +18,29 @@ export const envValidationSchema = Joi.object({
     .default('development'),
   PORT: Joi.number().default(3000),
 
+  // Comma-separated allowlist of origins that may call the API cross-origin
+  // (e.g. `https://app.example.com,https://admin.example.com`). Required in
+  // production: the Express/cors default of `origin: *` would let any page on
+  // the internet read API responses. Outside production the value is optional
+  // and `configuration.ts` falls back to the localhost dev origins.
+  CORS_ALLOWED_ORIGINS: Joi.string()
+    .when('NODE_ENV', {
+      is: 'production',
+      then: Joi.string()
+        .required()
+        .custom((value: string, helpers: Joi.CustomHelpers) => {
+          const origins = value
+            .split(',')
+            .map((origin) => origin.trim())
+            .filter((origin) => origin.length > 0);
+          if (origins.length === 0 || origins.some((o) => o.includes('*'))) {
+            return helpers.error('any.invalid');
+          }
+          return value;
+        }),
+      otherwise: Joi.string().allow('').optional(),
+    }),
+
   DB_HOST: Joi.string().default('localhost'),
   DB_PORT: Joi.number().default(5432),
   DB_USERNAME: Joi.string().required(),

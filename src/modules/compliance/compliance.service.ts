@@ -28,6 +28,7 @@ import { ReviewAmlFlagDto } from './dto/review-aml-flag.dto';
 import { AssessTransactionRiskDto } from './dto/assess-transaction-risk.dto';
 import { UpdateKycLevelDto } from './dto/update-kyc-level.dto';
 import { UpsertComplianceConfigDto } from './dto/upsert-compliance-config.dto';
+import { UserRole } from '../users/entities/user.entity';
 
 /** Allowed MIME types for document upload */
 export const ALLOWED_MIME_TYPES = new Set([
@@ -385,14 +386,28 @@ export class ComplianceService {
   }
 
   /**
-   * Get a single document by ID.
+   * Get a single document by ID, enforcing ownership unless the requester is
+   * privileged (admin/analyst). A missing document and one owned by someone
+   * else produce the same 404, so the response does not reveal whether the
+   * document exists.
    */
-  async getDocument(documentId: string): Promise<KycDocument> {
+  async getDocument(
+    documentId: string,
+    requesterId: string,
+    isPrivileged = false,
+  ): Promise<KycDocument> {
     const doc = await this.documentRepo.findOne({ where: { id: documentId } });
-    if (!doc) {
+    if (!doc || (!isPrivileged && doc.userId !== requesterId)) {
       throw new NotFoundException(`Document ${documentId} not found`);
     }
     return doc;
+  }
+
+  /**
+   * True for roles allowed to view any user's compliance records.
+   */
+  private isPrivilegedRole(role: string): boolean {
+    return role === UserRole.ADMIN || role === UserRole.ANALYST;
   }
 
   /**
@@ -405,7 +420,11 @@ export class ComplianceService {
     reviewerRole: string,
     rejectionReason?: string,
   ): Promise<KycDocument> {
-    const document = await this.getDocument(documentId);
+    const document = await this.getDocument(
+      documentId,
+      reviewerId,
+      this.isPrivilegedRole(reviewerRole),
+    );
     const previousState = { status: document.status };
 
     document.status = status;
@@ -450,10 +469,9 @@ export class ComplianceService {
     encryptionKeyId: string;
     fileName: string;
   }> {
-    const doc = await this.getDocument(documentId);
-    if (doc.userId !== userId) {
-      throw new NotFoundException(`Document ${documentId} not found for user`);
-    }
+    // getDocument enforces ownership for non-privileged requesters, reusing
+    // the same check that guards the metadata view.
+    const doc = await this.getDocument(documentId, userId);
     return {
       storagePath: doc.storagePath,
       encryptionKeyId: doc.encryptionKeyId ?? '',
@@ -792,11 +810,18 @@ export class ComplianceService {
   }
 
   /**
-   * Get a single AML flag by ID.
+   * Get a single AML flag by ID, enforcing ownership unless the requester is
+   * privileged (admin/analyst). A missing flag and one belonging to someone
+   * else produce the same 404, so the response does not reveal whether the
+   * flag exists.
    */
-  async getFlag(flagId: string): Promise<AmlFlag> {
+  async getFlag(
+    flagId: string,
+    requesterId: string,
+    isPrivileged = false,
+  ): Promise<AmlFlag> {
     const flag = await this.flagRepo.findOne({ where: { id: flagId } });
-    if (!flag) {
+    if (!flag || (!isPrivileged && flag.userId !== requesterId)) {
       throw new NotFoundException(`AML flag ${flagId} not found`);
     }
     return flag;
@@ -812,7 +837,11 @@ export class ComplianceService {
     dto: ReviewAmlFlagDto,
     ipAddress?: string,
   ): Promise<AmlFlag> {
-    const flag = await this.getFlag(flagId);
+    const flag = await this.getFlag(
+      flagId,
+      reviewerId,
+      this.isPrivilegedRole(reviewerRole),
+    );
 
     if (
       flag.status !== AmlFlagStatus.PENDING &&
