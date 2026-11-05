@@ -119,7 +119,7 @@ describe('configuration: cors', () => {
     expect(configuration().cors.allowedOrigins).toEqual([]);
   });
 
-  it('keeps credentials enabled with a closed method and header list', () => {
+  it('keeps credentials enabled with closed lists', () => {
     expect(configuration().cors).toMatchObject({
       credentials: true,
       methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],

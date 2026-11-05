@@ -73,7 +73,7 @@ describe('envValidationSchema: CORS_ALLOWED_ORIGINS guard', () => {
     expect(messages.some((m) => m.includes('CORS_ALLOWED_ORIGINS'))).toBe(true);
   });
 
-  it('rejects a wildcard hidden among valid origins in production', () => {
+  it('rejects a wildcard hidden among valid origins', () => {
     const { error } = validate({
       ...productionEnv,
       CORS_ALLOWED_ORIGINS: 'https://app.example.com, *',

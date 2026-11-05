@@ -468,17 +468,69 @@ describe('ComplianceService', () => {
   });
 
   describe('getDocument', () => {
-    it('returns a document by ID', async () => {
+    it('returns a document by ID to its owner', async () => {
       documentRepo.findOne.mockResolvedValue({ id: 'doc-1', userId });
-      const result = await service.getDocument('doc-1');
+      const result = await service.getDocument('doc-1', userId);
       expect(result.id).toBe('doc-1');
     });
 
     it('throws NotFoundException for missing document', async () => {
       documentRepo.findOne.mockResolvedValue(null);
-      await expect(service.getDocument('missing')).rejects.toThrow(
+      await expect(service.getDocument('missing', userId)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('throws NotFoundException for another user’s document', async () => {
+      documentRepo.findOne.mockResolvedValue({
+        id: 'doc-1',
+        userId: 'other-user',
+      });
+      await expect(service.getDocument('doc-1', userId)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('does not reveal existence: missing and foreign documents match', async () => {
+      documentRepo.findOne.mockResolvedValue(null);
+      const missingError = await service
+        .getDocument('doc-1', userId)
+        .catch((error: Error) => error);
+
+      documentRepo.findOne.mockResolvedValue({
+        id: 'doc-1',
+        userId: 'other-user',
+      });
+      const foreignError = await service
+        .getDocument('doc-1', userId)
+        .catch((error: Error) => error);
+
+      expect(missingError.message).toBe(foreignError.message);
+    });
+
+    it('lets privileged requesters read any document', async () => {
+      documentRepo.findOne.mockResolvedValue({
+        id: 'doc-1',
+        userId: 'other-user',
+      });
+
+      const result = await service.getDocument('doc-1', adminId, true);
+
+      expect(result.id).toBe('doc-1');
+    });
+
+    it('returns the document to its owner via retrieveDocument', async () => {
+      documentRepo.findOne.mockResolvedValue({
+        id: 'doc-1',
+        userId,
+        storagePath: '/storage/path',
+        encryptionKeyId: 'key-123',
+        fileName: 'passport.pdf',
+      });
+
+      const result = await service.retrieveDocument('doc-1', userId);
+
+      expect(result.fileName).toBe('passport.pdf');
     });
   });
 
@@ -934,17 +986,36 @@ describe('ComplianceService', () => {
   });
 
   describe('getFlag', () => {
-    it('returns a flag by ID', async () => {
+    it('returns a flag by ID to its owner', async () => {
       flagRepo.findOne.mockResolvedValue({ id: 'flag-1', userId });
-      const result = await service.getFlag('flag-1');
+      const result = await service.getFlag('flag-1', userId);
       expect(result.id).toBe('flag-1');
     });
 
     it('throws NotFoundException for missing flag', async () => {
       flagRepo.findOne.mockResolvedValue(null);
-      await expect(service.getFlag('missing')).rejects.toThrow(
+      await expect(service.getFlag('missing', userId)).rejects.toThrow(
         NotFoundException,
       );
+    });
+
+    it('throws NotFoundException for another user’s flag', async () => {
+      flagRepo.findOne.mockResolvedValue({ id: 'flag-1', userId: 'other-user' });
+
+      await expect(service.getFlag('flag-1', userId)).rejects.toThrow(
+        NotFoundException,
+      );
+    });
+
+    it('lets privileged requesters read any flag', async () => {
+      flagRepo.findOne.mockResolvedValue({
+        id: 'flag-1',
+        userId: 'other-user',
+      });
+
+      const result = await service.getFlag('flag-1', adminId, true);
+
+      expect(result.id).toBe('flag-1');
     });
   });
 
