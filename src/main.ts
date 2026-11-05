@@ -55,8 +55,23 @@ async function bootstrap() {
   const errorHandler = app.get(ErrorHandlerService);
   app.useGlobalFilters(new AllExceptionsFilter(errorHandler));
 
-  // CORS is enabled so the frontend can reach the API during development.
-  app.enableCors();
+  // CORS is restricted to the configured origin allowlist
+  // (CORS_ALLOWED_ORIGINS). In production the env schema refuses to boot
+  // when the variable is unset or contains a wildcard, and in development an
+  // unset value falls back to the localhost dev origins, so the documented
+  // frontend workflow keeps working.
+  app.enableCors({
+    origin: configService.get<string[]>('cors.allowedOrigins'),
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Api-Key',
+      'X-Request-Id',
+    ],
+    maxAge: 600,
+  });
 
   // OpenAPI docs served at /api/docs.
   const swaggerConfig = new DocumentBuilder()
