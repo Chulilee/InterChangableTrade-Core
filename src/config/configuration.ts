@@ -2,9 +2,59 @@
  * Central typed configuration factory. Grouping related settings keeps
  * injection points tidy (e.g. `configService.get('database')`).
  */
+
+/** Localhost origins used when CORS_ALLOWED_ORIGINS is unset outside production. */
+const DEVELOPMENT_CORS_ORIGINS = [
+  'http://localhost:3000',
+  'http://127.0.0.1:3000',
+];
+
+/**
+ * Parse the comma-separated `CORS_ALLOWED_ORIGINS` allowlist. An unset or
+ * empty value falls back to the localhost dev origins outside production;
+ * in production the env validation schema refuses to boot without an
+ * explicit, wildcard-free allowlist, and an empty list here means no origin
+ * is allowed rather than every origin.
+ */
+function parseCorsAllowedOrigins(
+  raw: string | undefined,
+  nodeEnv: string,
+): string[] {
+  const origins = (raw ?? '')
+    .split(',')
+    .map((origin) => origin.trim())
+    .filter((origin) => origin.length > 0);
+  if (origins.length === 0 && nodeEnv !== 'production') {
+    return [...DEVELOPMENT_CORS_ORIGINS];
+  }
+  return origins;
+}
+
 export default () => ({
   env: process.env.NODE_ENV ?? 'development',
   port: parseInt(process.env.PORT ?? '3000', 10),
+
+  /**
+   * Cross-origin resource sharing policy consumed by `main.ts`. Origins are
+   * an explicit allowlist (never `*`), credentials are enabled so the
+   * frontend can send authenticated requests, and the header lists are the
+   * ones the API actually uses.
+   */
+  cors: {
+    allowedOrigins: parseCorsAllowedOrigins(
+      process.env.CORS_ALLOWED_ORIGINS,
+      process.env.NODE_ENV ?? 'development',
+    ),
+    credentials: true,
+    methods: ['GET', 'POST', 'PATCH', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: [
+      'Content-Type',
+      'Authorization',
+      'X-Api-Key',
+      'X-Request-Id',
+    ],
+    maxAge: 600,
+  },
 
   database: {
     host: process.env.DB_HOST ?? 'localhost',
