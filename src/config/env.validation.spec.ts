@@ -43,3 +43,64 @@ describe('envValidationSchema vs .env.example', () => {
     expect(unlisted).toEqual([]);
   });
 });
+
+describe('envValidationSchema: CORS_ALLOWED_ORIGINS guard', () => {
+  const raw = readFileSync(join(__dirname, '..', '..', '.env.example'), 'utf8');
+  const active = parse(raw);
+  const productionEnv = { ...active, NODE_ENV: 'production' };
+
+  function validate(env: Record<string, unknown>) {
+    return envValidationSchema.validate(env, {
+      abortEarly: false,
+      allowUnknown: false,
+    });
+  }
+
+  it('is required in production', () => {
+    const { error } = validate({
+      ...productionEnv,
+      CORS_ALLOWED_ORIGINS: undefined,
+    });
+
+    const messages = error?.details.map((d) => d.message) ?? [];
+    expect(messages.some((m) => m.includes('CORS_ALLOWED_ORIGINS'))).toBe(true);
+  });
+
+  it('rejects a bare wildcard in production', () => {
+    const { error } = validate({ ...productionEnv, CORS_ALLOWED_ORIGINS: '*' });
+
+    const messages = error?.details.map((d) => d.message) ?? [];
+    expect(messages.some((m) => m.includes('CORS_ALLOWED_ORIGINS'))).toBe(true);
+  });
+
+  it('rejects a wildcard hidden among valid origins in production', () => {
+    const { error } = validate({
+      ...productionEnv,
+      CORS_ALLOWED_ORIGINS: 'https://app.example.com, *',
+    });
+
+    expect(error).toBeDefined();
+  });
+
+  it('rejects an empty allowlist in production', () => {
+    const { error } = validate({ ...productionEnv, CORS_ALLOWED_ORIGINS: '' });
+
+    expect(error).toBeDefined();
+  });
+
+  it('accepts an explicit allowlist in production', () => {
+    const { error } = validate({
+      ...productionEnv,
+      CORS_ALLOWED_ORIGINS:
+        'https://app.example.com,https://admin.example.com',
+    });
+
+    expect(error?.details.map((d) => d.message)).toBeUndefined();
+  });
+
+  it('stays optional with an empty value outside production', () => {
+    const { error } = validate({ ...active });
+
+    expect(error?.details.map((d) => d.message)).toBeUndefined();
+  });
+});
