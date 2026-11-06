@@ -6,6 +6,7 @@ import { User } from '../../users/entities/user.entity';
  * Persisted refresh token. The `tokenHash` field stores a bcrypt hash of the
  * raw token so a database breach does not expose live credentials.
  */
+@Index('IDX_refresh_tokens_user_is_revoked', ['userId', 'isRevoked'])
 @Entity('refresh_tokens')
 export class RefreshToken extends BaseEntity {
   @Index()
