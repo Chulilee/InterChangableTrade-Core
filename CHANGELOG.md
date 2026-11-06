@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Security
 
+- **`refresh_tokens` revocation paths are indexed.** `logout`/`logoutAll` now
+  filter on a composite `("userId", "isRevoked")` index
+  (migration `1789500000000-AddRefreshTokenUserRevokedIndex.ts`) instead of a
+  sequential scan, matching the credential `lookupHash` work.
+
 - **Rate-limit keys no longer trust client-supplied identity.** `RateLimitGuard`
   derives unauthenticated buckets from `request.ip` only (Express `trust proxy`
   is now configured via `TRUST_PROXY_HOPS` in `src/main.ts`), so rotating
@@ -32,6 +37,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   return `401`, so clients re-authenticate and API-key holders create a new key.
   Password-reset links issued before the migration are likewise invalid.
   Set `AUTH_TOKEN_PEPPER` (falls back to `JWT_SECRET` with a warning).
+
+### Fixed
+
+- **Maker order fill state is now persisted.** `matchOrder()` collected and
+  returned the mutated maker orders, but `createOrder()` only saved the taker —
+  after a restart the stale maker could be matched again, over-settling the
+  asset. Trades, the taker, every touched maker and the `ORDER_CREATED` audit
+  now commit in a single database transaction, `TRADE_EXECUTED` audit rows are
+  written per executed trade (they were defined but never written), and the
+  audit snapshot is deep-copied before matching so it is not order-dependent.
 
 ### Planned
 
