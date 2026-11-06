@@ -5,7 +5,7 @@ import {
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository, LessThan, In } from 'typeorm';
+import { Repository, LessThan, In, DataSource } from 'typeorm';
 import {
   Order,
   OrderStatus,
@@ -32,8 +32,16 @@ export class TradingEngineService {
     @InjectRepository(AuditTrail)
     private readonly auditTrailRepository: Repository<AuditTrail>,
     private readonly stellarService: StellarService,
+    private readonly dataSource: DataSource,
   ) {
-    this.initializeOrderBooks();
+    // Fire-and-forget would swallow the failure and leave the process
+    // serving stale books forever; log it loudly instead.
+    this.initializeOrderBooks().catch((error) => {
+      this.logger.error(
+        'Failed to initialize order books from the database; the book starts empty',
+        error instanceof Error ? error.stack : String(error),
+      );
+    });
   }
 
   private async initializeOrderBooks() {
@@ -88,6 +96,11 @@ export class TradingEngineService {
     }
   }
 
+  /** JSON deep-copy so audit rows never alias live, mutable entities. */
+  private deepSnapshot<T>(value: T): Record<string, any> {
+    return JSON.parse(JSON.stringify(value)) as Record<string, any>;
+  }
+
   private async createAuditTrail(
     entityId: string,
     entityType: string,
@@ -109,13 +122,19 @@ export class TradingEngineService {
     await this.auditTrailRepository.save(auditTrail);
   }
 
-  private matchOrder(newOrder: Order): Trade[] {
+  private matchOrder(newOrder: Order): {
+    trades: Trade[];
+    touchedOrders: Order[];
+  } {
     const startTime = Date.now();
     const trades: Trade[] = [];
+    // Makers whose filledQuantity/status this call mutates; persisted by the
+    // caller in the same transaction as the taker and the trades.
+    const touched = new Set<Order>();
     const assetKey = this.getAssetKey(newOrder.assetCode, newOrder.assetIssuer);
     const orderBook = this.orderBooks.get(assetKey);
 
-    if (!orderBook) return trades;
+    if (!orderBook) return { trades, touchedOrders: [] };
 
     let remainingQuantity =
       parseFloat(newOrder.filledQuantity) > 0
@@ -191,6 +210,7 @@ export class TradingEngineService {
         bestOpposite.status = OrderStatus.FILLED;
         oppositeOrders.shift(); // Remove fully filled order from book
       }
+      touched.add(bestOpposite);
 
       remainingQuantity -= tradeQuantity;
     }
@@ -206,7 +226,7 @@ export class TradingEngineService {
       );
     }
 
-    return trades;
+    return { trades, touchedOrders: [...touched] };
   }
 
   async createOrder(
@@ -239,32 +259,71 @@ export class TradingEngineService {
     order.status = OrderStatus.OPEN;
     await this.orderRepository.save(order);
 
-    // Record audit trail
-    await this.createAuditTrail(
-      order.id,
-      'order',
-      AuditActionType.ORDER_CREATED,
-      userId,
-      previousState,
-      order,
-    );
+    // Snapshot the order before matching: the matcher mutates it in place,
+    // so references would make the audit trail order-dependent.
+    const orderSnapshot = this.deepSnapshot(order);
 
     // Match order
-    const trades = this.matchOrder(order);
+    const { trades, touchedOrders } = this.matchOrder(order);
 
-    // If order is still open, add to order book
+    // Persist the trades, the taker, every maker mutated by the matcher and
+    // the ORDER_CREATED / TRADE_EXECUTED audit rows inside ONE transaction,
+    // so a mid-loop failure cannot leave trades without order updates (or
+    // duplicate fills after a restart).
+    await this.dataSource.transaction(async (manager) => {
+      const tradeRepo = manager.getRepository(Trade);
+      const orderRepo = manager.getRepository(Order);
+      const auditRepo = manager.getRepository(AuditTrail);
+
+      const savedTrades =
+        trades.length > 0 ? await tradeRepo.save(trades) : [];
+      const savedOrder = await orderRepo.save(order);
+      const savedMakers =
+        touchedOrders.length > 0 ? await orderRepo.save(touchedOrders) : [];
+
+      const orderAudit = auditRepo.create({
+        entityId: order.id,
+        entityType: 'order',
+        action: AuditActionType.ORDER_CREATED,
+        actorId: userId,
+        previousState,
+        newState: orderSnapshot,
+      });
+      const audits = [orderAudit];
+
+      if (savedTrades.length > 0) {
+        audits.push(
+          ...savedTrades.map((trade) =>
+            auditRepo.create({
+              entityId: trade.id,
+              entityType: 'trade',
+              action: AuditActionType.TRADE_EXECUTED,
+              actorId: userId,
+              previousState: {},
+              newState: this.deepSnapshot(trade),
+              metadata: {
+                makerOrderId: trade.makerOrderId,
+                takerOrderId: trade.takerOrderId,
+              },
+            }),
+          ),
+        );
+      }
+      await auditRepo.save(audits);
+
+      this.logger.debug(
+        `createOrder persisted taker=${savedOrder.id} makers=${savedMakers.length} trades=${savedTrades.length}`,
+      );
+    });
+
+    // If order is still open, add to order book — only after the transaction
+    // committed, so the in-memory book never diverges from the database.
     if (
       order.status === OrderStatus.OPEN ||
       order.status === OrderStatus.PARTIALLY_FILLED
     ) {
       this.addToOrderBook(order);
     }
-
-    // Save all trades and update orders
-    for (const trade of trades) {
-      await this.tradeRepository.save(trade);
-    }
-    await this.orderRepository.save(order);
 
     const validationTime = Date.now() - startTime;
     this.logger.log(
