@@ -21,6 +21,10 @@ import { KycDocumentStatus } from './enums/kyc-document-status.enum';
 import { AmlRiskLevel } from './enums/aml-risk-level.enum';
 import { AmlFlagStatus } from './enums/aml-flag-status.enum';
 import { ComplianceRegion } from './enums/compliance-region.enum';
+import {
+  resolveComplianceRegion,
+  isKnownComplianceRegionInput,
+} from './enums/compliance-region.enum';
 import { InitiateKycDto } from './dto/initiate-kyc.dto';
 import { QueryKycDto } from './dto/query-kyc.dto';
 import { QueryAmlFlagDto } from './dto/query-aml-flag.dto';
@@ -54,8 +58,11 @@ const RISK_WEIGHTS = {
 /** High-risk country codes (simplified) */
 const HIGH_RISK_REGIONS = new Set(['KP', 'IR', 'SY']);
 
-/** Medium-risk country codes (simplified) */
-const MEDIUM_RISK_REGIONS = new Set(['RU', 'CN', 'NG', 'PK', 'BD', 'MM', 'IR']);
+/**
+ * Medium-risk country codes (simplified). Disjoint from HIGH_RISK_REGIONS
+ * so precedence is explicit; IR stays high-risk only.
+ */
+const MEDIUM_RISK_REGIONS = new Set(['RU', 'CN', 'NG', 'PK', 'BD', 'MM']);
 
 /** Suspicious activity patterns */
 export const SUSPICIOUS_PATTERNS = {
@@ -911,29 +918,45 @@ export class ComplianceService {
   // ─── Compliance Configuration ─────────────────────────────────────────────
 
   /**
-   * Get or create compliance config for a region.
+   * Get compliance config for an ISO country code (or region alias).
+   *
+   * Read-only: never writes. When no row exists it falls back to the global
+   * row, and finally to a transient default object. Use upsertConfig (admin
+   * path) to persist a row explicitly.
    */
   async getConfigForRegion(region: string): Promise<ComplianceConfig> {
-    const normalizedRegion = region.toLowerCase() as ComplianceRegion;
+    const resolved = resolveComplianceRegion(region);
+    if (
+      resolved === ComplianceRegion.GLOBAL &&
+      !isKnownComplianceRegionInput(region)
+    ) {
+      this.logger.warn(
+        `Unknown compliance region code "${String(region)}"; falling back to global`,
+      );
+    }
     const existingConfig = await this.configRepo.findOne({
-      where: { region: normalizedRegion },
+      where: { region: resolved },
     });
 
     if (existingConfig) {
       return existingConfig;
     }
 
-    // Fall back to global config
-    const globalConfig = await this.configRepo.findOne({
-      where: { region: ComplianceRegion.GLOBAL },
-    });
-
-    if (globalConfig) {
-      return globalConfig;
+    if (resolved !== ComplianceRegion.GLOBAL) {
+      const globalConfig = await this.configRepo.findOne({
+        where: { region: ComplianceRegion.GLOBAL },
+      });
+      if (globalConfig) {
+        return globalConfig;
+      }
     }
 
-    // Create default global config
-    const defaultConfig = this.configRepo.create({
+    return this.buildDefaultComplianceConfig();
+  }
+
+  /** Transient (unsaved) global defaults for the read path. */
+  private buildDefaultComplianceConfig(): ComplianceConfig {
+    return Object.assign(new ComplianceConfig(), {
       region: ComplianceRegion.GLOBAL,
       displayName: 'Global (Default)',
       amlTransactionThreshold: '10000',
@@ -944,10 +967,8 @@ export class ComplianceService {
       maxDailyTransactions: 50,
       kycExpiryMonths: 12,
       requireSarForCritical: true,
+      isActive: true,
     });
-    const savedConfig = new ComplianceConfig();
-    Object.assign(savedConfig, await this.configRepo.save(defaultConfig));
-    return savedConfig;
   }
 
   /**
