@@ -64,7 +64,13 @@ export enum MetricAggregation {
 }
 
 @Entity('analytics_metrics')
-@Index(['metricType', 'aggregation', 'timestamp'], { unique: true })
+/**
+ * Unique grain must match MetricsCollectorService.upsertMetric identity:
+ * (metricType, aggregation, timestamp, dimensionHash). dimensionHash keeps
+ * null dimensions distinct (Postgres treats NULLs as distinct in unique
+ * indexes) by hashing the null-safe tuple.
+ */
+@Index('IDX_analytics_metrics_grain_hash', ['metricType', 'aggregation', 'timestamp', 'dimensionHash'], { unique: true })
 export class AnalyticsMetric extends BaseEntity {
   @Column({ type: 'varchar', length: 50 })
   metricType: MetricType;
@@ -74,6 +80,14 @@ export class AnalyticsMetric extends BaseEntity {
 
   @Column({ type: 'timestamptz' })
   timestamp: Date;
+
+  /**
+   * Deterministic sha256 of `assetCode|assetIssuer|userId|source`
+   * ('' for missing). Service sets it on every row; it is the fourth leg
+   * of the unique grain so different assets never overwrite each other.
+   */
+  @Column({ type: 'varchar', length: 64, default: '' })
+  dimensionHash: string;
 
   @Column({ type: 'numeric', precision: 30, scale: 7 })
   value: string;

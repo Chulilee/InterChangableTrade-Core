@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { Repository, LessThanOrEqual, MoreThanOrEqual } from 'typeorm';
+import { createHash } from 'crypto';
 import {
   AnalyticsMetric,
   MetricType,
@@ -9,6 +10,41 @@ import {
 import { Trade } from '../../trading-engine/entities/trade.entity';
 import { User } from '../../users/entities/user.entity';
 import { Transaction } from '../../transactions/entities/transaction.entity';
+
+/** Null-safe dimension tuple for a metric row. */
+export interface MetricDimensions {
+  assetCode?: string;
+  assetIssuer?: string;
+  userId?: string;
+  source?: string;
+}
+
+/** Deterministic sha256 of the dimension tuple for the unique grain. */
+export function computeDimensionHash(dimensions: MetricDimensions): string {
+  const canonical = [
+    dimensions.assetCode ?? '',
+    dimensions.assetIssuer ?? '',
+    dimensions.userId ?? '',
+    dimensions.source ?? '',
+  ].join('|');
+  return createHash('sha256').update(canonical).digest('hex');
+}
+
+/** True for Postgres unique-violation (23505) and equivalent messages. */
+export function isUniqueViolation(error: unknown): boolean {
+  if (!error || typeof error !== 'object') {
+    return false;
+  }
+  const err = error as Record<string, unknown>;
+  const code = String(
+    err.code ?? (err.driverError as any)?.code ?? '',
+  ).toUpperCase();
+  if (code === '23505') {
+    return true;
+  }
+  const message = error instanceof Error ? error.message : String(error);
+  return /duplicate key|unique constraint/.test(message);
+}
 
 @Injectable()
 export class MetricsCollectorService {
@@ -67,31 +103,27 @@ export class MetricsCollectorService {
     userId?: string,
     source?: string,
   ): Promise<AnalyticsMetric> {
-    const whereClause: any = {
+    // Identity is (metricType, aggregation, timestamp, dimensionHash); the
+    // hash makes null dimensions comparable. Keep in sync with the entity.
+    const dimensionHash = computeDimensionHash({
+      assetCode,
+      assetIssuer,
+      userId,
+      source,
+    });
+    const whereClause = {
       metricType,
       aggregation,
       timestamp,
+      dimensionHash,
     };
-
-    if (assetCode) {
-      whereClause.assetCode = assetCode;
-    }
-    if (userId) {
-      whereClause.userId = userId;
-    }
 
     const existingMetric = await this.analyticsMetricRepository.findOne({
       where: whereClause,
     });
 
     if (existingMetric) {
-      const newValue = this.aggregateValues(
-        existingMetric.value,
-        value,
-        metricType,
-      );
-      existingMetric.value = newValue;
-      return this.analyticsMetricRepository.save(existingMetric);
+      return this.updateMetricValue(existingMetric, value, metricType);
     }
 
     const newMetric = this.analyticsMetricRepository.create({
@@ -104,9 +136,37 @@ export class MetricsCollectorService {
       assetIssuer,
       userId,
       source,
+      dimensionHash,
     });
 
-    return this.analyticsMetricRepository.save(newMetric);
+    try {
+      return await this.analyticsMetricRepository.save(newMetric);
+    } catch (error) {
+      if (!isUniqueViolation(error)) {
+        throw error;
+      }
+      // Concurrent collector won the insert; converge to an update.
+      this.logger.warn(
+        `Unique violation on metric upsert for ${metricType}/${aggregation}/${timestamp.toISOString()}; retrying as update`,
+      );
+      const winner = await this.analyticsMetricRepository.findOne({
+        where: whereClause,
+      });
+      if (!winner) {
+        throw error;
+      }
+      return this.updateMetricValue(winner, value, metricType);
+    }
+  }
+
+  private async updateMetricValue(
+    metric: AnalyticsMetric,
+    value: string,
+    metricType: MetricType,
+  ): Promise<AnalyticsMetric> {
+    const newValue = this.aggregateValues(metric.value, value, metricType);
+    metric.value = newValue;
+    return this.analyticsMetricRepository.save(metric);
   }
 
   private aggregateValues(
