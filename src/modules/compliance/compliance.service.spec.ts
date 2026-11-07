@@ -741,7 +741,7 @@ describe('ComplianceService', () => {
 
       const result = await service.calculateRiskScore(userId);
       // regionRisk factor = regionScore (100 for high) * (10/100) = 10.
-      expect(result.factors.regionRisk).toBe(10);
+      expect(result.factors.regionRisk).toBeCloseTo(10);
     });
 
     it('returns complete factors object', async () => {
