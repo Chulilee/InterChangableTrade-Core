@@ -7,7 +7,9 @@ import {
 import { ReportStatus } from '../entities/saved-report.entity';
 
 describe('ScheduledReportService (issue #90)', () => {
-  const makeReport = (overrides: Record<string, unknown> = {}) => ({
+  const makeReport = (
+    overrides: Record<string, any> = {},
+  ): Record<string, any> => ({
     id: 'report-1',
     userId: 'user-1',
     name: 'Daily revenue',
