@@ -140,18 +140,31 @@ export class ContractStateService {
   }
 
   /**
-   * Import state into a new contract (placeholder implementation)
-   * In a real scenario, this would build and submit transactions to set storage
+   * Import state into a new contract.
+   *
+   * There is no generic on-chain "set storage key" entry point available
+   * through SorobanContractBase, so arbitrary state cannot be migrated
+   * generically. Instead of silently succeeding (which made contract
+   * upgrades report success without migrating anything), a non-empty
+   * import fails loudly with an explicit unsupported-migration error.
+   * Empty state is a valid no-op so fresh-contract upgrades can proceed.
    */
   async importContractState(
     contractId: string,
     state: Record<string, unknown>,
   ): Promise<void> {
-    this.logger.log(
-      `Importing ${Object.keys(state).length} state entries into ${contractId}`,
+    const count = Object.keys(state ?? {}).length;
+    if (count === 0) {
+      this.logger.log(
+        `No state to import into ${contractId}; skipping migration`,
+      );
+      return;
+    }
+    throw new SorobanApplicationError(
+      `State migration is not supported for contract ${contractId}: ` +
+        `${count} storage entries cannot be migrated generically. ` +
+        `Migrate state explicitly via the contract's supported methods or upgrade a state-free contract.`,
     );
-    // Implementation would generate transactions to set each state key
-    // This requires the contract to support state migration methods
   }
 
   /** Drops every cached state entry for a contract. */

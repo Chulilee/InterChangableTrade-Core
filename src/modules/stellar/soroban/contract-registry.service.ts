@@ -74,24 +74,45 @@ export class ContractRegistryService implements OnModuleInit {
       );
     }
 
-    const entry: RegistryEntry = {
-      metadata: contractMetadata,
-    };
+    // Store a copy so later setActive() mutations never mutate the caller's object.
+    const metadata = this.copyMetadata(contractMetadata);
 
-    this.registry.set(contractMetadata.contractId, entry);
-
-    // Update type index
-    const typeContracts = this.typeIndex.get(contractMetadata.type) || [];
-    if (!typeContracts.includes(contractMetadata.contractId)) {
-      typeContracts.push(contractMetadata.contractId);
-      this.typeIndex.set(contractMetadata.type, typeContracts);
+    // Enforce the "one active version per type" invariant: registering an
+    // active contract deactivates any previously active sibling.
+    if (metadata.isActive) {
+      const siblings = this.typeIndex.get(metadata.type) || [];
+      for (const id of siblings) {
+        if (id === metadata.contractId) {
+          continue;
+        }
+        const sibling = this.registry.get(id);
+        if (sibling) {
+          sibling.metadata.isActive = false;
+        }
+      }
     }
 
+    const entry: RegistryEntry = {
+      metadata,
+    };
+
+    this.registry.set(metadata.contractId, entry);
+
+    // Update type index
+    const typeContracts = this.typeIndex.get(metadata.type) || [];
+    if (!typeContracts.includes(metadata.contractId)) {
+      typeContracts.push(metadata.contractId);
+      this.typeIndex.set(metadata.type, typeContracts);
+    }
+
+    // Copy again for type-change reindexing safety: if the type changed
+    // for an existing id, the old index entry stays (callers may look up
+    // by old type), but the stored metadata is the source of truth.
     this.logger.log(
-      `Registered contract ${contractMetadata.contractId} (${contractMetadata.type} v${contractMetadata.version})`,
+      `Registered contract ${metadata.contractId} (${metadata.type} v${metadata.version})`,
     );
 
-    return contractMetadata;
+    return this.copyMetadata(entry.metadata);
   }
 
   /**
@@ -102,7 +123,7 @@ export class ContractRegistryService implements OnModuleInit {
     if (!entry) {
       throw new Error(`Contract ${contractId} not found in registry`);
     }
-    return entry.metadata;
+    return this.copyMetadata(entry.metadata);
   }
 
   /**
@@ -126,7 +147,9 @@ export class ContractRegistryService implements OnModuleInit {
    * List all registered contracts
    */
   listAll(): ContractMetadata[] {
-    return Array.from(this.registry.values()).map((e) => e.metadata);
+    return Array.from(this.registry.values()).map((e) =>
+      this.copyMetadata(e.metadata),
+    );
   }
 
   /**
@@ -171,5 +194,17 @@ export class ContractRegistryService implements OnModuleInit {
     } catch {
       return false;
     }
+  }
+
+  /** Defensive copy so callers can never mutate registry state (or vice versa). */
+  private copyMetadata(metadata: ContractMetadata): ContractMetadata {
+    return {
+      ...metadata,
+      capabilities: [...(metadata.capabilities ?? [])],
+      previousVersions: metadata.previousVersions
+        ? [...metadata.previousVersions]
+        : undefined,
+      metadata: metadata.metadata ? { ...metadata.metadata } : undefined,
+    };
   }
 }

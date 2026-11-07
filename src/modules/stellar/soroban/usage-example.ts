@@ -148,21 +148,27 @@ async function exampleContractUpgrade(
     },
   };
 
-  // Create an upgrade plan to check compatibility
+  // Create an upgrade plan to check compatibility (real funding/permission
+  // preflight checks run against the source account)
   const plan = await upgradeManager.createUpgradePlan(
     currentPool.contractId,
     newPoolMetadata,
     ['AAAA...', 'AAAA...'], // New ABI spec entries
+    Buffer.from('compiled-wasm-bytes'), // New WASM (required by executeUpgrade)
   );
 
   if (plan.canUpgrade) {
-    // Execute the upgrade
+    // Execute the upgrade. It really deploys via uploadWasm + instantiate,
+    // migrates state (failing loudly if unsupported), and records the
+    // deployed contract ID. Check result.success before relying on it.
     const result = await upgradeManager.executeUpgrade(plan);
     if (result.success) {
       console.log(
         'Upgrade successful! New contract active:',
         result.newContractId,
       );
+    } else {
+      console.error('Upgrade failed:', result.errors);
     }
   } else {
     console.warn('Upgrade not possible:', plan.warnings);

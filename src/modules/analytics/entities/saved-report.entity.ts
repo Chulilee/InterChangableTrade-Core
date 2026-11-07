@@ -74,6 +74,12 @@ export class SavedReport extends BaseEntity {
   @Column({ type: 'varchar', nullable: true })
   scheduleCron?: string;
 
+  @Column({ type: 'varchar', length: 20, nullable: true })
+  scheduleFrequency?: string;
+
+  @Column({ type: 'jsonb', nullable: true })
+  recipients?: string[];
+
   @Column({ type: 'timestamptz', nullable: true })
   nextRunAt?: Date;
 

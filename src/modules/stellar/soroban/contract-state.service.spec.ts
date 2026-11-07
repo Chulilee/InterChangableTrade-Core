@@ -182,6 +182,18 @@ describe('ContractStateService', () => {
       expect(exported).not.toHaveProperty('bad_key');
     });
   });
+
+  describe('importContractState', () => {
+    it('treats empty state as a no-op success', async () => {
+      await expect(service.importContractState(CONTRACT, {})).resolves.toBeUndefined();
+    });
+
+    it('throws an explicit unsupported-migration error for non-empty state', async () => {
+      await expect(
+        service.importContractState(CONTRACT, { balance: 100 }),
+      ).rejects.toThrow(/State migration is not supported/i);
+    });
+  });
 });
 
 // scValToNative just needs to unwrap our fake ScVal for these tests.
