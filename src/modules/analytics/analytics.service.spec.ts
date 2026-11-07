@@ -12,7 +12,10 @@ import {
   ReportStatus,
 } from './entities/saved-report.entity';
 import { UserSegment, SegmentType } from './entities/user-segment.entity';
-import { MetricsCollectorService } from './services/metrics-collector.service';
+import {
+  MetricsCollectorService,
+  computeDimensionHash,
+} from './services/metrics-collector.service';
 import { MetricsQueryService } from './services/metrics-query.service';
 import { ReportGeneratorService } from './services/report-generator.service';
 import { UserSegmentationService } from './services/user-segmentation.service';
@@ -140,6 +143,7 @@ describe('Analytics Module Services', () => {
     assetIssuer: undefined,
     userId: undefined,
     source: undefined,
+    dimensionHash: computeDimensionHash({ assetCode: 'USDC' }),
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

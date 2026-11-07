@@ -20,8 +20,8 @@ import { KycDocumentType } from './enums/kyc-document-type.enum';
 import { KycDocumentStatus } from './enums/kyc-document-status.enum';
 import { AmlRiskLevel } from './enums/aml-risk-level.enum';
 import { AmlFlagStatus } from './enums/aml-flag-status.enum';
-import { ComplianceRegion } from './enums/compliance-region.enum';
 import {
+  ComplianceRegion,
   resolveComplianceRegion,
   isKnownComplianceRegionInput,
 } from './enums/compliance-region.enum';
