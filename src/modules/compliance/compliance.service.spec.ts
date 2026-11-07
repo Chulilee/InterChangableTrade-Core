@@ -729,6 +729,21 @@ describe('ComplianceService', () => {
       expect(result.factors.regionRisk).toBeGreaterThan(0);
     });
 
+    it('classifies IR as high risk, not medium', async () => {
+      kycRepo.findOne.mockResolvedValue({
+        ...mockVerification,
+        level: KycLevel.STANDARD,
+        region: 'IR',
+        createdAt: new Date('2024-01-01'),
+      });
+      flagRepo.find.mockResolvedValue([]);
+      documentRepo.find.mockResolvedValue([]);
+
+      const result = await service.calculateRiskScore(userId);
+      // regionRisk factor = regionScore (100 for high) * (10/100) = 10.
+      expect(result.factors.regionRisk).toBeCloseTo(10);
+    });
+
     it('returns complete factors object', async () => {
       kycRepo.findOne.mockResolvedValue(mockVerification);
       flagRepo.find.mockResolvedValue([]);
@@ -1160,26 +1175,63 @@ describe('ComplianceService', () => {
       });
 
       const result = await service.getConfigForRegion('us');
+      expect(configRepo.findOne).toHaveBeenCalledWith({
+        where: { region: ComplianceRegion.US },
+      });
       expect(result.region).toBe(ComplianceRegion.US);
     });
 
-    it('falls back to global config', async () => {
-      configRepo.findOne
-        .mockResolvedValueOnce(null)
-        .mockResolvedValueOnce({ ...mockConfig });
+    it('maps DE to the EU configuration', async () => {
+      configRepo.findOne.mockResolvedValue({
+        ...mockConfig,
+        region: ComplianceRegion.EU,
+      });
 
-      const result = await service.getConfigForRegion('unknown_region');
-      expect(result.region).toBe(ComplianceRegion.GLOBAL);
+      const result = await service.getConfigForRegion('DE');
+      expect(configRepo.findOne).toHaveBeenCalledWith({
+        where: { region: ComplianceRegion.EU },
+      });
+      expect(result.region).toBe(ComplianceRegion.EU);
     });
 
-    it('creates default global config if none exists', async () => {
+    it('maps JP to the Asia-Pacific configuration', async () => {
+      configRepo.findOne.mockResolvedValue({
+        ...mockConfig,
+        region: ComplianceRegion.ASIA_PACIFIC,
+      });
+
+      const result = await service.getConfigForRegion('JP');
+      expect(configRepo.findOne).toHaveBeenCalledWith({
+        where: { region: ComplianceRegion.ASIA_PACIFIC },
+      });
+      expect(result.region).toBe(ComplianceRegion.ASIA_PACIFIC);
+    });
+
+    it('falls back to global with a warn for an unmapped code', async () => {
+      configRepo.findOne.mockResolvedValue({
+        ...mockConfig,
+        region: ComplianceRegion.GLOBAL,
+      });
+      const warn = jest.spyOn((service as any).logger, 'warn');
+
+      const result = await service.getConfigForRegion('XX');
+
+      expect(configRepo.findOne).toHaveBeenCalledWith({
+        where: { region: ComplianceRegion.GLOBAL },
+      });
+      expect(result.region).toBe(ComplianceRegion.GLOBAL);
+      expect(warn).toHaveBeenCalledWith(expect.stringContaining('"XX"'));
+    });
+
+    it('returns a transient default without writing when nothing exists', async () => {
       configRepo.findOne.mockResolvedValue(null);
-      configRepo.create.mockImplementation((v) => ({ id: 'config-new', ...v }));
-      configRepo.save.mockImplementation((v) => Promise.resolve(v));
 
       const result = await service.getConfigForRegion('global');
-      expect(configRepo.create).toHaveBeenCalled();
-      expect(configRepo.save).toHaveBeenCalled();
+
+      expect(result.region).toBe(ComplianceRegion.GLOBAL);
+      expect(result.displayName).toBe('Global (Default)');
+      expect(configRepo.create).not.toHaveBeenCalled();
+      expect(configRepo.save).not.toHaveBeenCalled();
     });
   });
 
