@@ -14,7 +14,6 @@ import {
   ApiOperation,
   ApiResponse,
   ApiBearerAuth,
-  ApiQuery,
 } from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { LiquidityAggregatorService } from './services/liquidity-aggregator.service';
@@ -29,6 +28,7 @@ import {
   SplitRouteDto,
   EstimatePriceImpactDto,
   SimulateRouteDto,
+  QueryArbitrageDto,
 } from './dto/index';
 
 @ApiTags('liquidity-aggregator')
@@ -166,30 +166,19 @@ export class LiquidityAggregatorController {
   @ApiOperation({
     summary: 'Scan for arbitrage opportunities across pools',
   })
-  @ApiQuery({ name: 'minSpread', required: false, type: Number })
   @ApiResponse({ status: HttpStatus.OK, description: 'Arbitrage scan results' })
-  async scanArbitrage(
-    @Query('minSpread') minSpread?: number,
-  ) {
-    return this.aggregatorService.scanArbitrage(minSpread ?? 0.1);
+  async scanArbitrage(@Query() query: QueryArbitrageDto) {
+    return this.aggregatorService.scanArbitrage(query.minSpread ?? 0.1);
   }
 
   @Get('arbitrage/active')
   @ApiOperation({ summary: 'Get active (non-expired) arbitrage opportunities' })
-  @ApiQuery({ name: 'page', required: false, type: Number })
-  @ApiQuery({ name: 'limit', required: false, type: Number })
   @ApiResponse({
     status: HttpStatus.OK,
     description: 'Active arbitrage opportunities',
   })
-  async getActiveArbitrage(
-    @Query('page') page?: number,
-    @Query('limit') limit?: number,
-  ) {
-    return this.aggregatorService.getActiveArbitrage(
-      page ?? 1,
-      limit ?? 20,
-    );
+  async getActiveArbitrage(@Query() query: QueryArbitrageDto) {
+    return this.aggregatorService.getActiveArbitrage(query.page, query.limit);
   }
 
   @Get('monitoring/health')
