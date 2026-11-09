@@ -48,7 +48,9 @@ describe('EscrowService', () => {
   /** Captures the update query builder created inside a transaction. */
   let lastUpdateBuilder: any;
   /** Executes the optimistic-release update; tests can override the result. */
-  let updateHandler: (qb: any) => Promise<{ affected: number }>;
+  let updateHandler: (qb: any) => Promise<{ affected: number }> = async () => ({
+    affected: 1,
+  });
 
   const userId = 'user-1';
   const adminId = 'admin-1';
