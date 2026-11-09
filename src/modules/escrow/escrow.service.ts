@@ -427,6 +427,12 @@ export class EscrowService {
           currentSignatures: approvalProgress.current,
           requiredSignatures: approvalProgress.required,
         });
+
+        this.eventEmitter.emit(EscrowEvents.ESCROW_APPROVED, {
+          escrowId: escrow.id,
+          currentSignatures: approvalProgress.current,
+          requiredSignatures: approvalProgress.required,
+        });
       }
 
       await queryRunner.commitTransaction();
