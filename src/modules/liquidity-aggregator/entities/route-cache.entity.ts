@@ -23,6 +23,14 @@ export class RouteCache extends BaseEntity {
   @Column({ type: 'numeric', precision: 30, scale: 7 })
   expectedOutput: string;
 
+  /**
+   * Input amount this route was computed for. Routes are input-dependent;
+   * serving a cached route computed for a different amount is a defect
+   * (issue #97). Null only for legacy rows written before the column existed.
+   */
+  @Column({ type: 'numeric', precision: 30, scale: 7, nullable: true })
+  amountIn?: string | null;
+
   /** Estimated total price impact as a decimal. */
   @Column({ type: 'numeric', precision: 10, scale: 8 })
   priceImpact: string;

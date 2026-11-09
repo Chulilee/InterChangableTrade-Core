@@ -295,15 +295,35 @@ export class RouteGraphService {
     amountIn: number,
   ): Promise<RouteResult | null> {
     const cached = await this.routeCacheRepository.findOne({
-      where: { tokenIn, tokenOut },
+      where: { tokenIn, tokenOut, amountIn: String(amountIn) },
       order: { createdAt: 'DESC' },
     });
 
     if (!cached || cached.expiresAt < new Date()) return null;
 
+    // Rebuild the asset path from the pool path via the in-memory graph.
+    // The previous implementation emitted [tokenIn, '', ..., tokenOut] with
+    // literal empty strings (issue #97).
+    const assetPath = [tokenIn];
+    let current = tokenIn;
+    for (const poolId of cached.poolPath) {
+      const pool = this.poolMap.get(poolId);
+      if (!pool) return null; // Pool no longer active: treat cache as stale.
+      const next =
+        pool.assetCodeA === current
+          ? pool.assetCodeB
+          : pool.assetCodeB === current
+            ? pool.assetCodeA
+            : null;
+      if (!next) return null;
+      assetPath.push(next);
+      current = next;
+    }
+    if (current !== tokenOut) return null;
+
     return {
       poolPath: cached.poolPath,
-      assetPath: [tokenIn, ...cached.poolPath.map(() => ''), tokenOut],
+      assetPath,
       totalWeight: 0,
       estimatedOutput: parseFloat(cached.expectedOutput),
       priceImpact: parseFloat(cached.priceImpact),
@@ -322,6 +342,7 @@ export class RouteGraphService {
       this.routeCacheRepository.create({
         tokenIn,
         tokenOut,
+        amountIn: String(amountIn),
         poolPath: result.poolPath,
         expectedOutput: result.estimatedOutput.toString(),
         priceImpact: result.priceImpact.toString(),

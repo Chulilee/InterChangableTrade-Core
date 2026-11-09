@@ -2,6 +2,7 @@ import {
   Injectable,
   Logger,
   BadRequestException,
+  ForbiddenException,
   NotFoundException,
 } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
@@ -348,7 +349,9 @@ export class TradingEngineService {
     }
 
     if (order.userId !== userId) {
-      throw new BadRequestException('You can only cancel your own orders');
+      // 403, not 400: the request is well-formed but the caller does not own
+      // the resource. Issue #96.
+      throw new ForbiddenException('You can only cancel your own orders');
     }
 
     if (
