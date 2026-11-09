@@ -1,8 +1,6 @@
 export enum EscrowStatus {
   /** Initial state — account created but not yet funded */
   PENDING = 'pending',
-  /** Signatories configured, awaiting funding */
-  AWAITING_FUNDING = 'awaiting_funding',
   /** Funds deposited, awaiting required signatures */
   FUNDED = 'funded',
   /** All signatures collected, ready for settlement */

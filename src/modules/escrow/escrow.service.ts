@@ -708,7 +708,6 @@ export class EscrowService {
 
     const refundableStatuses = [
       EscrowStatus.PENDING,
-      EscrowStatus.AWAITING_FUNDING,
       EscrowStatus.FUNDED,
       EscrowStatus.EXPIRED,
     ];
@@ -768,7 +767,6 @@ export class EscrowService {
 
     const timeoutableStatuses = [
       EscrowStatus.PENDING,
-      EscrowStatus.AWAITING_FUNDING,
       EscrowStatus.FUNDED,
     ];
 
