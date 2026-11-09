@@ -148,13 +148,14 @@ describe('EscrowService', () => {
         })),
         save: jest.fn((v: any) => Promise.resolve(v)),
         createQueryBuilder: jest.fn(() => {
-          const qb = {
+          const qb: any = {
             update: jest.fn().mockReturnThis(),
             set: jest.fn().mockReturnThis(),
             where: jest.fn().mockReturnThis(),
             andWhere: jest.fn().mockReturnThis(),
-            execute: jest.fn(() => updateHandler(qb)),
+            execute: jest.fn(),
           };
+          qb.execute.mockImplementation(() => updateHandler(qb));
           lastUpdateBuilder = qb;
           return qb;
         }),
@@ -638,7 +639,7 @@ describe('EscrowService', () => {
 
     it('does not re-emit the threshold event for an already approved escrow', async () => {
       const escrow = await approvedEscrow();
-      eventEmitter.emit.mockClear();
+      (eventEmitter.emit as jest.Mock).mockClear();
       signatoryRepo.find.mockResolvedValue([
         { ...mockSignatory, hasApproved: true },
         { ...mockCounterpartySignatory, hasApproved: false },
