@@ -47,6 +47,10 @@ describe('EscrowService', () => {
   let queryRunner: jest.Mocked<QueryRunner>;
   /** Captures the update query builder created inside a transaction. */
   let lastUpdateBuilder: any;
+  /** Executes the optimistic-release update; tests can override the result. */
+  let updateHandler: (qb: any) => Promise<{ affected: number }> = async () => ({
+    affected: 1,
+  });
 
   const userId = 'user-1';
   const adminId = 'admin-1';
@@ -129,6 +133,8 @@ describe('EscrowService', () => {
       emit: jest.fn(),
     };
 
+    updateHandler = async () => ({ affected: 1 });
+
     queryRunner = {
       connect: jest.fn(),
       startTransaction: jest.fn(),
@@ -142,13 +148,14 @@ describe('EscrowService', () => {
         })),
         save: jest.fn((v: any) => Promise.resolve(v)),
         createQueryBuilder: jest.fn(() => {
-          const qb = {
+          const qb: any = {
             update: jest.fn().mockReturnThis(),
             set: jest.fn().mockReturnThis(),
             where: jest.fn().mockReturnThis(),
             andWhere: jest.fn().mockReturnThis(),
-            execute: jest.fn().mockResolvedValue({ affected: 1 }),
+            execute: jest.fn(),
           };
+          qb.execute.mockImplementation(() => updateHandler(qb));
           lastUpdateBuilder = qb;
           return qb;
         }),
@@ -170,6 +177,30 @@ describe('EscrowService', () => {
   });
 
   afterEach(() => jest.clearAllMocks());
+
+  /**
+   * Drives a FUNDED escrow through a real `approveEscrow` transition so tests
+   * never hand-construct the APPROVED status (issue #95).
+   */
+  async function approvedEscrow(
+    overrides: Partial<EscrowAccount> = {},
+  ): Promise<any> {
+    const escrow: any = {
+      ...mockEscrow,
+      ...overrides,
+      status: EscrowStatus.FUNDED,
+    };
+    escrowRepo.findOne.mockResolvedValue(escrow);
+    signatoryRepo.find.mockResolvedValue([
+      { ...mockSignatory, hasApproved: true },
+      { ...mockCounterpartySignatory, hasApproved: false },
+    ]);
+
+    await service.approveEscrow('escrow-1', counterpartyId, {});
+
+    expect(escrow.status).toBe(EscrowStatus.APPROVED);
+    return escrow;
+  }
 
   // ─── createEscrow ──────────────────────────────────────────────────────
 
@@ -590,18 +621,31 @@ describe('EscrowService', () => {
       );
     });
 
-    it('does not re-emit the threshold event for an already approved escrow', async () => {
-      const escrow: any = {
-        ...mockEscrow,
-        status: EscrowStatus.APPROVED,
-      };
+    it('emits ESCROW_APPROVED when the threshold is met', async () => {
+      const escrow: any = { ...mockEscrow, status: EscrowStatus.FUNDED };
       escrowRepo.findOne.mockResolvedValue(escrow);
       signatoryRepo.find.mockResolvedValue([
-        { ...mockSignatory, hasApproved: false },
-        { ...mockCounterpartySignatory, hasApproved: true },
+        { ...mockSignatory, hasApproved: true },
+        { ...mockCounterpartySignatory, hasApproved: false },
       ]);
 
-      await service.approveEscrow('escrow-1', userId, {});
+      await service.approveEscrow('escrow-1', counterpartyId, {});
+
+      expect(eventEmitter.emit).toHaveBeenCalledWith(
+        EscrowEvents.ESCROW_APPROVED,
+        expect.objectContaining({ escrowId: 'escrow-1' }),
+      );
+    });
+
+    it('does not re-emit the threshold event for an already approved escrow', async () => {
+      const escrow = await approvedEscrow();
+      (eventEmitter.emit as jest.Mock).mockClear();
+      signatoryRepo.find.mockResolvedValue([
+        { ...mockSignatory, hasApproved: true },
+        { ...mockCounterpartySignatory, hasApproved: false },
+      ]);
+
+      await service.approveEscrow('escrow-1', counterpartyId, {});
 
       expect(eventEmitter.emit).not.toHaveBeenCalledWith(
         EscrowEvents.SIGNATURE_THRESHOLD_REACHED,
@@ -610,21 +654,39 @@ describe('EscrowService', () => {
       expect(escrow.status).toBe(EscrowStatus.APPROVED);
     });
 
-    it('drives the full create -> approve -> release flow', async () => {
-      const escrow: any = { ...mockEscrow, status: EscrowStatus.FUNDED };
-      escrowRepo.findOne.mockResolvedValue(escrow);
+    it('drives the full create -> fund -> approve -> release flow', async () => {
+      const created: any = await service.createEscrow(userId, userRole, {
+        type: EscrowType.STANDARD,
+        requiredSignatures: 2,
+        assetCode: 'USDC',
+        amount: 1000,
+        signatories: [
+          { userId, publicKey: 'GCREATORSIGNER1', role: SignatoryRole.CREATOR },
+          {
+            userId: counterpartyId,
+            publicKey: 'GCOUNTERPARTYSIGNER1',
+            role: SignatoryRole.COUNTERPARTY,
+          },
+        ],
+      } as any);
+      expect(created.status).toBe(EscrowStatus.PENDING);
+
+      escrowRepo.findOne.mockResolvedValue(created);
+      await service.fundEscrow(created.id, userId, 'tx_hash_123');
+      expect(created.status).toBe(EscrowStatus.FUNDED);
+
       signatoryRepo.find.mockResolvedValue([
         { ...mockSignatory, hasApproved: false },
         { ...mockCounterpartySignatory, hasApproved: false },
       ]);
 
       // Creator signs.
-      await service.approveEscrow('escrow-1', userId, {});
-      expect(escrow.status).toBe(EscrowStatus.FUNDED);
+      await service.approveEscrow(created.id, userId, {});
+      expect(created.status).toBe(EscrowStatus.FUNDED);
 
       // Counterparty signs — threshold of 2 reached, escrow becomes APPROVED.
-      await service.approveEscrow('escrow-1', counterpartyId, {});
-      expect(escrow.status).toBe(EscrowStatus.APPROVED);
+      await service.approveEscrow(created.id, counterpartyId, {});
+      expect(created.status).toBe(EscrowStatus.APPROVED);
 
       // A non-admin can now release.
       signatoryRepo.find.mockResolvedValue([
@@ -632,7 +694,7 @@ describe('EscrowService', () => {
         { ...mockCounterpartySignatory, hasApproved: true },
       ]);
       const released = await service.releaseFunds(
-        'escrow-1',
+        created.id,
         userId,
         userRole,
         {},
@@ -749,10 +811,7 @@ describe('EscrowService', () => {
 
   describe('releaseFunds', () => {
     it('releases all funds when threshold met', async () => {
-      escrowRepo.findOne.mockResolvedValue({
-        ...mockEscrow,
-        status: EscrowStatus.APPROVED,
-      });
+      await approvedEscrow();
       signatoryRepo.find.mockResolvedValue([
         { ...mockSignatory, hasApproved: true },
         { ...mockCounterpartySignatory, hasApproved: true },
@@ -774,10 +833,7 @@ describe('EscrowService', () => {
     });
 
     it('does partial release when amount specified', async () => {
-      escrowRepo.findOne.mockResolvedValue({
-        ...mockEscrow,
-        status: EscrowStatus.APPROVED,
-      });
+      await approvedEscrow();
       signatoryRepo.find.mockResolvedValue([
         { ...mockSignatory, hasApproved: true },
         { ...mockCounterpartySignatory, hasApproved: true },
@@ -796,7 +852,7 @@ describe('EscrowService', () => {
     });
 
     it('rejects release when threshold not met', async () => {
-      escrowRepo.findOne.mockResolvedValue(mockEscrow);
+      await approvedEscrow();
       signatoryRepo.find.mockResolvedValue([
         { ...mockSignatory, hasApproved: true },
         { ...mockCounterpartySignatory, hasApproved: false },
@@ -819,7 +875,7 @@ describe('EscrowService', () => {
     });
 
     it('rejects release when amount exceeds remaining', async () => {
-      escrowRepo.findOne.mockResolvedValue(mockEscrow);
+      await approvedEscrow();
       signatoryRepo.find.mockResolvedValue([
         { ...mockSignatory, hasApproved: true },
         { ...mockCounterpartySignatory, hasApproved: true },
@@ -831,11 +887,7 @@ describe('EscrowService', () => {
     });
 
     it('uses integer stroop arithmetic for fractional amounts', async () => {
-      escrowRepo.findOne.mockResolvedValue({
-        ...mockEscrow,
-        status: EscrowStatus.APPROVED,
-        amount: '0.3000000',
-      });
+      await approvedEscrow({ amount: '0.3000000' });
       signatoryRepo.find.mockResolvedValue([
         { ...mockSignatory, hasApproved: true },
         { ...mockCounterpartySignatory, hasApproved: true },
@@ -850,10 +902,7 @@ describe('EscrowService', () => {
     });
 
     it('guards the update with the previously read released amount', async () => {
-      escrowRepo.findOne.mockResolvedValue({
-        ...mockEscrow,
-        status: EscrowStatus.APPROVED,
-      });
+      await approvedEscrow();
       signatoryRepo.find.mockResolvedValue([
         { ...mockSignatory, hasApproved: true },
         { ...mockCounterpartySignatory, hasApproved: true },
@@ -869,16 +918,13 @@ describe('EscrowService', () => {
     });
 
     it('rejects the release when the escrow was modified concurrently', async () => {
-      escrowRepo.findOne.mockResolvedValue({
-        ...mockEscrow,
-        status: EscrowStatus.APPROVED,
-      });
+      await approvedEscrow();
       signatoryRepo.find.mockResolvedValue([
         { ...mockSignatory, hasApproved: true },
         { ...mockCounterpartySignatory, hasApproved: true },
       ]);
       // The optimistic guard did not match — a concurrent release won the race.
-      lastUpdateBuilder.execute.mockResolvedValue({ affected: 0 });
+      updateHandler = async () => ({ affected: 0 });
 
       await expect(
         service.releaseFunds('escrow-1', userId, userRole, { amount: 500 }),
@@ -886,25 +932,36 @@ describe('EscrowService', () => {
     });
 
     it('never releases more than the escrow amount under concurrent releases', async () => {
-      const escrow: any = { ...mockEscrow, status: EscrowStatus.APPROVED };
-      escrowRepo.findOne.mockResolvedValue(escrow);
+      await approvedEscrow();
       signatoryRepo.find.mockResolvedValue([
         { ...mockSignatory, hasApproved: true },
         { ...mockCounterpartySignatory, hasApproved: true },
       ]);
 
+      // Two requests each load their own snapshot of the same row.
+      escrowRepo.findOne
+        .mockResolvedValueOnce({
+          ...mockEscrow,
+          status: EscrowStatus.APPROVED,
+          releasedAmount: '0.0000000',
+        })
+        .mockResolvedValueOnce({
+          ...mockEscrow,
+          status: EscrowStatus.APPROVED,
+          releasedAmount: '0.0000000',
+        });
+
       // Simulate the stored row: the conditional update only succeeds while
       // `releasedAmount` still holds the value the caller read.
       let storedReleased = '0.0000000';
-      lastUpdateBuilder.execute.mockImplementation(async () => {
-        const guard = lastUpdateBuilder.andWhere.mock.calls[0][1]
-          .expectedReleased as string;
+      updateHandler = async (qb) => {
+        const guard = qb.andWhere.mock.calls[0][1].expectedReleased as string;
         if (guard !== storedReleased) {
           return { affected: 0 };
         }
         storedReleased = '500.0000000';
         return { affected: 1 };
-      });
+      };
 
       const results = await Promise.all(
         [
@@ -923,7 +980,7 @@ describe('EscrowService', () => {
       expect(succeeded).toHaveLength(1);
       expect(failed).toHaveLength(1);
       expect(storedReleased).toBe('500.0000000');
-      expect(Number(storedReleased) <= Number(escrow.amount)).toBe(true);
+      expect(Number(storedReleased) <= 1000).toBe(true);
     });
 
     it('allows admin to force release', async () => {
@@ -947,7 +1004,7 @@ describe('EscrowService', () => {
     });
 
     it('rejects milestone release when milestone not completed', async () => {
-      escrowRepo.findOne.mockResolvedValue(mockEscrow);
+      await approvedEscrow();
       signatoryRepo.find.mockResolvedValue([
         { ...mockSignatory, hasApproved: true },
         { ...mockCounterpartySignatory, hasApproved: true },
@@ -965,10 +1022,7 @@ describe('EscrowService', () => {
     });
 
     it('rejects release for non-existent milestone', async () => {
-      escrowRepo.findOne.mockResolvedValue({
-        ...mockEscrow,
-        status: EscrowStatus.APPROVED,
-      });
+      await approvedEscrow();
       signatoryRepo.find.mockResolvedValue([
         { ...mockSignatory, hasApproved: true },
         { ...mockCounterpartySignatory, hasApproved: true },
@@ -983,10 +1037,7 @@ describe('EscrowService', () => {
     });
 
     it('allows milestone release when milestone completed', async () => {
-      escrowRepo.findOne.mockResolvedValue({
-        ...mockEscrow,
-        status: EscrowStatus.APPROVED,
-      });
+      await approvedEscrow();
       signatoryRepo.find.mockResolvedValue([
         { ...mockSignatory, hasApproved: true },
         { ...mockCounterpartySignatory, hasApproved: true },

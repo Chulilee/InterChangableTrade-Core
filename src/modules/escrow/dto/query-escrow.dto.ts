@@ -1,35 +1,17 @@
 import { ApiPropertyOptional } from '@nestjs/swagger';
-import {
-  IsEnum,
-  IsInt,
-  IsOptional,
-  IsString,
-  IsUUID,
-  Max,
-  Min,
-} from 'class-validator';
+import { IsEnum, IsOptional, IsUUID } from 'class-validator';
+import { PaginationQueryDto } from '@app/common';
 import { EscrowStatus } from '../enums/escrow-status.enum';
 import { EscrowType } from '../enums/escrow-type.enum';
 
-export class QueryEscrowDto {
-  @ApiPropertyOptional({ default: 1 })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  page?: number = 1;
-
-  @ApiPropertyOptional({ default: 20 })
-  @IsOptional()
-  @IsInt()
-  @Min(1)
-  @Max(100)
-  limit?: number = 20;
-
-  /** Computed skip for TypeORM */
-  get skip(): number {
-    return ((this.page ?? 1) - 1) * (this.limit ?? 20);
-  }
-
+/**
+ * Query parameters for listing escrow accounts.
+ *
+ * Extends the shared {@link PaginationQueryDto} so `page`/`limit` are coerced
+ * from their string query values and bounded consistently with other list
+ * endpoints (issue #94).
+ */
+export class QueryEscrowDto extends PaginationQueryDto {
   @ApiPropertyOptional({ enum: EscrowStatus })
   @IsOptional()
   @IsEnum(EscrowStatus)

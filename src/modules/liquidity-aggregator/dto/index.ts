@@ -13,6 +13,7 @@ import {
 } from 'class-validator';
 import { Type } from 'class-transformer';
 import { ApiProperty, ApiPropertyOptional } from '@nestjs/swagger';
+import { PaginationQueryDto } from '@app/common';
 import { PoolType, PoolStatus } from '../entities/liquidity-pool.entity';
 
 // ─── Pool Registry DTOs ───────────────────────────────────────────────────────
@@ -228,30 +229,21 @@ export class EstimatePriceImpactDto {
 
 // ─── Arbitrage DTOs ───────────────────────────────────────────────────────────
 
-export class QueryArbitrageDto {
+export class QueryArbitrageDto extends PaginationQueryDto {
   @ApiPropertyOptional()
   @IsOptional()
   @IsString()
   asset?: string;
 
-  @ApiPropertyOptional({ description: 'Minimum spread % to report', default: 0.1 })
+  @ApiPropertyOptional({
+    description: 'Minimum spread % to report',
+    default: 0.1,
+  })
   @IsOptional()
+  @Type(() => Number)
   @IsNumber()
   @Min(0)
-  minSpreadPercent?: number = 0.1;
-
-  @ApiPropertyOptional({ default: 1 })
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  page?: number = 1;
-
-  @ApiPropertyOptional({ default: 20 })
-  @IsOptional()
-  @IsNumber()
-  @Min(1)
-  @Max(100)
-  limit?: number = 20;
+  minSpread?: number = 0.1;
 }
 
 // ─── Simulation DTOs ──────────────────────────────────────────────────────────

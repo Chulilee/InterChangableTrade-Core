@@ -26,6 +26,12 @@ import { FlagDisputeDto } from './dto/flag-dispute.dto';
 import { UpdateMilestoneDto } from './dto/update-milestone.dto';
 import { EscrowEvents } from './events/escrow.events';
 import {
+  INITIAL_ESCROW_STATUS,
+  assertTransition,
+  isApprovedForRelease,
+  isMilestoneUpdatable,
+} from './escrow-state-machine';
+import {
   DEFAULT_SETTLEMENT_WINDOW_MS,
   MAX_ACTIVE_ESCROWS_PER_USER,
 } from './constants/escrow.constants';
@@ -193,7 +199,7 @@ export class EscrowService {
         creatorId: userId,
         escrowAddress: escrowKeypair.publicKey(),
         type: dto.type,
-        status: EscrowStatus.PENDING,
+        status: INITIAL_ESCROW_STATUS,
         requiredSignatures: dto.requiredSignatures,
         totalSignatories,
         assetCode: dto.assetCode,
@@ -357,14 +363,7 @@ export class EscrowService {
 
     // Funded escrows can be approved; already-approved escrows may still accept
     // further signatures (idempotent re-entry).
-    if (
-      escrow.status !== EscrowStatus.FUNDED &&
-      escrow.status !== EscrowStatus.APPROVED
-    ) {
-      throw new BadRequestException(
-        `Cannot approve escrow in status: ${escrow.status}. Must be in FUNDED status.`,
-      );
-    }
+    assertTransition(escrow.status, EscrowStatus.APPROVED);
 
     const signatories = await this.signatoryRepo.find({
       where: { escrowAccountId: escrowId },
@@ -424,6 +423,12 @@ export class EscrowService {
         );
 
         this.eventEmitter.emit(EscrowEvents.SIGNATURE_THRESHOLD_REACHED, {
+          escrowId: escrow.id,
+          currentSignatures: approvalProgress.current,
+          requiredSignatures: approvalProgress.required,
+        });
+
+        this.eventEmitter.emit(EscrowEvents.ESCROW_APPROVED, {
           escrowId: escrow.id,
           currentSignatures: approvalProgress.current,
           requiredSignatures: approvalProgress.required,
@@ -499,11 +504,7 @@ export class EscrowService {
   ): Promise<EscrowAccount> {
     const escrow = await this.getEscrowOrThrow(escrowId);
 
-    if (escrow.status !== EscrowStatus.PENDING) {
-      throw new BadRequestException(
-        `Cannot fund escrow in status: ${escrow.status}`,
-      );
-    }
+    assertTransition(escrow.status, EscrowStatus.FUNDED);
 
     if (escrow.creatorId !== userId) {
       throw new ForbiddenException('Only the creator can fund the escrow');
@@ -543,14 +544,9 @@ export class EscrowService {
   ): Promise<EscrowAccount> {
     const escrow = await this.getEscrowOrThrow(escrowId);
 
-    const releasableStatuses = [
-      EscrowStatus.APPROVED,
-      EscrowStatus.PARTIALLY_RELEASED,
-    ];
-
-    // Admin can force release, otherwise threshold must be met
+    // Admin can force release, otherwise the escrow must be signature-approved.
     const isForceRelease = userRole === 'admin';
-    if (!isForceRelease && !releasableStatuses.includes(escrow.status)) {
+    if (!isForceRelease && !isApprovedForRelease(escrow.status)) {
       throw new BadRequestException(
         `Cannot release funds from escrow in status: ${escrow.status}`,
       );
@@ -605,9 +601,15 @@ export class EscrowService {
     const releaseAmount = EscrowService.fromStroops(releaseStroops);
 
     escrow.releasedAmount = EscrowService.fromStroops(newReleasedStroops);
-    escrow.status = isFullySettled
+    const targetStatus = isFullySettled
       ? EscrowStatus.SETTLED
       : EscrowStatus.PARTIALLY_RELEASED;
+    // A force-release may start from any status, so only user-initiated
+    // releases are checked against the transition table.
+    if (!isForceRelease) {
+      assertTransition(escrow.status, targetStatus);
+    }
+    escrow.status = targetStatus;
     if (isFullySettled) {
       escrow.settledAt = new Date();
       escrow.settlementTxHash = `settlement_${Date.now()}`;
@@ -706,18 +708,7 @@ export class EscrowService {
   ): Promise<EscrowAccount> {
     const escrow = await this.getEscrowOrThrow(escrowId);
 
-    const refundableStatuses = [
-      EscrowStatus.PENDING,
-      EscrowStatus.AWAITING_FUNDING,
-      EscrowStatus.FUNDED,
-      EscrowStatus.EXPIRED,
-    ];
-
-    if (!refundableStatuses.includes(escrow.status)) {
-      throw new BadRequestException(
-        `Cannot refund escrow in status: ${escrow.status}`,
-      );
-    }
+    assertTransition(escrow.status, EscrowStatus.REFUNDED);
 
     // Creator or admin can refund
     if (escrow.creatorId !== userId && userRole !== 'admin') {
@@ -766,17 +757,7 @@ export class EscrowService {
       throw new BadRequestException('Escrow deadline has not passed yet');
     }
 
-    const timeoutableStatuses = [
-      EscrowStatus.PENDING,
-      EscrowStatus.AWAITING_FUNDING,
-      EscrowStatus.FUNDED,
-    ];
-
-    if (!timeoutableStatuses.includes(escrow.status)) {
-      throw new BadRequestException(
-        `Cannot timeout escrow in status: ${escrow.status}`,
-      );
-    }
+    assertTransition(escrow.status, EscrowStatus.EXPIRED);
 
     escrow.status = EscrowStatus.EXPIRED;
     const saved = await this.escrowRepo.save(escrow);
@@ -795,6 +776,7 @@ export class EscrowService {
     });
 
     // Auto-refund expired escrows
+    assertTransition(EscrowStatus.EXPIRED, EscrowStatus.REFUNDED);
     escrow.status = EscrowStatus.REFUNDED;
     escrow.refundedAt = new Date();
     const refunded = await this.escrowRepo.save(escrow);
@@ -833,16 +815,7 @@ export class EscrowService {
       throw new BadRequestException('Time-lock has not expired yet');
     }
 
-    const settleableStatuses = [
-      EscrowStatus.FUNDED,
-      EscrowStatus.PARTIALLY_RELEASED,
-    ];
-
-    if (!settleableStatuses.includes(escrow.status)) {
-      throw new BadRequestException(
-        `Cannot settle time-locked escrow in status: ${escrow.status}`,
-      );
-    }
+    assertTransition(escrow.status, EscrowStatus.SETTLED);
 
     // Auto-settle: release remaining funds to creator
     const remaining =
@@ -888,12 +861,7 @@ export class EscrowService {
       throw new BadRequestException('This escrow does not support milestones');
     }
 
-    const releasableStatuses = [
-      EscrowStatus.FUNDED,
-      EscrowStatus.APPROVED,
-      EscrowStatus.PARTIALLY_RELEASED,
-    ];
-    if (!releasableStatuses.includes(escrow.status)) {
+    if (!isMilestoneUpdatable(escrow.status)) {
       throw new BadRequestException(
         `Cannot update milestones on escrow in status: ${escrow.status}`,
       );
@@ -958,16 +926,7 @@ export class EscrowService {
   ): Promise<EscrowAccount> {
     const escrow = await this.getEscrowOrThrow(escrowId);
 
-    const disputableStatuses = [
-      EscrowStatus.FUNDED,
-      EscrowStatus.APPROVED,
-      EscrowStatus.PARTIALLY_RELEASED,
-    ];
-    if (!disputableStatuses.includes(escrow.status)) {
-      throw new BadRequestException(
-        `Cannot raise dispute on escrow in status: ${escrow.status}`,
-      );
-    }
+    assertTransition(escrow.status, EscrowStatus.DISPUTED);
 
     // Only signatories or creator can raise disputes
     const signatories = await this.signatoryRepo.find({
@@ -1012,15 +971,12 @@ export class EscrowService {
   ): Promise<EscrowAccount> {
     const escrow = await this.getEscrowOrThrow(escrowId);
 
-    if (escrow.status !== EscrowStatus.DISPUTED) {
-      throw new BadRequestException(
-        `Cannot resolve dispute on escrow in status: ${escrow.status}`,
-      );
-    }
-
-    escrow.status = releaseToCreator
+    const targetStatus = releaseToCreator
       ? EscrowStatus.REFUNDED
       : EscrowStatus.SETTLED;
+    assertTransition(escrow.status, targetStatus);
+
+    escrow.status = targetStatus;
     escrow.refundedAt = releaseToCreator ? new Date() : null;
     escrow.settledAt = releaseToCreator ? null : new Date();
     escrow.disputeId = null;
@@ -1050,11 +1006,7 @@ export class EscrowService {
   ): Promise<EscrowAccount> {
     const escrow = await this.getEscrowOrThrow(escrowId);
 
-    if (escrow.status !== EscrowStatus.PENDING) {
-      throw new BadRequestException(
-        `Cannot cancel escrow in status: ${escrow.status}`,
-      );
-    }
+    assertTransition(escrow.status, EscrowStatus.CANCELLED);
 
     this.assertCreatorOrAdmin(escrow, userId, userRole);
 
