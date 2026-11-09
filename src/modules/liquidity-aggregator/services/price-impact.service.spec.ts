@@ -218,7 +218,7 @@ describe('PriceImpactService (issue #97)', () => {
       null,
       'USDC',
       null,
-      100000,
+      20000,
     );
 
     expect(bestPool?.poolId).toBe('pool-b');
