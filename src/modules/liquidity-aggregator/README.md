@@ -28,3 +28,11 @@ The Liquidity Aggregator module centralizes pool discovery, pricing, route plann
 - `LiquidityMonitoringService`
 - `RouteExecutionSimulatorService`
 - `LiquidityAggregatorService`
+
+## Route cache
+
+Cached routes are scoped to the input amount they were computed for
+(`route_cache.amountIn`, nullable; legacy NULL rows never match a cache
+lookup). A cached route is never served for a request carrying a different
+`amountIn`, and the cached `assetPath` is rebuilt from the pool path on every
+hit rather than stored as placeholder fragments.
