@@ -9,7 +9,7 @@ import {
   Max,
   Min,
 } from 'class-validator';
-import { Transform, Type } from 'class-transformer';
+import { Transform } from 'class-transformer';
 import { KycLevel } from '../enums/kyc-level.enum';
 import { PaginationQueryDto } from '@app/common';
 
@@ -40,7 +40,16 @@ export class QueryKycDto extends PaginationQueryDto {
 
   @ApiPropertyOptional({ description: 'Filter by blocked status' })
   @IsOptional()
+  @Transform(({ value }) => {
+    if (typeof value === 'boolean') return value;
+    if (typeof value === 'string') {
+      const normalized = value.trim().toLowerCase();
+      if (normalized === 'true' || normalized === '1') return true;
+      if (normalized === 'false' || normalized === '0') return false;
+    }
+    // Leave anything else untouched so `@IsBoolean()` rejects it.
+    return value;
+  })
   @IsBoolean()
-  @Type(() => Boolean)
   transactionsBlocked?: boolean;
 }
