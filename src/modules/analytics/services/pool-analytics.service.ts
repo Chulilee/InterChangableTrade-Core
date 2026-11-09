@@ -53,6 +53,83 @@ export interface TvlTrend {
   changePercent: number;
 }
 
+/** Result of a look-back lookup on a metric series. */
+export interface MetricValueAtOffset {
+  /**
+   * Value of the sample closest to the target time, or `null` when no sample
+   * exists at that offset. `null` lets callers tell "no prior sample" apart
+   * from "the prior sample was zero".
+   */
+  value: number | null;
+  /** The matched sample, or `null` when there is no match. */
+  sample: AnalyticsMetric | null;
+  /** Target timestamp (`newest - hoursBack`), or `null` for an empty series. */
+  targetTime: Date | null;
+  /** True when the target predates the oldest sample in the series. */
+  outOfRange: boolean;
+}
+
+/** A sample within this distance of the target counts as "at" the offset. */
+const SAMPLE_TOLERANCE_MS = 60 * 60 * 1000;
+
+/**
+ * Finds the metric value recorded `hoursBack` hours before the newest sample.
+ *
+ * Both the newest and the oldest samples are selected by timestamp rather than
+ * array position, so the result does not depend on the query's ordering.
+ * Returns `value: null` when no sample is close enough (or when the offset is
+ * older than the available data), which keeps the percentage calculation from
+ * dividing by zero.
+ */
+export function findValueAtOffset(
+  metrics: readonly AnalyticsMetric[],
+  hoursBack: number,
+): MetricValueAtOffset {
+  if (!Number.isFinite(hoursBack) || hoursBack < 0) {
+    throw new RangeError('hoursBack must be a non-negative finite number');
+  }
+
+  if (metrics.length === 0) {
+    return { value: null, sample: null, targetTime: null, outOfRange: false };
+  }
+
+  const ordered = [...metrics].sort(
+    (a, b) => a.timestamp.getTime() - b.timestamp.getTime(),
+  );
+  const oldest = ordered[0];
+  const newest = ordered[ordered.length - 1];
+
+  const targetTime = new Date(newest.timestamp);
+  targetTime.setHours(targetTime.getHours() - hoursBack);
+
+  if (targetTime.getTime() < oldest.timestamp.getTime()) {
+    return { value: null, sample: null, targetTime, outOfRange: true };
+  }
+
+  let closest: AnalyticsMetric | null = null;
+  let closestDistance = Number.POSITIVE_INFINITY;
+  for (const metric of ordered) {
+    const distance = Math.abs(
+      metric.timestamp.getTime() - targetTime.getTime(),
+    );
+    if (distance < closestDistance) {
+      closest = metric;
+      closestDistance = distance;
+    }
+  }
+
+  if (!closest || closestDistance >= SAMPLE_TOLERANCE_MS) {
+    return { value: null, sample: null, targetTime, outOfRange: false };
+  }
+
+  return {
+    value: parseFloat(closest.value),
+    sample: closest,
+    targetTime,
+    outOfRange: false,
+  };
+}
+
 @Injectable()
 export class PoolAnalyticsService {
   private readonly logger = new Logger(PoolAnalyticsService.name);
@@ -82,10 +159,21 @@ export class PoolAnalyticsService {
       order: { timestamp: 'DESC' },
     });
 
-    const currentTvl =
-      tvlMetrics.length > 0 ? parseFloat(tvlMetrics[0].value) : 0;
-    const tvl24hAgo = this.findValueAtOffset(tvlMetrics, 24); // Approximate hourly data
-    const tvl7dAgo = this.findValueAtOffset(tvlMetrics, 168); // 7 days hourly
+    const currentTvlSample = findValueAtOffset(tvlMetrics, 0);
+    const currentTvl = currentTvlSample.value ?? 0;
+    const tvl24hAgo = findValueAtOffset(tvlMetrics, 24);
+    const tvl7dAgo = findValueAtOffset(tvlMetrics, 168);
+
+    if (tvl24hAgo.outOfRange) {
+      this.logger.debug(
+        `Pool ${poolId}: no TVL sample at the 24h offset (older than available data)`,
+      );
+    }
+    if (tvl7dAgo.outOfRange) {
+      this.logger.debug(
+        `Pool ${poolId}: no TVL sample at the 7d offset (older than available data)`,
+      );
+    }
 
     // Get fee revenue
     const feeMetrics = await this.analyticsMetricRepository.find({
@@ -133,13 +221,11 @@ export class PoolAnalyticsService {
 
     return {
       poolId,
-      assetCode: tvlMetrics[0]?.assetCode ?? '',
-      assetIssuer: tvlMetrics[0]?.assetIssuer ?? null,
+      assetCode: currentTvlSample.sample?.assetCode ?? '',
+      assetIssuer: currentTvlSample.sample?.assetIssuer ?? null,
       tvl: currentTvl,
-      tvlChange24h:
-        tvl24hAgo > 0 ? ((currentTvl - tvl24hAgo) / tvl24hAgo) * 100 : 0,
-      tvlChange7d:
-        tvl7dAgo > 0 ? ((currentTvl - tvl7dAgo) / tvl7dAgo) * 100 : 0,
+      tvlChange24h: PoolAnalyticsService.percentChange(currentTvl, tvl24hAgo),
+      tvlChange7d: PoolAnalyticsService.percentChange(currentTvl, tvl7dAgo),
       utilization,
       feeRevenue24h,
       feeRevenue7d,
@@ -396,20 +482,21 @@ export class PoolAnalyticsService {
 
   // ─── Private helper methods ─────────────────────────────────────────────
 
-  private findValueAtOffset(
-    metrics: AnalyticsMetric[],
-    hoursOffset: number,
+  /**
+   * Percent change from `previous` to `current`.
+   *
+   * Returns 0 when there is no prior sample (`null`) or the prior value was
+   * zero — neither has a meaningful percentage change, and this also keeps the
+   * division safe.
+   */
+  private static percentChange(
+    current: number,
+    previous: MetricValueAtOffset,
   ): number {
-    if (metrics.length === 0) return 0;
-
-    const targetTime = new Date(metrics[0].timestamp);
-    targetTime.setHours(targetTime.getHours() + hoursOffset);
-
-    const closest = metrics.find(
-      (m) => Math.abs(m.timestamp.getTime() - targetTime.getTime()) < 3600000, // Within 1 hour
-    );
-
-    return closest ? parseFloat(closest.value) : 0;
+    if (previous.value === null || previous.value === 0) {
+      return 0;
+    }
+    return ((current - previous.value) / previous.value) * 100;
   }
 
   private sumLastNHours(metrics: AnalyticsMetric[], hours: number): number {
