@@ -107,12 +107,23 @@ export class WalletService {
     if (!ivHex || !authTagHex || !encryptedHex) {
       throw new BadRequestException('Invalid encrypted key format');
     }
-    const iv = Buffer.from(ivHex, 'hex');
-    const authTag = Buffer.from(authTagHex, 'hex');
-    const encrypted = Buffer.from(encryptedHex, 'hex');
-    const decipher = crypto.createDecipheriv(ALGORITHM, this.encryptionKey, iv);
-    decipher.setAuthTag(authTag);
-    return decipher.update(encrypted) + decipher.final('utf8');
+
+    try {
+      const iv = Buffer.from(ivHex, 'hex');
+      const authTag = Buffer.from(authTagHex, 'hex');
+      const encrypted = Buffer.from(encryptedHex, 'hex');
+      const decipher = crypto.createDecipheriv(ALGORITHM, this.encryptionKey, iv);
+      decipher.setAuthTag(authTag);
+      return Buffer.concat([
+        decipher.update(encrypted),
+        decipher.final(),
+      ]).toString('utf8');
+    } catch (error) {
+      if (error instanceof BadRequestException) {
+        throw error;
+      }
+      throw new BadRequestException('Encrypted key is invalid or has been tampered with');
+    }
   }
 
   // ─── CRUD ─────────────────────────────────────────────────────────────────
@@ -158,6 +169,7 @@ export class WalletService {
       await queryRunner.commitTransaction();
 
       this.logger.log(`Wallet ${saved.id} created for user ${userId}`);
+      delete (saved as { encryptedSecretKey?: string }).encryptedSecretKey;
       return saved;
     } catch (error) {
       await queryRunner.rollbackTransaction();
@@ -217,6 +229,7 @@ export class WalletService {
       Object.assign(wallet, dto);
       const saved = await queryRunner.manager.save(wallet);
       await queryRunner.commitTransaction();
+      delete (saved as { encryptedSecretKey?: string }).encryptedSecretKey;
       return saved;
     } catch (error) {
       await queryRunner.rollbackTransaction();

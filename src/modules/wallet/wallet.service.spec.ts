@@ -1,4 +1,4 @@
-import { Test, TestingModule } from '@nestjs/testing';
+﻿import { Test, TestingModule } from '@nestjs/testing';
 import { getRepositoryToken } from '@nestjs/typeorm';
 import { ConfigService } from '@nestjs/config';
 import { DataSource } from 'typeorm';
@@ -30,9 +30,15 @@ const MOCK_WALLET_ID = 'wallet-uuid-5678';
 const NETWORK_PASSPHRASE = 'Test SDF Network ; September 2015';
 const ENCRYPTION_KEY = 'test-encryption-key-that-is-32chars!!';
 
-const WALLET_KEYPAIR = Keypair.random();
-const OTHER_KEYPAIR = Keypair.random();
-const DESTINATION_KEYPAIR = Keypair.random();
+// Fixed, clearly test-only Stellar vectors (not real/production secrets).
+const TEST_SECRET = 'SAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+const WALLET_KEYPAIR = Keypair.fromSecret(TEST_SECRET);
+const OTHER_KEYPAIR = Keypair.fromSecret(
+  'SBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB',
+);
+const DESTINATION_KEYPAIR = Keypair.fromSecret(
+  'SCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC',
+);
 
 function encryptSecret(secret: string): string {
   const key = crypto.scryptSync(ENCRYPTION_KEY, 'wallet-salt', 32);
@@ -67,16 +73,19 @@ function paymentOperation() {
   });
 }
 
-const mockWallet: Partial<Wallet> = {
-  id: MOCK_WALLET_ID,
-  userId: MOCK_USER_ID,
-  publicKey: WALLET_KEYPAIR.publicKey(),
-  encryptedSecretKey: encryptSecret(WALLET_KEYPAIR.secret()),
-  label: 'Test Wallet',
-  status: WalletStatus.ACTIVE,
-  isPrimary: true,
-  cachedBalance: '100.0000000',
-};
+function makeWallet(overrides: Partial<Wallet> = {}): Partial<Wallet> {
+  return {
+    id: MOCK_WALLET_ID,
+    userId: MOCK_USER_ID,
+    publicKey: WALLET_KEYPAIR.publicKey(),
+    encryptedSecretKey: encryptSecret(WALLET_KEYPAIR.secret()),
+    label: 'Test Wallet',
+    status: WalletStatus.ACTIVE,
+    isPrimary: true,
+    cachedBalance: '100.0000000',
+    ...overrides,
+  };
+}
 
 let signingAllowedOperations: string[] = ['payment'];
 let networkPassphrase: string | undefined = NETWORK_PASSPHRASE;
@@ -88,8 +97,8 @@ const mockQueryRunner = {
   rollbackTransaction: jest.fn(),
   release: jest.fn(),
   manager: {
-    create: jest.fn().mockReturnValue(mockWallet),
-    save: jest.fn().mockResolvedValue(mockWallet),
+    create: jest.fn(),
+    save: jest.fn(),
     update: jest.fn().mockResolvedValue(undefined),
   },
 };
@@ -100,15 +109,15 @@ const mockDataSource = {
 
 const mockWalletRepository = {
   count: jest.fn().mockResolvedValue(0),
-  findOne: jest.fn().mockResolvedValue(mockWallet),
-  findAndCount: jest.fn().mockResolvedValue([[mockWallet], 1]),
-  save: jest.fn().mockResolvedValue(mockWallet),
-  create: jest.fn().mockReturnValue(mockWallet),
+  findOne: jest.fn(),
+  findAndCount: jest.fn(),
+  save: jest.fn(),
+  create: jest.fn(),
 };
 
 const mockStellarService = {
   getAccount: jest.fn().mockResolvedValue({
-    accountId: mockWallet.publicKey,
+    accountId: WALLET_KEYPAIR.publicKey(),
     sequence: '100',
     balances: [{ assetType: 'native', balance: '500.0000000' }],
   }),
@@ -145,9 +154,24 @@ describe('WalletService', () => {
   let service: WalletService;
 
   beforeEach(async () => {
+    jest.clearAllMocks();
     signingAllowedOperations = ['payment'];
     networkPassphrase = NETWORK_PASSPHRASE;
-    mockWalletRepository.findOne.mockResolvedValue(mockWallet);
+
+    const currentWallet = makeWallet();
+    mockWalletRepository.findOne.mockResolvedValue(currentWallet);
+    mockWalletRepository.findAndCount.mockResolvedValue([[currentWallet], 1]);
+    mockWalletRepository.save.mockImplementation(async (v) => v);
+    mockWalletRepository.count.mockResolvedValue(0);
+    mockWalletRepository.create.mockReturnValue(currentWallet);
+
+    mockQueryRunner.manager.create.mockImplementation((_entity, data) => ({
+      id: MOCK_WALLET_ID,
+      ...data,
+    }));
+    mockQueryRunner.manager.save.mockImplementation(async (entity) => ({
+      ...entity,
+    }));
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
@@ -166,12 +190,66 @@ describe('WalletService', () => {
 
   afterEach(() => jest.clearAllMocks());
 
+  describe('encrypt/decrypt', () => {
+    it('round-trips a valid Stellar secret (fixed test-only vector)', () => {
+      const encrypt = (service as any).encrypt.bind(service) as (v: string) => string;
+      const decrypt = (service as any).decrypt.bind(service) as (v: string) => string;
+
+      const ciphertext = encrypt(TEST_SECRET);
+      expect(decrypt(ciphertext)).toBe(TEST_SECRET);
+      expect(ciphertext.split(':')).toHaveLength(3);
+    });
+
+    it('produces different ciphertexts for the same plaintext (unique IV)', () => {
+      const encrypt = (service as any).encrypt.bind(service) as (v: string) => string;
+
+      const first = encrypt(TEST_SECRET);
+      const second = encrypt(TEST_SECRET);
+
+      expect(first).not.toEqual(second);
+      expect(first.split(':')[0]).not.toEqual(second.split(':')[0]);
+    });
+
+    it('throws a typed 4xx-mappable error when ciphertext is tampered', () => {
+      const encrypt = (service as any).encrypt.bind(service) as (v: string) => string;
+      const decrypt = (service as any).decrypt.bind(service) as (v: string) => string;
+      const ciphertext = encrypt(TEST_SECRET);
+      const [iv, tag, body] = ciphertext.split(':');
+      const flipped = body.slice(0, -2) + (body.slice(-2) === '00' ? '01' : '00');
+
+      expect(() => decrypt(`${iv}:${tag}:${flipped}`)).toThrow(BadRequestException);
+      try {
+        decrypt(`${iv}:${tag}:${flipped}`);
+      } catch (error) {
+        expect(error).not.toBeInstanceOf(InternalServerErrorException);
+        expect((error as Error).message).not.toContain('Unsupported state');
+      }
+    });
+
+    it('rejects a malformed-format string cleanly', () => {
+      const decrypt = (service as any).decrypt.bind(service) as (v: string) => string;
+
+      expect(() => decrypt('not-a-valid-ciphertext')).toThrow(BadRequestException);
+      expect(() => decrypt('part1:part2')).toThrow(BadRequestException);
+    });
+  });
+
   describe('create', () => {
-    it('should create a wallet and return it', async () => {
-      const result = await service.create(MOCK_USER_ID, {
-        label: 'Test Wallet',
-      });
+    it('creates a wallet and never includes encryptedSecretKey in the response', async () => {
+      mockQueryRunner.manager.create.mockImplementation((_entity, data) => ({
+        id: MOCK_WALLET_ID,
+        encryptedSecretKey: 'ciphertext:present:here',
+        ...data,
+      }));
+      mockQueryRunner.manager.save.mockImplementation(async (entity) => ({
+        ...entity,
+      }));
+
+      const result = await service.create(MOCK_USER_ID, { label: 'Test Wallet' });
+
       expect(result).toBeDefined();
+      expect((result as any).encryptedSecretKey).toBeUndefined();
+      expect(result).not.toHaveProperty('encryptedSecretKey');
       expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
     });
   });
@@ -208,11 +286,30 @@ describe('WalletService', () => {
     });
   });
 
+  describe('update', () => {
+    it('updates wallet fields and never includes encryptedSecretKey in the response', async () => {
+      const existing = makeWallet({ isPrimary: false });
+      mockWalletRepository.findOne.mockResolvedValue(existing);
+      mockQueryRunner.manager.save.mockImplementation(async (entity) => ({
+        ...entity,
+        encryptedSecretKey: 'ciphertext:present:here',
+      }));
+
+      const result = await service.update(MOCK_WALLET_ID, MOCK_USER_ID, {
+        label: 'Renamed',
+      } as any);
+
+      expect((result as any).encryptedSecretKey).toBeUndefined();
+      expect(result).not.toHaveProperty('encryptedSecretKey');
+      expect(mockQueryRunner.commitTransaction).toHaveBeenCalled();
+    });
+  });
+
   describe('syncBalance', () => {
     it('should update cachedBalance from Stellar network', async () => {
       await service.syncBalance(MOCK_WALLET_ID, MOCK_USER_ID);
       expect(mockStellarService.getAccount).toHaveBeenCalledWith(
-        mockWallet.publicKey,
+        makeWallet().publicKey,
       );
       expect(mockWalletRepository.save).toHaveBeenCalled();
     });
@@ -226,10 +323,9 @@ describe('WalletService', () => {
     });
 
     it('should deactivate a non-primary wallet', async () => {
-      mockWalletRepository.findOne.mockResolvedValueOnce({
-        ...mockWallet,
-        isPrimary: false,
-      });
+      mockWalletRepository.findOne.mockResolvedValueOnce(
+        makeWallet({ isPrimary: false }),
+      );
       await service.remove(MOCK_WALLET_ID, MOCK_USER_ID);
       expect(mockWalletRepository.save).toHaveBeenCalled();
     });
@@ -245,7 +341,7 @@ describe('WalletService', () => {
     it('should throw ConflictException if wallet key is in cosigners list', async () => {
       const dto = {
         threshold: 1,
-        cosigners: [mockWallet.publicKey as string],
+        cosigners: [WALLET_KEYPAIR.publicKey()],
       };
       await expect(
         service.configureMultisig(MOCK_WALLET_ID, MOCK_USER_ID, dto),
@@ -279,7 +375,7 @@ describe('WalletService', () => {
       );
     });
 
-    it('rejects an envelope whose source is not the wallet public key', async () => {
+    it('verifies the transaction source account against the wallet public key', async () => {
       const unsignedXdr = buildUnsignedXdr(
         [paymentOperation()],
         OTHER_KEYPAIR.publicKey(),
@@ -288,6 +384,9 @@ describe('WalletService', () => {
       await expect(
         service.signTransaction(MOCK_WALLET_ID, MOCK_USER_ID, { unsignedXdr }),
       ).rejects.toThrow(ForbiddenException);
+      await expect(
+        service.signTransaction(MOCK_WALLET_ID, MOCK_USER_ID, { unsignedXdr }),
+      ).rejects.toThrow('Transaction source account does not match the wallet');
       expect(mockAuditService.record).not.toHaveBeenCalled();
     });
 
