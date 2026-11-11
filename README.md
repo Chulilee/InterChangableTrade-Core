@@ -117,6 +117,10 @@ libs/
 scripts/                  Database init and helper scripts
 ```
 
+## Environment
+
+Configuration is validated at boot from `src/config/env.validation.ts`. See the complete, reconciled variable reference in [`docs/environment.md`](docs/environment.md) (types, defaults, required/secret flags, and consuming locations). The `.env.example` template must stay in sync with the schema; run `node scripts/check-env-docs.js` to verify documentation coverage.
+
 ## Getting Started
 
 ```bash

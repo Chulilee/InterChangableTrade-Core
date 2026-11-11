@@ -28,7 +28,11 @@ uphold it. Please report unacceptable behaviour as described there.
 
    The defaults target the Stellar **testnet** (Horizon + Soroban RPC). You do
    not need a funded account for read-only work; write invocations and
-   deployments require `SOROBAN_SOURCE_SECRET` to be set.
+   deployments require `SOROBAN_SOURCE_SECRET` to be set. See the
+   [environment variable reference](docs/environment.md) for the complete,
+   authoritative list of variables, defaults, and consuming modules. Keep
+   `.env.example` in sync with `src/config/env.validation.ts` and run
+   `node scripts/check-env-docs.js` when adding or changing variables.
 
 4. **Start the datastores** (PostgreSQL + Redis):
 
