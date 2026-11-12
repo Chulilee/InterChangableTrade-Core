@@ -3,6 +3,15 @@ dist
 coverage
 .git
 .env
+.env*
+.envrc
+docs/
+test/
+*.md
+.github/
+.git*
+.idea/
+.vscode/
 *.log
 npm-debug.log*
 .DS_Store
