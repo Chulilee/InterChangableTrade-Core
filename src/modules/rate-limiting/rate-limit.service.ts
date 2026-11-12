@@ -26,6 +26,8 @@ export interface RateLimitResult {
   allowed: boolean;
   limit: number;
   remaining: number;
+  /** Configured window duration (not the countdown to the next reset). */
+  windowSeconds: number;
   resetSeconds: number;
   retryAfterSeconds: number;
 }
@@ -124,6 +126,7 @@ export class RateLimitService implements OnModuleInit {
         allowed: true,
         limit: Infinity,
         remaining: Infinity,
+        windowSeconds: windowSizeSeconds,
         resetSeconds: 0,
         retryAfterSeconds: 0,
       };
@@ -355,6 +358,7 @@ export class RateLimitService implements OnModuleInit {
       allowed,
       limit: maxRequests,
       remaining,
+      windowSeconds: windowMs / 1000,
       resetSeconds: Math.max(0, resetSeconds),
       retryAfterSeconds: allowed ? 0 : resetSeconds,
     };
@@ -388,6 +392,7 @@ export class RateLimitService implements OnModuleInit {
       allowed,
       limit: maxRequests,
       remaining,
+      windowSeconds: windowMs / 1000,
       resetSeconds: Math.max(0, resetSeconds),
       retryAfterSeconds: allowed ? 0 : resetSeconds,
     };
