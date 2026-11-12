@@ -656,7 +656,10 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Start ETL pipeline job' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'ETL job started' })
   async startEtlJob(@Body() dto: StartEtlJobDto) {
-    return this.dataPipelineService.startEtlJob(dto);
+    return this.dataPipelineService.startEtlJob({
+      ...dto,
+      targetType: dto.targetType ?? 'analytics_metrics',
+    });
   }
 
   @Post('pipeline/backfill')
@@ -664,7 +667,11 @@ export class AnalyticsController {
   @ApiOperation({ summary: 'Start backfill job' })
   @ApiResponse({ status: HttpStatus.CREATED, description: 'Backfill job started' })
   async startBackfillJob(@Body() dto: StartBackfillJobDto) {
-    return this.dataPipelineService.startBackfillJob(dto);
+    return this.dataPipelineService.startBackfillJob({
+      ...dto,
+      dateFrom: new Date(dto.dateFrom),
+      dateTo: new Date(dto.dateTo),
+    });
   }
 
   @Post('pipeline/aggregation')

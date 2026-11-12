@@ -34,6 +34,16 @@ export class StartEtlJobDto {
   @IsString()
   sourceConnection?: string;
 
+  @ApiPropertyOptional({
+    enum: ['analytics_metrics'],
+    description: 'Target dataset for the ETL job',
+    default: 'analytics_metrics',
+    example: 'analytics_metrics',
+  })
+  @IsOptional()
+  @IsEnum(['analytics_metrics'])
+  targetType?: 'analytics_metrics' = 'analytics_metrics';
+
   @ApiProperty({ description: 'Batch size for processing', minimum: 1, maximum: 1000, example: 100 })
   @IsInt()
   @Min(1)
