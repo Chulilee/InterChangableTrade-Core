@@ -33,10 +33,11 @@ A comprehensive analytics and reporting module for the InterChangableTrade platf
 - Support for custom filters and dimensions
 
 ### 📁 Data Export Capabilities
-- CSV export
 - JSON export
 - File download endpoints
 - Automatic file cleanup
+
+> **Status: Partially implemented.** CSV export is currently **not** supported end-to-end: `ReportFormat.CSV` requests are written as JSON content (see `report-generator.service.ts`). JSON export is available.
 
 ### ⚡ Real-time Dashboards
 - Live dashboard summary
@@ -170,13 +171,7 @@ Response includes:
 
 ## Scheduled Tasks
 
-The module automatically runs these background tasks:
-
-- **Every minute**: Trade metrics calculation
-- **Every hour**: User metrics calculation
-- **Every hour**: Revenue metrics calculation
-- **Twice daily**: Auto-segment user recalculation
-- **Weekly**: Old data cleanup (maintains 2-year retention)
+> **Status: Not implemented.** No scheduler is currently registered in this module (no `@Cron`, `ScheduleModule`, or `@Interval` usage in `src/`). Methods such as segment recalculation and old-data cleanup are not invoked automatically by a background job today; they must be triggered explicitly via service/controller entry points where available. If scheduled automation is added, this section should be updated to reflect the actual jobs and intervals.
 
 ## Performance Metrics
 
