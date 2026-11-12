@@ -327,10 +327,13 @@ export class ComplianceService {
       verification = await this.kycRepo.save(verification);
     }
 
-    // Compute file hash for integrity
+    // Compute file hash for integrity.
     const fileHash = createHash('sha256').update(file.buffer).digest('hex');
 
-    // Simulate encryption - in production, use AWS KMS or similar
+    // > Status: Stub — encryption/KMS integration not implemented.
+    // This stores a generated key reference identifier only; it does not encrypt
+    // document bytes or manage keys in KMS. Do not treat this as production-grade
+    // encrypted storage.
     const encryptionKeyId = `kms-key-${Date.now()}`;
     const storagePath = this.generateStoragePath(
       userId,

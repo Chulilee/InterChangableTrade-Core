@@ -22,6 +22,15 @@ export class DisputeEnforcementService {
     private readonly transactionsService: TransactionsService,
   ) {}
 
+  /**
+   * Executes dispute resolution enforcement.
+   *
+   * > **Status: Stub — records remediation intent only.**
+   * > This method creates a local `PENDING` remediation transaction record
+   * > (e.g. `fromAccount: 'dispute-resolution'`) but does not submit or
+   * > guarantee an on-chain funds transfer. Integrate with the settlement/chain
+   * > execution path before treating enforcement as financially complete.
+   */
   async executeEnforcement(dispute: Dispute): Promise<void> {
     if (dispute.enforcementExecuted) {
       return;
