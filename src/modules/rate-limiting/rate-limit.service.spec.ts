@@ -131,6 +131,7 @@ describe('RateLimitService', () => {
       expect(result.allowed).toBe(true);
       expect(result.limit).toBe(100);
       expect(result.remaining).toBe(95);
+      expect(result.windowSeconds).toBe(60);
     });
 
     it('should deny requests over the limit', async () => {
