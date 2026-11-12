@@ -52,7 +52,13 @@ export class KycDocument extends BaseEntity {
   @Column({ type: 'varchar', length: 128 })
   fileHash: string;
 
-  /** Encryption key reference (the actual key is in KMS) */
+  /**
+   * Encryption key reference identifier.
+   *
+   * > **Status: Stub.** The compliance module currently records a placeholder
+   * > reference; documents are not encrypted via an integrated KMS in this code
+   * > path.
+   */
   @Column({ type: 'varchar', length: 256, nullable: true })
   encryptionKeyId?: string | null;
 

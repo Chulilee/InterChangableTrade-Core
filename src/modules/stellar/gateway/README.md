@@ -4,11 +4,12 @@ A comprehensive Stellar API Gateway that serves as the primary interface between
 
 ## Features
 
-### Connection Pooling
-- Maintains a pool of persistent Horizon connections to reduce latency
+### Horizon Client Reuse
+- Maintains a pool of reused Horizon `Server` client instances
 - Configurable min/max connections (default: 2-10)
 - Automatic cleanup of idle/expired connections
-- Reduces latency by ~30% compared to single connection approach
+
+> **Note:** Horizon `Server` is a stateless HTTP client wrapper (no persistent socket to pool). Client reuse can reduce allocation/initialization overhead, but any latency improvement is workload-dependent and not guaranteed. Avoid treating this as a fixed performance claim.
 
 ### Rate Limiting
 - Configurable requests per minute (default: 60 req/min per client)

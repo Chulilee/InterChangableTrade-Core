@@ -40,7 +40,8 @@ See the [Roadmap](ROADMAP.md) for what is coming next and the
 - **Transaction history**
 - **Notifications** — event-driven, templated
 - **Dispute resolution & arbitration** — filing, evidence, arbitrator
-  assignment, resolution enforcement, appeals, and SLA tracking
+  assignment, appeals, and SLA tracking. Enforcement is currently a stub that
+  records remediation intent (see [Implementation Status](docs/status.md)).
 - **Analytics & reporting**
 - **[Escrow workflows](src/modules/escrow/escrow.service.ts)** — M-of-N
   approvals, milestones, time-locks, and a settlement timeline. The current
@@ -204,11 +205,11 @@ Write invocations and contract deployments require a funded source account via
 
 - [Roadmap](ROADMAP.md) — direction and upcoming milestones
 - [Changelog](CHANGELOG.md) — released changes
-- [Data Persistence & Database](docs/database.md) — pooling, transactions,
-  migrations, constraints
+- [Architecture Overview](docs/architecture.md) — module map, request lifecycle, events, and boundaries
+- [Implementation Status](docs/status.md) — known stubs, partial implementations, and gaps
+- [Data Persistence & Database](docs/database.md) — pooling, transactions, migrations, constraints
 - [Audit Logging](docs/audit-logging.md) — compliance and audit trail
-- [Wallet Signing Policy](docs/wallet-signing.md) — source binding, operation
-  allowlist, step-up auth and signing audit
+- [Wallet Signing Policy](docs/wallet-signing.md) — source binding, operation allowlist, step-up auth and signing audit
 - [API Accessibility Guidelines](docs/accessibility.md) — inclusive API design and semantic contracts
 - API reference — Swagger UI at `/api/docs` when the app is running
 

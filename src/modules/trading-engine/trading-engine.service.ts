@@ -474,7 +474,13 @@ export class TradingEngineService {
     return trade;
   }
 
-  // Cleanup expired orders - would be called by a cron job
+  /**
+   * Marks expired OPEN/PARTIALLY_FILLED orders as EXPIRED.
+   *
+   * > **Status: Not automatically scheduled.** This method is not invoked by a
+   * > cron/scheduler in the current codebase; trigger it explicitly from an
+   * > operational/admin flow until scheduled execution is implemented.
+   */
   async cleanupExpiredOrders() {
     const expiredOrders = await this.orderRepository.find({
       where: {

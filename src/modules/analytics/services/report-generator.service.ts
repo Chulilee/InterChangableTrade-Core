@@ -294,14 +294,18 @@ export class ReportGeneratorService {
     return { filePath, fileSize: stats.size };
   }
 
-  // CSV export temporarily disabled until csv-writer is installed
+  /**
+   * CSV export is not currently implemented (no CSV writer dependency/formatter).
+   * To avoid failing report generation, this writes JSON content to the target
+   * file. Callers/clients should treat `ReportFormat.CSV` as unsupported until a
+   * real CSV serializer is added.
+   */
   private async exportToCSV(data: any[], filePath: string): Promise<void> {
     if (data.length === 0) {
       fs.writeFileSync(filePath, '');
       return;
     }
 
-    // CSV functionality requires csv-writer package - using JSON export instead
     await this.exportToJSON(data, filePath);
   }
 

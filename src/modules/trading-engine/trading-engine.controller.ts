@@ -20,6 +20,7 @@ import { CurrentUser } from '../auth/decorators/current-user.decorator';
 import { TradingEngineService } from './trading-engine.service';
 import { CreateOrderDto } from './dto/create-order.dto';
 import { QueryOrderDto } from './dto/query-order.dto';
+import { QueryTradeDto } from './dto/query-trade.dto';
 import { Order } from './entities/order.entity';
 import { PaginatedResultDto } from '@app/common';
 
@@ -98,7 +99,7 @@ export class TradingEngineController {
     status: HttpStatus.OK,
     description: 'Trade history retrieved',
   })
-  async getTrades(@Query() queryDto: any) {
+  async getTrades(@Query() queryDto: QueryTradeDto) {
     return this.tradingEngineService.getTrades(queryDto);
   }
 }
