@@ -26,4 +26,13 @@ jobs:
       
     - name: Build the project
       run: npm run build
-      
+
+  docker-image:
+    name: Build production container
+    runs-on: ubuntu-latest
+    steps:
+    - uses: actions/checkout@v4
+    - name: Build image with production Dockerfile
+      run: docker build --tag interchangabletrade-core:ci .
+    - name: Record final image size
+      run: docker image inspect interchangabletrade-core:ci --format='Image size: {{.Size}} bytes'
