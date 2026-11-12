@@ -34,6 +34,8 @@ import { QueryEscrowDto } from './dto/query-escrow.dto';
 import { ReleaseFundsDto } from './dto/release-funds.dto';
 import { FlagDisputeDto } from './dto/flag-dispute.dto';
 import { UpdateMilestoneDto } from './dto/update-milestone.dto';
+import { FundEscrowDto } from './dto/fund-escrow.dto';
+import { ResolveDisputeDto } from './dto/resolve-dispute.dto';
 import { EscrowAccount } from './entities/escrow-account.entity';
 
 @ApiTags('escrow')
@@ -99,9 +101,9 @@ export class EscrowController {
   async fundEscrow(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body('txHash') txHash: string,
+    @Body() dto: FundEscrowDto,
   ): Promise<EscrowAccount> {
-    return this.escrowService.fundEscrow(id, user.id, txHash);
+    return this.escrowService.fundEscrow(id, user.id, dto.txHash);
   }
 
   // ─── Approve ─────────────────────────────────────────────────────────────
@@ -266,9 +268,9 @@ export class EscrowController {
   async resolveDispute(
     @CurrentUser() user: AuthenticatedUser,
     @Param('id', ParseUUIDPipe) id: string,
-    @Body('releaseToCreator') releaseToCreator: boolean,
+    @Body() dto: ResolveDisputeDto,
   ): Promise<EscrowAccount> {
-    return this.escrowService.resolveDispute(id, user.id, releaseToCreator);
+    return this.escrowService.resolveDispute(id, user.id, dto.releaseToCreator);
   }
 
   // ─── Timeline ────────────────────────────────────────────────────────────

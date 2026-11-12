@@ -13,7 +13,14 @@ import {
   StreamableFile,
 } from '@nestjs/common';
 import { createReadStream } from 'fs';
-import { ApiTags, ApiOperation, ApiResponse } from '@nestjs/swagger';
+import {
+  ApiBearerAuth,
+  ApiOperation,
+  ApiParam,
+  ApiQuery,
+  ApiResponse,
+  ApiTags,
+} from '@nestjs/swagger';
 import { JwtAuthGuard } from '../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../auth/guards/roles.guard';
 import { Roles } from '../auth/decorators/roles.decorator';
@@ -34,6 +41,7 @@ import { GenerateReportDto } from './dto/generate-report.dto';
 import { CreateSegmentDto } from './dto/create-segment.dto';
 import { UpdateSegmentDto } from './dto/update-segment.dto';
 import { QueryMetricsDto } from './dto/query-metrics.dto';
+import { CalculateMetricsDto } from './dto/calculate-metrics.dto';
 import {
   GetTradingVolumeDto,
   GetPriceActionDto,
@@ -66,11 +74,16 @@ import { DetectAnomaliesDto } from './dto/anomaly-detection.dto';
 import {
   ScheduleReportDto,
   RunDataQualityCheckDto,
+  StartEtlJobDto,
+  StartBackfillJobDto,
+  StartAggregationJobDto,
+  StartCleanupJobDto,
 } from './dto/data-pipeline.dto';
 import { MetricType } from './entities/analytics-metric.entity';
 import * as fs from 'fs';
 
 @ApiTags('analytics')
+@ApiBearerAuth()
 @Controller('analytics')
 @UseGuards(JwtAuthGuard, RolesGuard)
 export class AnalyticsController {
@@ -269,13 +282,11 @@ export class AnalyticsController {
   @Post('calculate/trade-metrics')
   @Roles(UserRole.ADMIN, UserRole.ANALYST)
   @ApiOperation({ summary: 'Manually trigger trade metrics calculation' })
-  async calculateTradeMetrics(
-    @Body('dateFrom') dateFrom: string,
-    @Body('dateTo') dateTo: string,
-  ) {
+  @ApiResponse({ status: HttpStatus.OK, description: 'Trade metrics calculation triggered' })
+  async calculateTradeMetrics(@Body() dto: CalculateMetricsDto) {
     await this.metricsCollectorService.calculateTradeMetrics(
-      new Date(dateFrom),
-      new Date(dateTo),
+      new Date(dto.dateFrom),
+      new Date(dto.dateTo),
     );
     return { success: true };
   }
@@ -283,13 +294,11 @@ export class AnalyticsController {
   @Post('calculate/user-metrics')
   @Roles(UserRole.ADMIN, UserRole.ANALYST)
   @ApiOperation({ summary: 'Manually trigger user metrics calculation' })
-  async calculateUserMetrics(
-    @Body('dateFrom') dateFrom: string,
-    @Body('dateTo') dateTo: string,
-  ) {
+  @ApiResponse({ status: HttpStatus.OK, description: 'User metrics calculation triggered' })
+  async calculateUserMetrics(@Body() dto: CalculateMetricsDto) {
     await this.metricsCollectorService.calculateUserMetrics(
-      new Date(dateFrom),
-      new Date(dateTo),
+      new Date(dto.dateFrom),
+      new Date(dto.dateTo),
     );
     return { success: true };
   }
@@ -297,13 +306,11 @@ export class AnalyticsController {
   @Post('calculate/revenue-metrics')
   @Roles(UserRole.ADMIN, UserRole.ANALYST)
   @ApiOperation({ summary: 'Manually trigger revenue metrics calculation' })
-  async calculateRevenueMetrics(
-    @Body('dateFrom') dateFrom: string,
-    @Body('dateTo') dateTo: string,
-  ) {
+  @ApiResponse({ status: HttpStatus.OK, description: 'Revenue metrics calculation triggered' })
+  async calculateRevenueMetrics(@Body() dto: CalculateMetricsDto) {
     await this.metricsCollectorService.calculateRevenueMetrics(
-      new Date(dateFrom),
-      new Date(dateTo),
+      new Date(dto.dateFrom),
+      new Date(dto.dateTo),
     );
     return { success: true };
   }
@@ -647,21 +654,24 @@ export class AnalyticsController {
   @Post('pipeline/etl')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Start ETL pipeline job' })
-  async startEtlJob(@Body() dto: any) {
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'ETL job started' })
+  async startEtlJob(@Body() dto: StartEtlJobDto) {
     return this.dataPipelineService.startEtlJob(dto);
   }
 
   @Post('pipeline/backfill')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Start backfill job' })
-  async startBackfillJob(@Body() dto: any) {
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Backfill job started' })
+  async startBackfillJob(@Body() dto: StartBackfillJobDto) {
     return this.dataPipelineService.startBackfillJob(dto);
   }
 
   @Post('pipeline/aggregation')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Start aggregation job' })
-  async startAggregationJob(@Body() dto: any) {
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Aggregation job started' })
+  async startAggregationJob(@Body() dto: StartAggregationJobDto) {
     return this.dataPipelineService.startAggregationJob(
       dto.metricTypes,
       new Date(dto.dateFrom),
@@ -672,7 +682,8 @@ export class AnalyticsController {
   @Post('pipeline/cleanup')
   @Roles(UserRole.ADMIN)
   @ApiOperation({ summary: 'Start cleanup job' })
-  async startCleanupJob(@Body() dto: any) {
+  @ApiResponse({ status: HttpStatus.CREATED, description: 'Cleanup job started' })
+  async startCleanupJob(@Body() dto: StartCleanupJobDto) {
     return this.dataPipelineService.startCleanupJob(dto.retentionDays);
   }
 
