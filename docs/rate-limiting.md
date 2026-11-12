@@ -2,6 +2,29 @@
 
 Tracks [#80](https://github.com/Chulilee/InterChangableTrade-Core/issues/80).
 
+## Client response headers
+
+Every non-bypassed route emits the following headers when its quota is finite.
+The values come from the active tier and endpoint configuration, not a fixed
+global limit. In the absence of an authenticated user, the guard uses the
+anonymous `free` tier (default **100 requests per 60 seconds**); a client-sent
+`X-User-Tier` header cannot upgrade that limit. The default `premium` tier is
+1,000 requests per 60 seconds, and `enterprise` is unlimited unless configured
+otherwise. The database-configured values supersede these defaults.
+
+| Header | Meaning |
+| --- | --- |
+| `X-RateLimit-Limit` | Maximum requests in the configured window |
+| `X-RateLimit-Remaining` | Requests remaining (never negative) |
+| `X-RateLimit-Reset` | Unix timestamp in seconds of the next request-slot reset |
+| `X-RateLimit-Policy` | Quota and configured window in seconds (`100;w=60`) |
+| `Retry-After` | Only on HTTP 429: seconds to wait until the next slot resets |
+
+For a sliding window, `Reset` and `Retry-After` track the oldest request's
+expiration and therefore decrease with elapsed time. The `Policy` window stays
+constant at the configured duration. These responses and their headers are
+also described in the generated `/api/docs` OpenAPI document.
+
 The global `RateLimitGuard` (`src/modules/rate-limiting/guards/rate-limit.guard.ts`)
 runs before authentication on every route. It buckets requests under one of
 three identifiers, in priority order:
