@@ -36,6 +36,7 @@ const rateLimitServiceMock = {
     allowed: true,
     limit: 100,
     remaining: 95,
+    windowSeconds: 60,
     resetSeconds: 60,
     retryAfterSeconds: 0,
   })),
@@ -68,6 +69,7 @@ describe('RateLimitGuard', () => {
       allowed: true,
       limit: 100,
       remaining: 95,
+      windowSeconds: 60,
       resetSeconds: 60,
       retryAfterSeconds: 0,
     });
@@ -284,6 +286,7 @@ describe('RateLimitGuard', () => {
   // -------------------------------------------------------
   describe('Response headers', () => {
     it('should set X-RateLimit-* headers on allowed requests', async () => {
+      jest.spyOn(Date, 'now').mockReturnValue(Date.UTC(2026, 0, 1));
       const context = createContext();
       jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(undefined);
 
@@ -291,7 +294,14 @@ describe('RateLimitGuard', () => {
       const res = context.switchToHttp().getResponse();
       expect(res.setHeader).toHaveBeenCalledWith('X-RateLimit-Limit', '100');
       expect(res.setHeader).toHaveBeenCalledWith('X-RateLimit-Remaining', '95');
-      expect(res.setHeader).toHaveBeenCalledWith('X-RateLimit-Reset', '60');
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'X-RateLimit-Reset',
+        String(Date.UTC(2026, 0, 1) / 1000 + 60),
+      );
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'X-RateLimit-Policy',
+        '100;w=60',
+      );
     });
 
     it('should not set headers when limit is infinite', async () => {
@@ -299,6 +309,7 @@ describe('RateLimitGuard', () => {
         allowed: true,
         limit: Infinity,
         remaining: Infinity,
+        windowSeconds: 60,
         resetSeconds: 0,
         retryAfterSeconds: 0,
       });
@@ -325,6 +336,7 @@ describe('RateLimitGuard', () => {
         allowed: false,
         limit: 100,
         remaining: 0,
+        windowSeconds: 60,
         resetSeconds: 30,
         retryAfterSeconds: 30,
       });
@@ -347,6 +359,7 @@ describe('RateLimitGuard', () => {
         allowed: false,
         limit: 100,
         remaining: 0,
+        windowSeconds: 60,
         resetSeconds: 15,
         retryAfterSeconds: 15,
       });
@@ -361,6 +374,44 @@ describe('RateLimitGuard', () => {
 
       const res = context.switchToHttp().getResponse();
       expect(res.setHeader).toHaveBeenCalledWith('Retry-After', '15');
+      expect(res.setHeader).toHaveBeenCalledWith(
+        'X-RateLimit-Policy',
+        '100;w=60',
+      );
+    });
+
+    it('decreases Retry-After over time without changing the configured policy window', async () => {
+      const start = Date.UTC(2026, 0, 1);
+      let now = start;
+      jest.spyOn(Date, 'now').mockImplementation(() => now);
+      rateLimitServiceMock.check.mockImplementation(async () => {
+        const remaining = Math.ceil((start + 60_000 - now) / 1000);
+        return {
+          allowed: false,
+          limit: 100,
+          remaining: 0,
+          windowSeconds: 60,
+          resetSeconds: remaining,
+          retryAfterSeconds: remaining,
+        };
+      });
+      jest.spyOn(reflector, 'getAllAndOverride').mockReturnValue(undefined);
+
+      const first = createContext();
+      await expect(guard.canActivate(first)).rejects.toThrow(HttpException);
+      expect(first.switchToHttp().getResponse().headers['Retry-After']).toBe(
+        '60',
+      );
+
+      now += 15_000;
+      const second = createContext();
+      await expect(guard.canActivate(second)).rejects.toThrow(HttpException);
+      const headers = second.switchToHttp().getResponse().headers;
+      expect(headers['Retry-After']).toBe('45');
+      expect(headers['X-RateLimit-Reset']).toBe(
+        String((start + 60_000) / 1000),
+      );
+      expect(headers['X-RateLimit-Policy']).toBe('100;w=60');
     });
   });
 
@@ -373,6 +424,7 @@ describe('RateLimitGuard', () => {
         allowed: true,
         limit: 100,
         remaining: 98,
+        windowSeconds: 60,
         resetSeconds: 60,
         retryAfterSeconds: 0,
       });
