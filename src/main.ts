@@ -8,6 +8,7 @@ import { AllExceptionsFilter, TransformInterceptor } from '@app/common';
 import { AppModule } from './app.module';
 import { ErrorHandlerService } from './modules/error-handler/error-handler.service';
 import { RateLimitGuard } from './modules/rate-limiting/guards/rate-limit.guard';
+import { RATE_LIMIT_HEADERS } from './modules/rate-limiting/enums/rate-limit.enum';
 
 async function bootstrap() {
   const app = await NestFactory.create<NestExpressApplication>(AppModule);
@@ -83,6 +84,66 @@ async function bootstrap() {
     .addBearerAuth()
     .build();
   const document = SwaggerModule.createDocument(app, swaggerConfig);
+  // Document the headers emitted by the global guard on successful and 429 responses.
+  // The actual quota and window are configuration-dependent, so no static tier
+  // values are promised in OpenAPI.
+  const quotaHeaders = {
+    [RATE_LIMIT_HEADERS.LIMIT]: {
+      description: 'Maximum requests in the configured rate-limit window.',
+      schema: { type: 'integer' },
+    },
+    [RATE_LIMIT_HEADERS.REMAINING]: {
+      description: 'Requests remaining in the current window.',
+      schema: { type: 'integer' },
+    },
+    [RATE_LIMIT_HEADERS.RESET]: {
+      description:
+        'Unix timestamp (seconds) when the next request slot resets.',
+      schema: { type: 'integer' },
+    },
+    [RATE_LIMIT_HEADERS.POLICY]: {
+      description: 'Configured request limit and window, e.g. 100;w=60.',
+      schema: { type: 'string' },
+    },
+  };
+  for (const pathItem of Object.values(document.paths)) {
+    for (const method of [
+      'get',
+      'post',
+      'put',
+      'patch',
+      'delete',
+      'options',
+      'head',
+    ] as const) {
+      const operation = pathItem[method];
+      if (!operation) continue;
+      for (const response of Object.values(operation.responses)) {
+        if (!response || '$ref' in response) continue;
+        response.headers = { ...response.headers, ...quotaHeaders };
+      }
+      const retryHeader = {
+        [RATE_LIMIT_HEADERS.RETRY_AFTER]: {
+          description:
+            'Seconds until the oldest request in the window expires.',
+          schema: { type: 'integer' },
+        },
+      };
+      const tooManyRequests = operation.responses['429'];
+      if (tooManyRequests && !('$ref' in tooManyRequests)) {
+        tooManyRequests.headers = {
+          ...tooManyRequests.headers,
+          ...retryHeader,
+        };
+      } else if (!tooManyRequests) {
+        operation.responses['429'] = {
+          description:
+            'Rate limit exceeded; wait Retry-After seconds before retrying.',
+          headers: { ...quotaHeaders, ...retryHeader },
+        };
+      }
+    }
+  }
   SwaggerModule.setup('api/docs', app, document);
 
   const port = process.env.PORT ?? 3000;
