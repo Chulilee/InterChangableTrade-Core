@@ -112,11 +112,11 @@ export class RateLimitGuard implements CanActivate {
       );
       response.setHeader(
         RATE_LIMIT_HEADERS.RESET,
-        String(effectiveResult.resetSeconds),
+        String(Math.ceil(Date.now() / 1000 + effectiveResult.resetSeconds)),
       );
       response.setHeader(
         RATE_LIMIT_HEADERS.POLICY,
-        `${effectiveResult.limit};w=${effectiveResult.resetSeconds}`,
+        `${effectiveResult.limit};w=${effectiveResult.windowSeconds}`,
       );
     }
 
@@ -129,7 +129,7 @@ export class RateLimitGuard implements CanActivate {
 
       this.logger.warn(
         `Rate limit exceeded for ${key} (tier=${tier}, endpoint=${endpoint}): ` +
-          `${effectiveResult.limit} reqs/${effectiveResult.resetSeconds}s`,
+          `${effectiveResult.limit} reqs/${effectiveResult.windowSeconds}s`,
       );
 
       throw new HttpException(
