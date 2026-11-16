@@ -1,0 +1,33 @@
+version: 2
+updates:
+  - package-ecosystem: npm
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 8
+    groups:
+      nestjs:
+        patterns:
+          - "@nestjs/*"
+      stellar:
+        patterns:
+          - "@stellar/*"
+      types:
+        patterns:
+          - "@types/*"
+    ignore:
+      # Review NestJS major migrations together: these tightly coupled packages
+      # must not independently cross major framework versions.
+      - dependency-name: "@nestjs/*"
+        update-types:
+          - "version-update:semver-major"
+      # Stellar SDK major versions can change transaction signing semantics.
+      - dependency-name: "@stellar/*"
+        update-types:
+          - "version-update:semver-major"
+
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5

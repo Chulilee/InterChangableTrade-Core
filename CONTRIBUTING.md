@@ -112,6 +112,21 @@ when a commit resolves one.
 
 Prefixes we use: `feat`, `fix`, `docs`, `test`, `refactor`, `chore`.
 
+## Dependency and supply-chain updates
+
+Dependabot checks npm dependencies and GitHub Actions weekly. Minor and patch
+updates for NestJS, Stellar SDK and TypeScript declaration packages are grouped
+to avoid piecemeal upgrades. Major NestJS and Stellar SDK upgrades require a
+separately reviewed migration, including compatibility and transaction-signing
+tests; maintainers should still handle security advisories promptly even when a
+major version requires manual intervention.
+
+CI runs a non-blocking production-dependency audit at high severity after
+`npm ci`. Review and triage its findings; the audit is informational until the
+existing findings have been assessed. Check Dependabot PRs for successful
+build/tests and examine release notes before merging. Maintainers must enable
+Dependabot security updates in repository settings if not already enabled.
+
 ## Reporting Bugs & Requesting Features
 
 Please use the issue templates:
